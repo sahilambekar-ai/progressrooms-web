@@ -308,7 +308,7 @@ export default function AdminDashboardPage() {
   const selectedBatch = batches.find((b) => b.id === selectedBatchId) || batches[0];
 
   return (
-    <div className="flex h-screen max-h-screen overflow-hidden bg-[#F4F7F4] text-[#1A2E22] font-sans">
+    <div className="flex h-screen max-h-screen overflow-hidden bg-[#FAF7F2] text-[#212121] font-sans">
       {/* Toast Alert */}
       {toast && (
         <div className="fixed top-5 right-5 z-50 bg-[#0C2417] text-white px-4 py-3 rounded-2xl shadow-2xl border border-[#2D7A58] flex items-center gap-2 text-xs font-semibold animate-in fade-in slide-in-from-top-4">
@@ -322,7 +322,7 @@ export default function AdminDashboardPage() {
         style={{
           background: "linear-gradient(180deg, #0C2417 0%, #133623 50%, #0D291A 100%)",
         }}
-        className="w-72 flex-shrink-0 flex flex-col justify-between p-5 text-white shadow-2xl z-20"
+        className="w-72 flex-shrink-0 flex flex-col justify-between p-5 text-white shadow-2xl z-20 nature-sidebar"
       >
         <div className="space-y-6">
           {/* Header Brand */}
@@ -359,85 +359,57 @@ export default function AdminDashboardPage() {
 
             <button
               onClick={() => setActiveTab("students")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                activeTab === "students"
-                  ? "bg-white/15 text-white border border-[#81A882]/40 shadow-sm"
-                  : "text-[#cedecf] hover:bg-white/5 hover:text-white"
-              }`}
+              className={`nav-item ${activeTab === "students" ? "active" : ""}`}
             >
-              <span className="text-base">👥</span>
+              <span className="nav-icon">👥</span>
               <span>Students & Directory</span>
             </button>
 
             <button
               onClick={() => setActiveTab("classes-plans")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                activeTab === "classes-plans"
-                  ? "bg-white/15 text-white border border-[#81A882]/40 shadow-sm"
-                  : "text-[#cedecf] hover:bg-white/5 hover:text-white"
-              }`}
+              className={`nav-item ${activeTab === "classes-plans" ? "active" : ""}`}
             >
-              <span className="text-base">✨</span>
+              <span className="nav-icon">✨</span>
               <span>Class Batches & Schedules</span>
             </button>
 
             <button
               onClick={() => setActiveTab("subscriptions-manager")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                activeTab === "subscriptions-manager"
-                  ? "bg-white/15 text-white border border-[#81A882]/40 shadow-sm"
-                  : "text-[#cedecf] hover:bg-white/5 hover:text-white"
-              }`}
+              className={`nav-item ${activeTab === "subscriptions-manager" ? "active" : ""}`}
             >
-              <span className="text-base">💳</span>
+              <span className="nav-icon">💳</span>
               <span>Memberships & Passes</span>
             </button>
 
             <button
               onClick={() => setActiveTab("attendance-tracker")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                activeTab === "attendance-tracker"
-                  ? "bg-white/15 text-white border border-[#81A882]/40 shadow-sm"
-                  : "text-[#cedecf] hover:bg-white/5 hover:text-white"
-              }`}
+              className={`nav-item ${activeTab === "attendance-tracker" ? "active" : ""}`}
             >
-              <span className="text-base">🗓️</span>
+              <span className="nav-icon">🗓️</span>
               <span>Attendance Tracker</span>
             </button>
 
             <button
               onClick={() => setActiveTab("queries-manager")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                activeTab === "queries-manager"
-                  ? "bg-white/15 text-white border border-[#81A882]/40 shadow-sm"
-                  : "text-[#cedecf] hover:bg-white/5 hover:text-white"
-              }`}
+              className={`nav-item ${activeTab === "queries-manager" ? "active" : ""}`}
             >
-              <span className="text-base">💬</span>
+              <span className="nav-icon">💬</span>
               <span>Student Support Queries</span>
             </button>
 
             <button
               onClick={() => setActiveTab("analytics")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                activeTab === "analytics"
-                  ? "bg-white/15 text-white border border-[#81A882]/40 shadow-sm"
-                  : "text-[#cedecf] hover:bg-white/5 hover:text-white"
-              }`}
+              className={`nav-item ${activeTab === "analytics" ? "active" : ""}`}
             >
-              <span className="text-base">📊</span>
+              <span className="nav-icon">📊</span>
               <span>Analytics & Revenue</span>
             </button>
 
             <button
               onClick={() => setActiveTab("settings")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
-                activeTab === "settings"
-                  ? "bg-white/15 text-white border border-[#81A882]/40 shadow-sm"
-                  : "text-[#cedecf] hover:bg-white/5 hover:text-white"
-              }`}
+              className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
             >
-              <span className="text-base">⚙️</span>
+              <span className="nav-icon">⚙️</span>
               <span>Settings & Website</span>
             </button>
           </nav>

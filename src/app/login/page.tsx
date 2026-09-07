@@ -25,7 +25,7 @@ function LoginFormContent() {
     if (userRole === "OWNER") {
       mockUser = {
         id: "usr-sahil-owner",
-        email: "owner@yogastudio.test",
+        email: "owner@yogastudio.com",
         full_name: "Sahil Sharma",
         role: "OWNER",
         organization_name: "Sahil Yoga Studio",
@@ -35,7 +35,7 @@ function LoginFormContent() {
     } else if (userRole === "INSTRUCTOR") {
       mockUser = {
         id: "usr-ananya-inst",
-        email: "ananya@yogastudio.test",
+        email: "ananya@yogastudio.com",
         full_name: "Ananya Sen",
         role: "INSTRUCTOR",
         organization_name: "Sahil Yoga Studio",
@@ -45,7 +45,7 @@ function LoginFormContent() {
     } else if (userRole === "STUDENT") {
       mockUser = {
         id: "usr-student-01",
-        email: "student1@test.progressrooms.local",
+        email: "student1@progressrooms.com",
         full_name: "Aarav Patel",
         role: "STUDENT"
       };
@@ -53,7 +53,7 @@ function LoginFormContent() {
     } else {
       mockUser = {
         id: "usr-superadmin",
-        email: "admin@test.progressrooms.local",
+        email: "admin@progressrooms.com",
         full_name: "Platform Super Admin",
         is_superadmin: true,
         role: "SUPER_ADMIN"
@@ -118,13 +118,13 @@ function LoginFormContent() {
   };
 
   return (
-    <div className="max-w-md w-full mx-auto my-8 bg-white rounded-3xl p-8 border border-[#CEDECF] shadow-xl space-y-6">
+    <div className="card-nature max-w-md w-full mx-auto my-8 p-8 space-y-6">
       <div className="text-center">
         <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#0C2417] to-[#1b4332] text-white flex items-center justify-center mx-auto mb-3 text-xl shadow-md">
           🌿
         </div>
         <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Sign In to ProgressRooms</h1>
-        <p className="text-xs text-[#40514E] mt-1">
+        <p className="text-xs text-[#7E7970] mt-1">
           Access your teacher sanctuary, admin operations, or student portal.
         </p>
 
@@ -145,10 +145,10 @@ function LoginFormContent() {
             <input
               type="email"
               required
-              placeholder="teacher@yogastudio.test"
+              placeholder="teacher@yogastudio.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] text-sm bg-[#F9FAF9]"
+              className="w-full px-4 py-3 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] text-sm bg-[#FAF7F2]"
             />
           </div>
 
@@ -256,7 +256,7 @@ function LoginFormContent() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-[#F4F7F4] flex flex-col justify-between p-4 sm:p-6 font-sans">
+    <div className="min-h-screen bg-[#FAF7F2] text-[#212121] flex flex-col justify-between p-4 sm:p-6 font-sans">
       <div className="max-w-md w-full mx-auto pt-6 flex items-center justify-between">
         <Link href="/" className="inline-flex items-center text-xs font-bold text-[#1b4332] hover:text-[#0C2417] gap-1.5 transition">
           <ArrowLeft className="h-4 w-4" /> Back to Home

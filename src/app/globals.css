@@ -3,36 +3,142 @@
 @tailwind utilities;
 
 :root {
-  --background: #F4F7F4;
-  --foreground: #1A2E22;
+  /* Color Palette matching aerial yoga reference aesthetic */
+  --color-white: #FAF7F2;      /* Cream */
+  --color-sand: #E0D6C8;       /* Sand */
+  --color-sage: #818E77;       /* Sage Green */
+  --color-rust: #B4654B;       /* Rust/Terracotta */
+  --color-charcoal: #212121;   /* Charcoal */
+  --color-gray-light: #F4EFE7; /* Light cream for subtle contrasts */
+  --color-gray-muted: #7E7970; /* Muted brown-gray for text */
+
+  /* Dark Emerald Sanctuary Sidebar */
   --theme-sidebar-bg: linear-gradient(180deg, #0C2417 0%, #133623 50%, #0D291A 100%);
+  --theme-sidebar-active-bg: #2D7A58;
   --theme-sidebar-text: #FFFFFF;
+
+  /* Typography */
+  --font-serif: var(--font-serif), 'Cormorant Garamond', Georgia, serif;
+  --font-sans: var(--font-sans), 'Manrope', -apple-system, sans-serif;
 }
 
 body {
-  color: var(--foreground);
-  background-color: var(--background);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--color-charcoal);
+  background-color: var(--color-white);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   margin: 0;
   padding: 0;
-  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom scrollbar for nature aesthetic */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  color: var(--color-charcoal);
+  letter-spacing: -0.01em;
+}
+
+/* Custom Nature Sidebar Styles from Aerial Yoga Client Reference */
+.nature-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 99;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: none;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 500;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-item:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+}
+
+.nav-item.active {
+  background-color: var(--theme-sidebar-active-bg, #2D7A58);
+  color: #FFFFFF;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.nav-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+/* Cards & UI Controls */
+.card-nature {
+  background-color: #FFFFFF;
+  border: 1px solid #E1E9E2;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+}
+
+.card-nature:hover {
+  border-color: #81A882;
+  box-shadow: 0 8px 30px rgba(12, 36, 23, 0.06);
+}
+
+/* Buttons */
+.btn-forest {
+  background: linear-gradient(135deg, #133623 0%, #1b4332 100%);
+  color: #FFFFFF;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border-radius: 12px;
+}
+
+.btn-forest:hover {
+  background: linear-gradient(135deg, #0C2417 0%, #133623 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(12, 36, 23, 0.15);
+}
+
+.btn-sage {
+  background-color: #E8F0E9;
+  color: #1b4332;
+  border: 1px solid #CEDECF;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.btn-sage:hover {
+  background-color: #CEDECF;
+  color: #0C2417;
+}
+
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #E8F0E9;
+  background: #FAF7F2;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #ABC5AD;
-  border-radius: 9999px;
+  background: #E0D6C8;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #81A882;
+  background: #818E77;
 }

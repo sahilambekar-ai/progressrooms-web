@@ -18,7 +18,7 @@ import {
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-[#F4F7F4] text-[#1A2E22] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#FAF7F2] text-[#212121] flex flex-col font-sans">
       {/* Nature Navigation Bar */}
       <header className="bg-white/90 backdrop-blur border-b border-[#E1E9E2] sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
@@ -130,67 +130,67 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Feature 1 */}
-            <div className="p-7 rounded-3xl bg-[#F4F7F4] border border-[#E1E9E2] hover:border-[#81A882] transition-colors">
+            <div className="card-nature p-7">
               <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center text-xl mb-5 shadow-sm">
                 🌐
               </div>
               <h3 className="text-xl font-bold text-[#0C2417]">Branded Studio Website</h3>
-              <p className="mt-2 text-sm text-[#40514E] leading-relaxed">
+              <p className="mt-2 text-sm text-[#7E7970] leading-relaxed">
                 Receive your own public SSR website (e.g. <code className="text-xs bg-white px-1.5 py-0.5 rounded border border-[#CEDECF]">progressrooms.com/your-studio</code>) with bio, schedule timetables, and instant enrollment.
               </p>
             </div>
 
             {/* Feature 2 */}
-            <div className="p-7 rounded-3xl bg-[#F4F7F4] border border-[#E1E9E2] hover:border-[#81A882] transition-colors">
+            <div className="card-nature p-7">
               <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center text-xl mb-5 shadow-sm">
                 🎥
               </div>
               <h3 className="text-xl font-bold text-[#0C2417]">Live Zoom & Meet Integration</h3>
-              <p className="mt-2 text-sm text-[#40514E] leading-relaxed">
+              <p className="mt-2 text-sm text-[#7E7970] leading-relaxed">
                 Automated video link delivery. Meeting links automatically unlock for enrolled students 15 minutes before class starts. Zero manual link sharing.
               </p>
             </div>
 
             {/* Feature 3 */}
-            <div className="p-7 rounded-3xl bg-[#F4F7F4] border border-[#E1E9E2] hover:border-[#81A882] transition-colors">
+            <div className="card-nature p-7">
               <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center text-xl mb-5 shadow-sm">
                 🗓️
               </div>
               <h3 className="text-xl font-bold text-[#0C2417]">Smart Scheduling Engine</h3>
-              <p className="mt-2 text-sm text-[#40514E] leading-relaxed">
+              <p className="mt-2 text-sm text-[#7E7970] leading-relaxed">
                 Define weekly recurrence rules once. The system generates rolling 30-day class occurrences, detects instructor double-bookings, and handles rescheduling.
               </p>
             </div>
 
             {/* Feature 4 */}
-            <div className="p-7 rounded-3xl bg-[#F4F7F4] border border-[#E1E9E2] hover:border-[#81A882] transition-colors">
+            <div className="card-nature p-7">
               <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center text-xl mb-5 shadow-sm">
                 📋
               </div>
               <h3 className="text-xl font-bold text-[#0C2417]">Attendance & Credit Deductions</h3>
-              <p className="mt-2 text-sm text-[#40514E] leading-relaxed">
+              <p className="mt-2 text-sm text-[#7E7970] leading-relaxed">
                 One-click attendance marking for instructors. Package class credits automatically decrement, with complete historical attendance logs.
               </p>
             </div>
 
             {/* Feature 5 */}
-            <div className="p-7 rounded-3xl bg-[#F4F7F4] border border-[#E1E9E2] hover:border-[#81A882] transition-colors">
+            <div className="card-nature p-7">
               <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center text-xl mb-5 shadow-sm">
                 💳
               </div>
               <h3 className="text-xl font-bold text-[#0C2417]">Memberships & Renewals</h3>
-              <p className="mt-2 text-sm text-[#40514E] leading-relaxed">
+              <p className="mt-2 text-sm text-[#7E7970] leading-relaxed">
                 Supports monthly rolling access, class packages, and workshop passes. Automatic renewal notifications ensure students never lapse.
               </p>
             </div>
 
             {/* Feature 6 */}
-            <div className="p-7 rounded-3xl bg-[#F4F7F4] border border-[#E1E9E2] hover:border-[#81A882] transition-colors">
+            <div className="card-nature p-7">
               <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center text-xl mb-5 shadow-sm">
                 🧘
               </div>
               <h3 className="text-xl font-bold text-[#0C2417]">Student Self-Service Portal</h3>
-              <p className="mt-2 text-sm text-[#40514E] leading-relaxed">
+              <p className="mt-2 text-sm text-[#7E7970] leading-relaxed">
                 Enrolled students get a dedicated portal to view upcoming timetables, join classes with 1-click, review payment receipts, and submit queries.
               </p>
             </div>
@@ -279,7 +279,7 @@ export default function HomePage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
             {/* Plan 1: Starter */}
-            <div className="p-7 rounded-3xl bg-[#F4F7F4] border border-[#CEDECF] flex flex-col justify-between relative hover:border-[#81A882] transition-all">
+            <div className="card-nature p-7 flex flex-col justify-between relative">
               <div>
                 <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-[#E8F0E9] text-[#1b4332]">
                   Free Trial
@@ -325,7 +325,7 @@ export default function HomePage() {
             </div>
 
             {/* Plan 2: Core */}
-            <div className="p-7 rounded-3xl bg-[#F4F7F4] border border-[#CEDECF] flex flex-col justify-between relative hover:border-[#81A882] transition-all">
+            <div className="card-nature p-7 flex flex-col justify-between relative">
               <div>
                 <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-white border border-[#CEDECF] text-[#1b4332]">
                   Basic Paid
