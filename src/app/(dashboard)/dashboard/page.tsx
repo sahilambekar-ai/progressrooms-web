@@ -23,8 +23,10 @@ import {
   ShieldCheck,
   ChevronRight,
   AlertTriangle,
-  X
+  X,
+  ChevronLeft
 } from "lucide-react";
+import { AttendanceCalendar, CalendarSessionEvent } from "@/components/AttendanceCalendar";
 
 type AdminTab =
   | "students"
@@ -65,13 +67,13 @@ const DEFAULT_BATCHES: ClassBatch[] = [
     id: "batch-1",
     name: "Morning Hatha Flow",
     classType: "Hatha Yoga",
-    instructor: "Sahil Sharma (Lead Guru)",
+    instructor: "Lead Instructor (Yoga Guide)",
     days: ["Mon", "Wed", "Fri"],
     startTime: "07:00",
     endTime: "08:00",
     capacity: 25,
     price: "₹2,500",
-    meetingUrl: "https://meet.progressrooms.com/sahil-flow",
+    meetingUrl: "https://meet.progressrooms.com/morning-hatha",
     status: "ACTIVE"
   },
   {
@@ -91,7 +93,7 @@ const DEFAULT_BATCHES: ClassBatch[] = [
     id: "batch-3",
     name: "Meditation & Breathwork",
     classType: "Meditation",
-    instructor: "Sahil Sharma (Lead Guru)",
+    instructor: "Lead Instructor (Yoga Guide)",
     days: ["Sun"],
     startTime: "08:30",
     endTime: "09:30",
@@ -103,17 +105,52 @@ const DEFAULT_BATCHES: ClassBatch[] = [
 ];
 
 const INITIAL_STUDENTS: Student[] = [
-  { id: "student-1", name: "Aarav Patel", email: "student1@test.progressrooms.local", phone: "+91 98765 43210", plan: "Morning Hatha Flow (Monthly)", attended: 8, total: 12, status: "ACTIVE" },
-  { id: "student-2", name: "Pooja Sharma", email: "student2@test.progressrooms.local", phone: "+91 98765 43211", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE" },
-  { id: "student-3", name: "Rohan Verma", email: "student3@test.progressrooms.local", phone: "+91 98765 43212", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON" },
-  { id: "student-4", name: "Meera Nair", email: "student4@test.progressrooms.local", phone: "+91 98765 43213", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE" },
-  { id: "student-5", name: "Vikram Iyer", email: "student5@test.progressrooms.local", phone: "+91 98765 43214", plan: "Meditation & Breathwork", attended: 3, total: 4, status: "ACTIVE" },
+  { id: "student-1", name: "Aarav Patel", email: "aarav.patel@gmail.com", phone: "+91 98765 43210", plan: "Morning Hatha Flow (Monthly)", attended: 8, total: 12, status: "ACTIVE" },
+  { id: "student-2", name: "Pooja Sharma", email: "pooja.sharma@outlook.com", phone: "+91 98765 43211", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE" },
+  { id: "student-3", name: "Rohan Verma", email: "rohan.verma@yahoo.com", phone: "+91 98765 43212", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON" },
+  { id: "student-4", name: "Meera Nair", email: "meera.nair@gmail.com", phone: "+91 98765 43213", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE" },
+  { id: "student-5", name: "Vikram Iyer", email: "vikram.iyer@gmail.com", phone: "+91 98765 43214", plan: "Meditation & Breathwork", attended: 3, total: 4, status: "ACTIVE" },
+  { id: "student-6", name: "Ananya Desai", email: "ananya.desai@gmail.com", phone: "+91 98765 43215", plan: "Morning Hatha Flow (Monthly)", attended: 10, total: 12, status: "ACTIVE" },
+  { id: "student-7", name: "Kabir Mehta", email: "kabir.mehta@hotmail.com", phone: "+91 98765 43216", plan: "Aerial Yoga Conditioning", attended: 7, total: 8, status: "EXPIRING_SOON" },
+  { id: "student-8", name: "Isha Kapoor", email: "isha.kapoor@gmail.com", phone: "+91 98765 43217", plan: "Meditation & Breathwork", attended: 4, total: 4, status: "EXPIRING_SOON" },
+  { id: "student-9", name: "Siddharth Rao", email: "siddharth.rao@gmail.com", phone: "+91 98765 43218", plan: "Morning Hatha Flow (Monthly)", attended: 5, total: 12, status: "ACTIVE" },
+  { id: "student-10", name: "Tara Sundaram", email: "tara.sundaram@gmail.com", phone: "+91 98765 43219", plan: "Aerial Yoga Conditioning", attended: 2, total: 8, status: "ACTIVE" },
+  { id: "student-11", name: "Aditya Joshi", email: "aditya.joshi@gmail.com", phone: "+91 98765 43220", plan: "Morning Hatha Flow (Monthly)", attended: 9, total: 12, status: "ACTIVE" },
+  { id: "student-12", name: "Kavya Menon", email: "kavya.menon@outlook.com", phone: "+91 98765 43221", plan: "Aerial Yoga Conditioning", attended: 5, total: 8, status: "ACTIVE" },
+  { id: "student-13", name: "Nikhil Chawla", email: "nikhil.chawla@gmail.com", phone: "+91 98765 43222", plan: "Meditation & Breathwork", attended: 2, total: 4, status: "ACTIVE" },
+  { id: "student-14", name: "Divya Nambiar", email: "divya.nambiar@gmail.com", phone: "+91 98765 43223", plan: "Morning Hatha Flow (Monthly)", attended: 12, total: 12, status: "EXPIRING_SOON" },
+  { id: "student-15", name: "Arjun Reddy", email: "arjun.reddy@gmail.com", phone: "+91 98765 43224", plan: "Aerial Yoga Conditioning", attended: 3, total: 8, status: "ACTIVE" },
+  { id: "student-16", name: "Sneha Mukherjee", email: "sneha.mukherjee@gmail.com", phone: "+91 98765 43225", plan: "Morning Hatha Flow (Monthly)", attended: 7, total: 12, status: "ACTIVE" },
+  { id: "student-17", name: "Rishi Saxena", email: "rishi.saxena@gmail.com", phone: "+91 98765 43226", plan: "Meditation & Breathwork", attended: 1, total: 4, status: "ACTIVE" },
+  { id: "student-18", name: "Prerna Roy", email: "prerna.roy@gmail.com", phone: "+91 98765 43227", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE" },
+  { id: "student-19", name: "Manish Agarwal", email: "manish.agarwal@gmail.com", phone: "+91 98765 43228", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON" },
+  { id: "student-20", name: "Zoya Khan", email: "zoya.khan@gmail.com", phone: "+91 98765 43229", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE" }
+];
+
+const DEFAULT_CALENDAR_EVENTS: CalendarSessionEvent[] = [
+  { id: "evt-1", date: "2026-09-02", time: "07:00 AM", sessionTitle: "Morning Hatha Flow", studentName: "Aarav Patel", studentEmail: "aarav.patel@gmail.com", status: "PRESENT", remarks: "Great alignment on warrior poses" },
+  { id: "evt-2", date: "2026-09-02", time: "07:00 AM", sessionTitle: "Morning Hatha Flow", studentName: "Rohan Verma", studentEmail: "rohan.verma@yahoo.com", status: "PRESENT" },
+  { id: "evt-3", date: "2026-09-03", time: "06:00 PM", sessionTitle: "Aerial Conditioning", studentName: "Pooja Sharma", studentEmail: "pooja.sharma@outlook.com", status: "PRESENT", remarks: "Mastered inverted butterfly" },
+  { id: "evt-4", date: "2026-09-03", time: "06:00 PM", sessionTitle: "Aerial Conditioning", studentName: "Meera Nair", studentEmail: "meera.nair@gmail.com", status: "PRESENT" },
+  { id: "evt-5", date: "2026-09-04", time: "07:00 AM", sessionTitle: "Morning Hatha Flow", studentName: "Aarav Patel", studentEmail: "aarav.patel@gmail.com", status: "PRESENT" },
+  { id: "evt-6", date: "2026-09-05", time: "08:30 AM", sessionTitle: "Meditation & Pranayama", studentName: "Vikram Iyer", studentEmail: "vikram.iyer@gmail.com", status: "PRESENT" },
+  { id: "evt-7", date: "2026-09-07", time: "07:00 AM", sessionTitle: "Morning Hatha Flow", studentName: "Rohan Verma", studentEmail: "rohan.verma@yahoo.com", status: "ABSENT", remarks: "Informed traveling for work" },
+  { id: "evt-8", date: "2026-09-07", time: "07:00 AM", sessionTitle: "Morning Hatha Flow", studentName: "Ananya Desai", studentEmail: "ananya.desai@gmail.com", status: "PRESENT" },
+  { id: "evt-9", date: "2026-09-08", time: "06:00 PM", sessionTitle: "Aerial Conditioning", studentName: "Kabir Mehta", studentEmail: "kabir.mehta@hotmail.com", status: "PRESENT" },
+  { id: "evt-10", date: "2026-09-09", time: "07:00 AM", sessionTitle: "Morning Hatha Flow", studentName: "Siddharth Rao", studentEmail: "siddharth.rao@gmail.com", status: "PRESENT" },
+  { id: "evt-11", date: "2026-09-11", time: "07:00 AM", sessionTitle: "Morning Hatha Flow", studentName: "Aarav Patel", studentEmail: "aarav.patel@gmail.com", status: "PRESENT" },
+  { id: "evt-12", date: "2026-09-15", time: "06:00 PM", sessionTitle: "Aerial Conditioning", studentName: "Pooja Sharma", studentEmail: "pooja.sharma@outlook.com", status: "PRESENT" },
+  { id: "evt-13", date: "2026-09-18", time: "07:00 AM", sessionTitle: "Morning Hatha Flow", studentName: "Aditya Joshi", studentEmail: "aditya.joshi@gmail.com", status: "PRESENT" },
+  { id: "evt-14", date: "2026-09-22", time: "06:00 PM", sessionTitle: "Aerial Conditioning", studentName: "Kavya Menon", studentEmail: "kavya.menon@outlook.com", status: "PRESENT" }
 ];
 
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<AdminTab>("students");
   const [toast, setToast] = useState<string | null>(null);
+
+  // Authenticated User State
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Batches state
   const [batches, setBatches] = useState<ClassBatch[]>(DEFAULT_BATCHES);
@@ -122,7 +159,7 @@ export default function AdminDashboardPage() {
   // New batch form state
   const [newBatchName, setNewBatchName] = useState("");
   const [newBatchType, setNewBatchType] = useState("Vinyasa Flow");
-  const [newBatchInstructor, setNewBatchInstructor] = useState("Sahil Sharma (Lead Guru)");
+  const [newBatchInstructor, setNewBatchInstructor] = useState("Lead Instructor (Yoga Guide)");
   const [newBatchDays, setNewBatchDays] = useState<string[]>(["Tue", "Thu"]);
   const [newBatchStart, setNewBatchStart] = useState("17:00");
   const [newBatchEnd, setNewBatchEnd] = useState("18:00");
@@ -133,12 +170,16 @@ export default function AdminDashboardPage() {
   // Conflict warning
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
 
-  // Filter states
+  // Filter & Pagination states for Students
   const [studentSearch, setStudentSearch] = useState("");
   const [studentStatusFilter, setStudentStatusFilter] = useState("ALL");
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
-  // Attendance state
+  // Attendance states (Calendar vs Checklist)
+  const [attendanceView, setAttendanceView] = useState<"calendar" | "checklist">("calendar");
+  const [calendarEvents, setCalendarEvents] = useState<CalendarSessionEvent[]>(DEFAULT_CALENDAR_EVENTS);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [selectedBatchId, setSelectedBatchId] = useState("batch-1");
   const [attendanceRecords, setAttendanceRecords] = useState<Record<string, "ATTENDED" | "ABSENT">>({
@@ -151,13 +192,17 @@ export default function AdminDashboardPage() {
 
   // Query state
   const [queries, setQueries] = useState([
-    { id: "q-1", student: "Aarav Patel", email: "student1@test.progressrooms.local", question: "Can I reschedule my Wednesday 7 AM Hatha session to Friday?", status: "RESOLVED", date: "Today" },
-    { id: "q-2", student: "Pooja Sharma", email: "student2@test.progressrooms.local", question: "What suspension hammock do you recommend for home aerial yoga practice?", status: "UNANSWERED", date: "Yesterday" }
+    { id: "q-1", student: "Aarav Patel", email: "aarav.patel@gmail.com", question: "Can I reschedule my Wednesday 7 AM Hatha session to Friday?", status: "RESOLVED", date: "Today" },
+    { id: "q-2", student: "Pooja Sharma", email: "pooja.sharma@outlook.com", question: "What suspension hammock do you recommend for home aerial yoga practice?", status: "UNANSWERED", date: "Yesterday" }
   ]);
 
   // Load persisted state from localStorage on mount
   useEffect(() => {
     try {
+      const storedUser = localStorage.getItem("pr_user");
+      if (storedUser) {
+        setCurrentUser(JSON.parse(storedUser));
+      }
       const storedBatches = localStorage.getItem("pr_studio_batches");
       if (storedBatches) {
         setBatches(JSON.parse(storedBatches));
@@ -169,6 +214,10 @@ export default function AdminDashboardPage() {
       const storedStudents = localStorage.getItem("pr_students_list");
       if (storedStudents) {
         setStudents(JSON.parse(storedStudents));
+      }
+      const storedCalendarEvents = localStorage.getItem("pr_calendar_events");
+      if (storedCalendarEvents) {
+        setCalendarEvents(JSON.parse(storedCalendarEvents));
       }
     } catch (e) {
       // Ignore localStorage errors
@@ -299,11 +348,38 @@ export default function AdminDashboardPage() {
     showToast("Query marked as resolved");
   };
 
+  const handleUpdateCalendarEvents = (updated: CalendarSessionEvent[]) => {
+    setCalendarEvents(updated);
+    try {
+      localStorage.setItem("pr_calendar_events", JSON.stringify(updated));
+    } catch (e) {}
+  };
+
+  const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
+  const isInstructor = currentUser?.role === "INSTRUCTOR";
+  const orgTitle = isSuperAdmin
+    ? "ProgressRooms HQ"
+    : (isInstructor ? "Tranquil Flow Sanctuary" : (currentUser?.organization_name || "Tranquil Flow Sanctuary"));
+  const roleSubtitle = isSuperAdmin
+    ? "Platform Super Admin"
+    : (isInstructor ? "Instructor View • My Batches" : "Studio Operations");
+  const userDisplayName = currentUser?.full_name || (isSuperAdmin ? "Platform Super Admin" : (isInstructor ? "Lead Instructor" : "Studio Owner"));
+  const userDisplayEmail = currentUser?.email || (isSuperAdmin ? "admin@progressrooms.com" : (isInstructor ? "instructor@yogastudio.com" : "owner@yogastudio.com"));
+  const userInitials = isSuperAdmin ? "SA" : (isInstructor ? "IN" : "SO");
+
   const filteredStudents = students.filter(s => {
-    const matchesSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) || s.email.toLowerCase().includes(studentSearch.toLowerCase());
+    const matchesSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+      s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
+      s.phone.toLowerCase().includes(studentSearch.toLowerCase());
     const matchesStatus = studentStatusFilter === "ALL" || s.status === studentStatusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const totalItems = filteredStudents.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const paginatedStudents = filteredStudents.slice(startIndex, startIndex + pageSize);
 
   const selectedBatch = batches.find((b) => b.id === selectedBatchId) || batches[0];
 
@@ -333,10 +409,10 @@ export default function AdminDashboardPage() {
               </div>
               <div>
                 <h2 className="font-serif font-bold text-base text-[#F4F7F4] leading-tight">
-                  Sahil Yoga Studio
+                  {orgTitle}
                 </h2>
                 <span className="text-[10px] uppercase font-bold tracking-widest text-[#81A882] block mt-0.5">
-                  Admin Operations
+                  {roleSubtitle}
                 </span>
               </div>
             </div>
@@ -419,11 +495,11 @@ export default function AdminDashboardPage() {
         <div className="pt-4 border-t border-white/10 space-y-3">
           <div className="flex items-center space-x-3 px-1">
             <div className="h-8 w-8 rounded-full bg-[#81A882] text-[#0C2417] font-bold text-xs flex items-center justify-center">
-              SS
+              {userInitials}
             </div>
             <div className="truncate">
-              <p className="text-xs font-bold text-white truncate">Sahil Sharma</p>
-              <p className="text-[10px] text-[#81A882] truncate">owner@yogastudio.test</p>
+              <p className="text-xs font-bold text-white truncate">{userDisplayName}</p>
+              <p className="text-[10px] text-[#81A882] truncate">{userDisplayEmail}</p>
             </div>
           </div>
 
@@ -465,14 +541,20 @@ export default function AdminDashboardPage() {
                   type="text"
                   placeholder="Search student by name, email, or phone..."
                   value={studentSearch}
-                  onChange={(e) => setStudentSearch(e.target.value)}
+                  onChange={(e) => {
+                    setStudentSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#133623]"
                 />
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <select
                   value={studentStatusFilter}
-                  onChange={(e) => setStudentStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setStudentStatusFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="px-3 py-2 text-xs rounded-xl border border-[#CEDECF] bg-white text-slate-700"
                 >
                   <option value="ALL">All Statuses</option>
@@ -496,40 +578,109 @@ export default function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E1E9E2]">
-                    {filteredStudents.map((s) => (
-                      <tr key={s.id} className="hover:bg-[#F9FAF9] transition">
-                        <td className="px-6 py-4">
-                          <p className="font-bold text-[#0C2417] text-sm">{s.name}</p>
-                          <p className="text-[11px] text-slate-500">{s.email}</p>
-                          <p className="text-[10px] text-slate-400">{s.phone}</p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="font-semibold text-slate-800">{s.plan}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="font-bold text-[#1b4332] bg-[#E8F0E9] px-2.5 py-1 rounded-full text-xs">
-                            {s.attended} / {s.total} Sessions
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            s.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                          }`}>
-                            {s.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={() => toggleAttendance(s.id)}
-                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#E8F0E9] hover:bg-[#cedecf] text-[#0C2417] transition"
-                          >
-                            Mark Today
-                          </button>
+                    {paginatedStudents.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                          No practitioners found matching your filter criteria.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      paginatedStudents.map((s) => (
+                        <tr key={s.id} className="hover:bg-[#F9FAF9] transition">
+                          <td className="px-6 py-4">
+                            <p className="font-bold text-[#0C2417] text-sm">{s.name}</p>
+                            <p className="text-[11px] text-slate-500">{s.email}</p>
+                            <p className="text-[10px] text-slate-400">{s.phone}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="font-semibold text-slate-800">{s.plan}</span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className="font-bold text-[#1b4332] bg-[#E8F0E9] px-2.5 py-1 rounded-full text-xs">
+                              {s.attended} / {s.total} Sessions
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              s.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                            }`}>
+                              {s.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              onClick={() => toggleAttendance(s.id)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#E8F0E9] hover:bg-[#cedecf] text-[#0C2417] transition"
+                            >
+                              Mark Today
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Pagination Controls Bar */}
+              <div className="px-6 py-4 bg-[#FAF7F2] border-t border-[#E1E9E2] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
+                <div className="flex items-center gap-3">
+                  <span>
+                    Showing <strong>{totalItems === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, totalItems)}</strong> of <strong>{totalItems}</strong> yogis
+                  </span>
+
+                  <div className="flex items-center gap-1 ml-2">
+                    <span className="text-slate-400">Rows:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 rounded-lg border border-[#CEDECF] bg-white font-medium text-[#0C2417]"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage <= 1}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#CEDECF] bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1 font-medium"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>Prev</span>
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-7 h-7 rounded-lg font-bold text-xs transition ${
+                          safeCurrentPage === pageNum
+                            ? "bg-[#133623] text-white shadow-sm"
+                            : "bg-white border border-[#CEDECF] text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage >= totalPages}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#CEDECF] bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1 font-medium"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -658,96 +809,147 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Daily Attendance Tracker</h1>
-                <p className="text-xs text-[#40514E] mt-0.5">Select a batch & session date to record attendance in real time.</p>
+                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Attendance Tracker</h1>
+                <p className="text-xs text-[#40514E] mt-0.5">
+                  Track student attendance via interactive monthly calendar or daily batch checklists.
+                </p>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
-                />
-                <select
-                  value={selectedBatchId}
-                  onChange={(e) => setSelectedBatchId(e.target.value)}
-                  className="px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
-                >
-                  {batches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.days.join("/")} @ {b.startTime})
-                    </option>
-                  ))}
-                </select>
+
+              {/* View Switcher Controls */}
+              <div className="flex items-center gap-1.5 p-1 bg-[#E8F0E9] rounded-2xl border border-[#CEDECF]">
                 <button
-                  onClick={() => handleMarkAll("ATTENDED")}
-                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-[#133623] text-white hover:bg-[#0C2417] transition"
+                  type="button"
+                  onClick={() => setAttendanceView("calendar")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                    attendanceView === "calendar"
+                      ? "bg-[#133623] text-white shadow-sm"
+                      : "text-[#275539] hover:bg-white/60"
+                  }`}
                 >
-                  Mark All Present
+                  <span>🗓️</span>
+                  <span>Monthly Calendar</span>
                 </button>
+
                 <button
-                  onClick={() => handleMarkAll("ABSENT")}
-                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-[#CEDECF] text-slate-700 hover:bg-slate-50 transition"
+                  type="button"
+                  onClick={() => setAttendanceView("checklist")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                    attendanceView === "checklist"
+                      ? "bg-[#133623] text-white shadow-sm"
+                      : "text-[#275539] hover:bg-white/60"
+                  }`}
                 >
-                  Clear Roster
+                  <span>📋</span>
+                  <span>Daily Checklist</span>
                 </button>
               </div>
             </div>
 
-            {/* Selected Session Info Banner */}
-            <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center font-bold">
-                  🗓️
-                </div>
-                <div>
-                  <span className="font-bold text-[#0C2417] text-sm">{selectedBatch?.name}</span>
-                  <span className="text-slate-500 ml-2">({selectedBatch?.instructor} • {selectedBatch?.startTime} - {selectedBatch?.endTime} IST)</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-600">Date:</span>
-                <span className="font-mono bg-[#F4F7F4] px-2 py-0.5 rounded text-[#0C2417] font-bold">{selectedDate}</span>
-              </div>
-            </div>
+            {/* VIEW 1: MONTHLY INTERACTIVE CALENDAR */}
+            {attendanceView === "calendar" && (
+              <AttendanceCalendar
+                events={calendarEvents}
+                onUpdateEvents={handleUpdateCalendarEvents}
+                onToast={showToast}
+              />
+            )}
 
-            <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm divide-y divide-[#E1E9E2]">
-              {students.map((s) => {
-                const isAttended = attendanceRecords[s.id] === "ATTENDED";
-                return (
-                  <div key={s.id} className="p-5 flex items-center justify-between hover:bg-[#F9FAF9] transition">
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => toggleAttendance(s.id)}
-                        className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition ${
-                          isAttended ? "bg-emerald-600 text-white shadow-sm" : "bg-slate-200 text-slate-500"
-                        }`}
-                      >
-                        {isAttended ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-                      </button>
-                      <div>
-                        <h4 className="font-bold text-sm text-[#0C2417]">{s.name}</h4>
-                        <p className="text-[11px] text-slate-500">{s.plan} • {s.attended}/{s.total} Sessions Logged</p>
-                      </div>
+            {/* VIEW 2: DAILY CHECKLIST */}
+            {attendanceView === "checklist" && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-[#CEDECF]">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
+                    />
+                    <select
+                      value={selectedBatchId}
+                      onChange={(e) => setSelectedBatchId(e.target.value)}
+                      className="px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
+                    >
+                      {batches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} ({b.days.join("/")} @ {b.startTime})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleMarkAll("ATTENDED")}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-[#133623] text-white hover:bg-[#0C2417] transition"
+                    >
+                      Mark All Present
+                    </button>
+                    <button
+                      onClick={() => handleMarkAll("ABSENT")}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-[#CEDECF] text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      Clear Roster
+                    </button>
+                  </div>
+                </div>
+
+                {/* Selected Session Info Banner */}
+                <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center font-bold">
+                      🗓️
                     </div>
-
-                    <div className="flex items-center space-x-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        isAttended ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-                      }`}>
-                        {isAttended ? "ATTENDED" : "ABSENT"}
-                      </span>
-                      <button
-                        onClick={() => toggleAttendance(s.id)}
-                        className="text-xs text-[#1b4332] font-semibold hover:underline"
-                      >
-                        Change Status
-                      </button>
+                    <div>
+                      <span className="font-bold text-[#0C2417] text-sm">{selectedBatch?.name}</span>
+                      <span className="text-slate-500 ml-2">({selectedBatch?.instructor} • {selectedBatch?.startTime} - {selectedBatch?.endTime} IST)</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-slate-600">Date:</span>
+                    <span className="font-mono bg-[#F4F7F4] px-2 py-0.5 rounded text-[#0C2417] font-bold">{selectedDate}</span>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm divide-y divide-[#E1E9E2]">
+                  {students.slice(0, 10).map((s) => {
+                    const isAttended = attendanceRecords[s.id] === "ATTENDED";
+                    return (
+                      <div key={s.id} className="p-5 flex items-center justify-between hover:bg-[#F9FAF9] transition">
+                        <div className="flex items-center space-x-3">
+                          <button
+                            onClick={() => toggleAttendance(s.id)}
+                            className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition ${
+                              isAttended ? "bg-emerald-600 text-white shadow-sm" : "bg-slate-200 text-slate-500"
+                            }`}
+                          >
+                            {isAttended ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                          </button>
+                          <div>
+                            <h4 className="font-bold text-sm text-[#0C2417]">{s.name}</h4>
+                            <p className="text-[11px] text-slate-500">{s.plan} • {s.attended}/{s.total} Sessions Logged</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            isAttended ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                          }`}>
+                            {isAttended ? "ATTENDED" : "ABSENT"}
+                          </span>
+                          <button
+                            onClick={() => toggleAttendance(s.id)}
+                            className="text-xs text-[#1b4332] font-semibold hover:underline"
+                          >
+                            Change Status
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

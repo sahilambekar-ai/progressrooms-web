@@ -18,47 +18,49 @@ function LoginFormContent() {
   const [error, setError] = useState<string | null>(null);
 
   // Quick Test User One-Click Login
-  const handleQuickTestLogin = (userRole: "OWNER" | "INSTRUCTOR" | "STUDENT" | "SUPER_ADMIN") => {
+  const handleQuickTestLogin = (userRole: "SUPER_ADMIN" | "OWNER" | "INSTRUCTOR" | "STUDENT") => {
     let mockUser: any;
     let targetUrl = "/dashboard";
 
-    if (userRole === "OWNER") {
-      mockUser = {
-        id: "usr-sahil-owner",
-        email: "owner@yogastudio.com",
-        full_name: "Sahil Sharma",
-        role: "OWNER",
-        organization_name: "Sahil Yoga Studio",
-        organization_slug: "sahil-yoga-studio"
-      };
-      targetUrl = "/dashboard";
-    } else if (userRole === "INSTRUCTOR") {
-      mockUser = {
-        id: "usr-ananya-inst",
-        email: "ananya@yogastudio.com",
-        full_name: "Ananya Sen",
-        role: "INSTRUCTOR",
-        organization_name: "Sahil Yoga Studio",
-        organization_slug: "sahil-yoga-studio"
-      };
-      targetUrl = "/dashboard";
-    } else if (userRole === "STUDENT") {
-      mockUser = {
-        id: "usr-student-01",
-        email: "student1@progressrooms.com",
-        full_name: "Aarav Patel",
-        role: "STUDENT"
-      };
-      targetUrl = "/student";
-    } else {
+    if (userRole === "SUPER_ADMIN") {
       mockUser = {
         id: "usr-superadmin",
         email: "admin@progressrooms.com",
         full_name: "Platform Super Admin",
         is_superadmin: true,
-        role: "SUPER_ADMIN"
+        role: "SUPER_ADMIN",
+        organization_name: "ProgressRooms Platform",
+        organization_slug: "platform"
       };
       targetUrl = "/dashboard";
+    } else if (userRole === "OWNER") {
+      mockUser = {
+        id: "usr-studio-owner",
+        email: "owner@yogastudio.com",
+        full_name: "Studio Owner",
+        role: "OWNER",
+        organization_name: "Tranquil Flow Sanctuary",
+        organization_slug: "tranquil-flow"
+      };
+      targetUrl = "/dashboard";
+    } else if (userRole === "INSTRUCTOR") {
+      mockUser = {
+        id: "usr-ananya-inst",
+        email: "instructor@yogastudio.com",
+        full_name: "Lead Instructor",
+        role: "INSTRUCTOR",
+        organization_name: "Tranquil Flow Sanctuary",
+        organization_slug: "tranquil-flow"
+      };
+      targetUrl = "/dashboard";
+    } else {
+      mockUser = {
+        id: "usr-student-01",
+        email: "student@progressrooms.com",
+        full_name: "Aarav Patel (Practitioner)",
+        role: "STUDENT"
+      };
+      targetUrl = "/student";
     }
 
     localStorage.setItem("pr_access_token", "dev_test_token_" + mockUser.id);
@@ -212,41 +214,57 @@ function LoginFormContent() {
           <span>One-Click Test User Login (Development)</span>
         </div>
 
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-1 gap-2.5">
+          {/* 1. Super Admin Login */}
+          <button
+            type="button"
+            onClick={() => handleQuickTestLogin("SUPER_ADMIN")}
+            className="w-full p-3 rounded-xl border border-[#0C2417]/20 hover:border-[#0C2417] bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
+          >
+            <div>
+              <p className="text-xs font-bold text-[#0C2417]">Super Admin Login</p>
+              <p className="text-[10px] text-slate-500">Platform Product Owner • admin@progressrooms.com</p>
+            </div>
+            <span className="text-[11px] bg-[#0C2417] text-white px-2.5 py-1 rounded-lg font-semibold">Product Owner →</span>
+          </button>
+
+          {/* 2. Studio Owner Login */}
           <button
             type="button"
             onClick={() => handleQuickTestLogin("OWNER")}
-            className="w-full p-2.5 rounded-xl border border-[#CEDECF] hover:border-[#1b4332] bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
+            className="w-full p-3 rounded-xl border border-[#CEDECF] hover:border-[#1b4332] bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
           >
             <div>
-              <p className="text-xs font-bold text-[#0C2417]">Studio Owner (Sahil Sharma)</p>
-              <p className="text-[10px] text-slate-500">owner@yogastudio.test • Sahil Yoga Studio</p>
+              <p className="text-xs font-bold text-[#0C2417]">Studio Owner Login</p>
+              <p className="text-[10px] text-slate-500">Studio Operations & Billing • owner@yogastudio.com</p>
             </div>
-            <span className="text-xs bg-[#133623] text-white px-2 py-0.5 rounded font-semibold">Login →</span>
+            <span className="text-[11px] bg-[#133623] text-white px-2.5 py-1 rounded-lg font-semibold">Studio Owner →</span>
           </button>
 
+          {/* 3. Instructor Login */}
           <button
             type="button"
             onClick={() => handleQuickTestLogin("INSTRUCTOR")}
-            className="w-full p-2.5 rounded-xl border border-[#CEDECF] hover:border-[#1b4332] bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
+            className="w-full p-3 rounded-xl border border-[#CEDECF] hover:border-[#2f6a45] bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
           >
             <div>
-              <p className="text-xs font-bold text-[#0C2417]">Instructor (Ananya Sen)</p>
-              <p className="text-[10px] text-slate-500">ananya@yogastudio.test • Aerial Specialist</p>
+              <p className="text-xs font-bold text-[#0C2417]">Instructor Login</p>
+              <p className="text-[10px] text-slate-500">Assigned Classes & Attendance • instructor@yogastudio.com</p>
             </div>
-            <span className="text-xs bg-[#2f6a45] text-white px-2 py-0.5 rounded font-semibold">Login →</span>
+            <span className="text-[11px] bg-[#2f6a45] text-white px-2.5 py-1 rounded-lg font-semibold">Instructor View →</span>
           </button>
 
+          {/* 4. Student Login */}
           <button
             type="button"
             onClick={() => handleQuickTestLogin("STUDENT")}
-            className="w-full p-2.5 rounded-xl border border-[#CEDECF] hover:border-[#1b4332] bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
+            className="w-full p-3 rounded-xl border border-slate-300 hover:border-slate-500 bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
           >
             <div>
-              <p className="text-xs font-bold text-[#0C2417]">Student (Aarav Patel)</p>
-              <p className="text-[10px] text-slate-500">student1@test.progressrooms.local • Enrolled Yogi</p>
+              <p className="text-xs font-bold text-[#0C2417]">Student Login</p>
+              <p className="text-[10px] text-slate-500">Practitioner Portal • student@progressrooms.com</p>
             </div>
-            <span className="text-xs bg-slate-700 text-white px-2 py-0.5 rounded font-semibold">Login →</span>
+            <span className="text-[11px] bg-slate-700 text-white px-2.5 py-1 rounded-lg font-semibold">Student Portal →</span>
           </button>
         </div>
       </div>

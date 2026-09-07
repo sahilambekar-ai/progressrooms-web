@@ -13,40 +13,45 @@ import {
   Lock,
   MessageSquare,
   Clock,
-  ChevronRight
+  ChevronRight,
+  X as XIcon
 } from "lucide-react";
+import { FontSelector } from "@/components/FontSelector";
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#212121] flex flex-col font-sans">
       {/* Nature Navigation Bar */}
       <header className="bg-white/90 backdrop-blur border-b border-[#E1E9E2] sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center space-x-3 group">
-            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-[#0C2417] to-[#1b4332] flex items-center justify-center text-white text-xl shadow-md group-hover:scale-105 transition-transform">
+            <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#0C2417] to-[#1b4332] flex items-center justify-center text-white text-2xl shadow-md group-hover:scale-105 transition-transform">
               🌿
             </div>
             <div>
-              <span className="font-serif text-xl font-bold tracking-tight text-[#0C2417]">
+              <span className="font-serif text-2xl font-bold tracking-tight text-[#0C2417]">
                 ProgressRooms
               </span>
-              <span className="block text-[10px] uppercase font-bold tracking-widest text-[#81A882]">
+              <span className="block text-[11px] uppercase font-bold tracking-widest text-[#81A882]">
                 Virtual Studio OS
               </span>
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center space-x-8 text-sm font-medium text-[#40514E]">
+          <nav className="hidden md:flex items-center space-x-8 text-base font-semibold text-[#40514E]">
             <a href="#features" className="hover:text-[#0C2417] transition">Features</a>
             <a href="#how-it-works" className="hover:text-[#0C2417] transition">How it Works</a>
             <a href="#pricing" className="hover:text-[#0C2417] transition">Pricing Plans</a>
-            <Link href="/sahil-yoga-studio" className="hover:text-[#0C2417] transition flex items-center gap-1">
+            <Link href="/sahil-yoga-studio" className="hover:text-[#0C2417] transition flex items-center gap-1.5">
               <span>Demo Studio</span>
-              <span className="text-[10px] bg-[#E8F0E9] text-[#275539] px-2 py-0.5 rounded-full font-bold">Live</span>
+              <span className="text-[11px] bg-[#E8F0E9] text-[#275539] px-2 py-0.5 rounded-full font-bold">Live</span>
             </Link>
           </nav>
 
           <div className="flex items-center space-x-3">
+            {/* Live Typography Font Switcher */}
+            <FontSelector />
+
             <Link
               href="/login"
               className="text-sm font-semibold text-[#1b4332] hover:text-[#0C2417] px-3 py-2"
@@ -472,6 +477,166 @@ export default function HomePage() {
                 <Lock className="h-3.5 w-3.5" />
                 <span>Coming Soon (Waitlist)</span>
               </button>
+            </div>
+          </div>
+
+          {/* In-Depth Feature Comparison Matrix Table */}
+          <div className="mt-16 bg-white rounded-3xl border border-[#CEDECF] shadow-lg overflow-hidden">
+            <div className="p-6 sm:p-8 bg-[#F4F7F4] border-b border-[#CEDECF]">
+              <h3 className="text-2xl sm:text-3xl font-serif font-bold text-[#0C2417]">
+                Compare Plan Features In-Depth
+              </h3>
+              <p className="text-sm text-[#40514E] mt-1">
+                Everything you need to know about what is included across each ProgressRooms plan.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead>
+                  <tr className="border-b border-[#E1E9E2] bg-[#FAF7F2] text-[#0C2417]">
+                    <th className="p-4 sm:p-5 font-bold uppercase tracking-wider text-xs">Platform Feature</th>
+                    <th className="p-4 sm:p-5 font-bold text-center w-36">Starter (Trial)</th>
+                    <th className="p-4 sm:p-5 font-bold text-center w-36">Core (₹1,499)</th>
+                    <th className="p-4 sm:p-5 font-bold text-center w-40 bg-[#E8F0E9] text-[#133623]">Studio (₹3,999)</th>
+                    <th className="p-4 sm:p-5 font-bold text-center w-36 text-slate-500">Progress AI</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E1E9E2]">
+                  {/* Category 1: Scheduling & Classes */}
+                  <tr className="bg-[#F4F7F4]">
+                    <td colSpan={5} className="py-2.5 px-4 sm:px-5 font-bold text-xs uppercase tracking-wider text-[#133623]">
+                      📅 Class Scheduling & Recurrence
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Teacher / Instructor Logins</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">1 Instructor</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">1 Instructor</td>
+                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">Up to 10 Instructors</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400">Unlimited</td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Active Class Batches / Timetables</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">Up to 3 Batches</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">Up to 10 Batches</td>
+                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">Unlimited Batches</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400">Unlimited Batches</td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Max Enrolled Students Directory</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">50 Yogis</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">250 Yogis</td>
+                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">Unlimited Yogis</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400">Unlimited Yogis</td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Automated Zoom & Google Meet Links</td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400"><Check className="h-4 w-4 text-slate-400 mx-auto" /></td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Instructor Double-Booking Shield Engine</td>
+                    <td className="p-4 sm:p-5 text-center"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400"><Check className="h-4 w-4 text-slate-400 mx-auto" /></td>
+                  </tr>
+
+                  {/* Category 2: Studio Website & Branding */}
+                  <tr className="bg-[#F4F7F4]">
+                    <td colSpan={5} className="py-2.5 px-4 sm:px-5 font-bold text-xs uppercase tracking-wider text-[#133623]">
+                      🌐 Studio Website & Branding
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Hosted Public Studio Website</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">Subdomain</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">Subdomain</td>
+                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">Custom Domain Ready</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400">Custom Domain Ready</td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Website Design Templates</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">Default Minimal</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">Standard Nature</td>
+                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">3 Advanced Sanctuary Themes</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400">AI Generative Themes</td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Live Typography Font Pairings (6 Fonts)</td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400"><Check className="h-4 w-4 text-slate-400 mx-auto" /></td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Student Online Booking & Queries</td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400"><Check className="h-4 w-4 text-slate-400 mx-auto" /></td>
+                  </tr>
+
+                  {/* Category 3: Passes & Attendance */}
+                  <tr className="bg-[#F4F7F4]">
+                    <td colSpan={5} className="py-2.5 px-4 sm:px-5 font-bold text-xs uppercase tracking-wider text-[#133623]">
+                      🗓️ Attendance & Student Passes
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Daily Checklist Attendance View</td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400"><Check className="h-4 w-4 text-slate-400 mx-auto" /></td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Interactive Monthly Attendance Calendar</td>
+                    <td className="p-4 sm:p-5 text-center"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400"><Check className="h-4 w-4 text-slate-400 mx-auto" /></td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Automatic Pass Deduction on Present</td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400"><Check className="h-4 w-4 text-slate-400 mx-auto" /></td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Export Student Roster to CSV</td>
+                    <td className="p-4 sm:p-5 text-center"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400"><Check className="h-4 w-4 text-slate-400 mx-auto" /></td>
+                  </tr>
+
+                  {/* Category 4: AI Copilot */}
+                  <tr className="bg-[#F4F7F4]">
+                    <td colSpan={5} className="py-2.5 px-4 sm:px-5 font-bold text-xs uppercase tracking-wider text-[#133623]">
+                      ✨ Progress AI Intelligence (Coming Soon)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">AI Studio Copy & Bio Writer</td>
+                    <td className="p-4 sm:p-5 text-center"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                  </tr>
+                  <tr>
+                    <td className="p-4 sm:p-5 font-medium text-[#212121]">Predictive Student Drop-off Alerts</td>
+                    <td className="p-4 sm:p-5 text-center"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center bg-[#F9FAF9]"><XIcon className="h-4 w-4 text-slate-300 mx-auto" /></td>
+                    <td className="p-4 sm:p-5 text-center"><Check className="h-4 w-4 text-emerald-600 mx-auto" /></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
