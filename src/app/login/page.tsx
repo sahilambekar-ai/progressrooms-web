@@ -17,8 +17,8 @@ function LoginFormContent() {
   const [previewOtp, setPreviewOtp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Quick Test User One-Click Login
-  const handleQuickTestLogin = (userRole: "SUPER_ADMIN" | "OWNER" | "INSTRUCTOR" | "STUDENT") => {
+  // Quick Test User One-Click Login (Strictly 3 Types: Super Admin, Studio/Instructor, Student)
+  const handleQuickTestLogin = (userRole: "SUPER_ADMIN" | "INSTRUCTOR" | "STUDENT") => {
     let mockUser: any;
     let targetUrl = "/dashboard";
 
@@ -33,21 +33,11 @@ function LoginFormContent() {
         organization_slug: "platform"
       };
       targetUrl = "/dashboard";
-    } else if (userRole === "OWNER") {
-      mockUser = {
-        id: "usr-studio-owner",
-        email: "owner@yogastudio.com",
-        full_name: "Studio Owner",
-        role: "OWNER",
-        organization_name: "Tranquil Flow Sanctuary",
-        organization_slug: "tranquil-flow"
-      };
-      targetUrl = "/dashboard";
     } else if (userRole === "INSTRUCTOR") {
       mockUser = {
-        id: "usr-ananya-inst",
+        id: "usr-instructor",
         email: "instructor@yogastudio.com",
-        full_name: "Lead Instructor",
+        full_name: "Lead Teacher (Studio Guide)",
         role: "INSTRUCTOR",
         organization_name: "Tranquil Flow Sanctuary",
         organization_slug: "tranquil-flow"
@@ -113,7 +103,7 @@ function LoginFormContent() {
         router.push("/dashboard");
       }
     } catch (err: any) {
-      handleQuickTestLogin("OWNER");
+      handleQuickTestLogin("INSTRUCTOR");
     } finally {
       setLoading(false);
     }
@@ -225,36 +215,23 @@ function LoginFormContent() {
               <p className="text-xs font-bold text-[#0C2417]">Super Admin Login</p>
               <p className="text-[10px] text-slate-500">Platform Product Owner • admin@progressrooms.com</p>
             </div>
-            <span className="text-[11px] bg-[#0C2417] text-white px-2.5 py-1 rounded-lg font-semibold">Product Owner →</span>
+            <span className="text-[11px] bg-[#0C2417] text-white px-2.5 py-1 rounded-lg font-semibold">Platform Owner →</span>
           </button>
 
-          {/* 2. Studio Owner Login */}
-          <button
-            type="button"
-            onClick={() => handleQuickTestLogin("OWNER")}
-            className="w-full p-3 rounded-xl border border-[#CEDECF] hover:border-[#1b4332] bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
-          >
-            <div>
-              <p className="text-xs font-bold text-[#0C2417]">Studio Owner Login</p>
-              <p className="text-[10px] text-slate-500">Studio Operations & Billing • owner@yogastudio.com</p>
-            </div>
-            <span className="text-[11px] bg-[#133623] text-white px-2.5 py-1 rounded-lg font-semibold">Studio Owner →</span>
-          </button>
-
-          {/* 3. Instructor Login */}
+          {/* 2. Studio / Instructor Login (Acts as Teacher) */}
           <button
             type="button"
             onClick={() => handleQuickTestLogin("INSTRUCTOR")}
             className="w-full p-3 rounded-xl border border-[#CEDECF] hover:border-[#2f6a45] bg-[#F4F7F4] hover:bg-[#E8F0E9] text-left transition flex items-center justify-between"
           >
             <div>
-              <p className="text-xs font-bold text-[#0C2417]">Instructor Login</p>
-              <p className="text-[10px] text-slate-500">Assigned Classes & Attendance • instructor@yogastudio.com</p>
+              <p className="text-xs font-bold text-[#0C2417]">Studio / Instructor Login</p>
+              <p className="text-[10px] text-slate-500">Teacher & Studio Operator • instructor@yogastudio.com</p>
             </div>
-            <span className="text-[11px] bg-[#2f6a45] text-white px-2.5 py-1 rounded-lg font-semibold">Instructor View →</span>
+            <span className="text-[11px] bg-[#133623] text-white px-2.5 py-1 rounded-lg font-semibold">Teacher Login →</span>
           </button>
 
-          {/* 4. Student Login */}
+          {/* 3. Student Login */}
           <button
             type="button"
             onClick={() => handleQuickTestLogin("STUDENT")}

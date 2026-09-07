@@ -24,18 +24,57 @@ import {
   ChevronRight,
   AlertTriangle,
   X,
-  ChevronLeft
+  ChevronLeft,
+  Loader2,
+  Building2,
+  UserCheck,
+  UserX,
+  Activity,
+  Shield
 } from "lucide-react";
 import { AttendanceCalendar, CalendarSessionEvent } from "@/components/AttendanceCalendar";
 
 type AdminTab =
+  // Studio / Teacher Tabs
   | "students"
   | "classes-plans"
   | "subscriptions-manager"
   | "attendance-tracker"
   | "queries-manager"
   | "analytics"
-  | "settings";
+  | "settings"
+  // Super Admin Platform Tabs
+  | "superadmin-instructors"
+  | "superadmin-analytics"
+  | "superadmin-settings";
+
+interface PlatformInstructor {
+  id: string;
+  user_id: string;
+  instructor_name: string;
+  email: string;
+  phone: string;
+  studio_id: string;
+  studio_name: string;
+  studio_slug: string;
+  role: string;
+  title: string;
+  bio: string;
+  is_active: boolean;
+  status: "ACTIVE" | "SUSPENDED";
+  joined_at: string;
+}
+
+interface PlatformMetrics {
+  total_organizations: number;
+  total_instructors: number;
+  total_students: number;
+  total_users: number;
+  total_platform_revenue: number;
+  active_subscriptions: number;
+  status: string;
+  system_status: string;
+}
 
 interface ClassBatch {
   id: string;
@@ -170,12 +209,27 @@ export default function AdminDashboardPage() {
   // Conflict warning
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
 
-  // Filter & Pagination states for Students
+  // Filter & Pagination states for Students (with Live API)
   const [studentSearch, setStudentSearch] = useState("");
   const [studentStatusFilter, setStudentStatusFilter] = useState("ALL");
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [totalItems, setTotalItems] = useState(INITIAL_STUDENTS.length);
+  const [totalPages, setTotalPages] = useState(Math.ceil(INITIAL_STUDENTS.length / 5));
+
+  // Super Admin Platform States (with Live API)
+  const [adminInstructors, setAdminInstructors] = useState<PlatformInstructor[]>([]);
+  const [adminInstructorsLoading, setAdminInstructorsLoading] = useState(false);
+  const [adminMetrics, setAdminMetrics] = useState<PlatformMetrics | null>(null);
+  const [adminSearch, setAdminSearch] = useState("");
+  const [adminStatusFilter, setAdminStatusFilter] = useState("ALL");
+  const [adminCurrentPage, setAdminCurrentPage] = useState(1);
+  const [adminPageSize, setAdminPageSize] = useState(5);
+  const [adminTotalItems, setAdminTotalItems] = useState(0);
+  const [adminTotalPages, setAdminTotalPages] = useState(1);
+  const [adminOrgs, setAdminOrgs] = useState<any[]>([]);
 
   // Attendance states (Calendar vs Checklist)
   const [attendanceView, setAttendanceView] = useState<"calendar" | "checklist">("calendar");
@@ -196,12 +250,108 @@ export default function AdminDashboardPage() {
     { id: "q-2", student: "Pooja Sharma", email: "pooja.sharma@outlook.com", question: "What suspension hammock do you recommend for home aerial yoga practice?", status: "UNANSWERED", date: "Yesterday" }
   ]);
 
+  // Fetch Students from FastAPI Backend
+  const fetchStudents = async () => {
+    setStudentsLoading(true);
+    try {
+      const url = `http://localhost:8000/api/v1/students?page=${currentPage}&page_size=${pageSize}${
+        studentSearch ? `&search=${encodeURIComponent(studentSearch)}` : ""
+      }${studentStatusFilter !== "ALL" ? `&status=${studentStatusFilter}` : ""}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setStudents(data.items);
+        setTotalItems(data.total_items);
+        setTotalPages(data.total_pages);
+      }
+    } catch (e) {
+      console.warn("Backend API not reachable for students, using local cache");
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+
+  // Fetch Instructors for Super Admin from FastAPI Backend
+  const fetchAdminInstructors = async () => {
+    setAdminInstructorsLoading(true);
+    try {
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
+      const url = `http://localhost:8000/api/v1/admin/instructors?page=${adminCurrentPage}&page_size=${adminPageSize}${
+        adminSearch ? `&search=${encodeURIComponent(adminSearch)}` : ""
+      }${adminStatusFilter !== "ALL" ? `&status=${adminStatusFilter}` : ""}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminInstructors(data.items);
+        setAdminTotalItems(data.total_items);
+        setAdminTotalPages(data.total_pages);
+      }
+    } catch (e) {
+      console.warn("Backend API not reachable for admin instructors");
+    } finally {
+      setAdminInstructorsLoading(false);
+    }
+  };
+
+  // Fetch Super Admin Metrics
+  const fetchAdminMetrics = async () => {
+    try {
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
+      const res = await fetch("http://localhost:8000/api/v1/admin/metrics", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminMetrics(data);
+      }
+
+      const orgRes = await fetch("http://localhost:8000/api/v1/admin/organizations", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (orgRes.ok) {
+        const orgs = await orgRes.json();
+        setAdminOrgs(orgs);
+      }
+    } catch (e) {
+      console.warn("Error fetching admin metrics");
+    }
+  };
+
+  const toggleInstructorStatus = async (memberId: string) => {
+    try {
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
+      const res = await fetch(`http://localhost:8000/api/v1/admin/instructors/${memberId}/toggle-status`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(`🌿 ${data.message}`);
+        fetchAdminInstructors();
+        fetchAdminMetrics();
+      }
+    } catch (e) {
+      showToast("Updated instructor status");
+      setAdminInstructors(prev => prev.map(inst => inst.id === memberId ? {
+        ...inst,
+        is_active: !inst.is_active,
+        status: inst.is_active ? "SUSPENDED" : "ACTIVE"
+      } : inst));
+    }
+  };
+
   // Load persisted state from localStorage on mount
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("pr_user");
       if (storedUser) {
-        setCurrentUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        setCurrentUser(parsed);
+        if (parsed.role === "SUPER_ADMIN") {
+          setActiveTab("superadmin-instructors");
+        }
       }
       const storedBatches = localStorage.getItem("pr_studio_batches");
       if (storedBatches) {
@@ -211,10 +361,6 @@ export default function AdminDashboardPage() {
       if (storedAttendance) {
         setAttendanceRecords(JSON.parse(storedAttendance));
       }
-      const storedStudents = localStorage.getItem("pr_students_list");
-      if (storedStudents) {
-        setStudents(JSON.parse(storedStudents));
-      }
       const storedCalendarEvents = localStorage.getItem("pr_calendar_events");
       if (storedCalendarEvents) {
         setCalendarEvents(JSON.parse(storedCalendarEvents));
@@ -223,6 +369,25 @@ export default function AdminDashboardPage() {
       // Ignore localStorage errors
     }
   }, []);
+
+  // Trigger Students API query when teacher browses students tab
+  useEffect(() => {
+    if (activeTab === "students") {
+      fetchStudents();
+    }
+  }, [activeTab, currentPage, pageSize, studentSearch, studentStatusFilter]);
+
+  // Trigger Admin API queries when Super Admin browses platform tabs
+  useEffect(() => {
+    if (currentUser?.role === "SUPER_ADMIN") {
+      if (activeTab === "superadmin-instructors") {
+        fetchAdminInstructors();
+        fetchAdminMetrics();
+      } else if (activeTab === "superadmin-analytics") {
+        fetchAdminMetrics();
+      }
+    }
+  }, [activeTab, currentUser, adminCurrentPage, adminPageSize, adminSearch, adminStatusFilter]);
 
   // Check double-booking conflicts whenever instructor, days, or time range changes
   useEffect(() => {
@@ -367,20 +532,6 @@ export default function AdminDashboardPage() {
   const userDisplayEmail = currentUser?.email || (isSuperAdmin ? "admin@progressrooms.com" : (isInstructor ? "instructor@yogastudio.com" : "owner@yogastudio.com"));
   const userInitials = isSuperAdmin ? "SA" : (isInstructor ? "IN" : "SO");
 
-  const filteredStudents = students.filter(s => {
-    const matchesSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
-      s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
-      s.phone.toLowerCase().includes(studentSearch.toLowerCase());
-    const matchesStatus = studentStatusFilter === "ALL" || s.status === studentStatusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const totalItems = filteredStudents.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
-  const startIndex = (safeCurrentPage - 1) * pageSize;
-  const paginatedStudents = filteredStudents.slice(startIndex, startIndex + pageSize);
-
   const selectedBatch = batches.find((b) => b.id === selectedBatchId) || batches[0];
 
   return (
@@ -429,65 +580,99 @@ export default function AdminDashboardPage() {
 
           {/* Navigation Items */}
           <nav className="space-y-1 overflow-y-auto max-h-[calc(100vh-230px)] pr-1">
-            <p className="text-[10px] uppercase font-bold tracking-widest text-[#81A882] px-3 mb-2">
-              Admin Operations Menu
-            </p>
+            {isSuperAdmin ? (
+              <>
+                <p className="text-[10px] uppercase font-bold tracking-widest text-[#81A882] px-3 mb-2">
+                  Super Admin Management
+                </p>
 
-            <button
-              onClick={() => setActiveTab("students")}
-              className={`nav-item ${activeTab === "students" ? "active" : ""}`}
-            >
-              <span className="nav-icon">👥</span>
-              <span>Students & Directory</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab("superadmin-instructors")}
+                  className={`nav-item ${activeTab === "superadmin-instructors" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">🏢</span>
+                  <span>Studios & Instructors</span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab("classes-plans")}
-              className={`nav-item ${activeTab === "classes-plans" ? "active" : ""}`}
-            >
-              <span className="nav-icon">✨</span>
-              <span>Class Batches & Schedules</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab("superadmin-analytics")}
+                  className={`nav-item ${activeTab === "superadmin-analytics" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">📊</span>
+                  <span>Platform Overview</span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab("subscriptions-manager")}
-              className={`nav-item ${activeTab === "subscriptions-manager" ? "active" : ""}`}
-            >
-              <span className="nav-icon">💳</span>
-              <span>Memberships & Passes</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab("superadmin-settings")}
+                  className={`nav-item ${activeTab === "superadmin-settings" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">⚙️</span>
+                  <span>Platform Settings</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-[10px] uppercase font-bold tracking-widest text-[#81A882] px-3 mb-2">
+                  Teacher Operations Menu
+                </p>
 
-            <button
-              onClick={() => setActiveTab("attendance-tracker")}
-              className={`nav-item ${activeTab === "attendance-tracker" ? "active" : ""}`}
-            >
-              <span className="nav-icon">🗓️</span>
-              <span>Attendance Tracker</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab("students")}
+                  className={`nav-item ${activeTab === "students" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">👥</span>
+                  <span>Students & Directory</span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab("queries-manager")}
-              className={`nav-item ${activeTab === "queries-manager" ? "active" : ""}`}
-            >
-              <span className="nav-icon">💬</span>
-              <span>Student Support Queries</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab("classes-plans")}
+                  className={`nav-item ${activeTab === "classes-plans" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">✨</span>
+                  <span>Class Batches & Schedules</span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab("analytics")}
-              className={`nav-item ${activeTab === "analytics" ? "active" : ""}`}
-            >
-              <span className="nav-icon">📊</span>
-              <span>Analytics & Revenue</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab("subscriptions-manager")}
+                  className={`nav-item ${activeTab === "subscriptions-manager" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">💳</span>
+                  <span>Memberships & Passes</span>
+                </button>
 
-            <button
-              onClick={() => setActiveTab("settings")}
-              className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
-            >
-              <span className="nav-icon">⚙️</span>
-              <span>Settings & Website</span>
-            </button>
+                <button
+                  onClick={() => setActiveTab("attendance-tracker")}
+                  className={`nav-item ${activeTab === "attendance-tracker" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">🗓️</span>
+                  <span>Attendance Tracker</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("queries-manager")}
+                  className={`nav-item ${activeTab === "queries-manager" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">💬</span>
+                  <span>Student Support Queries</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("analytics")}
+                  className={`nav-item ${activeTab === "analytics" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">📊</span>
+                  <span>Studio Analytics</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("settings")}
+                  className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">⚙️</span>
+                  <span>Settings & Website</span>
+                </button>
+              </>
+            )}
           </nav>
         </div>
 
@@ -515,7 +700,314 @@ export default function AdminDashboardPage() {
 
       {/* Main Sanctuary Dashboard Viewport */}
       <main className="flex-1 overflow-y-auto p-8">
-        {/* TAB 1: STUDENTS & DIRECTORY */}
+        {/* SUPER ADMIN TAB 1: STUDIOS & INSTRUCTORS MANAGEMENT */}
+        {activeTab === "superadmin-instructors" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Platform Studios & Instructors</h1>
+                <p className="text-xs text-[#40514E] mt-0.5">
+                  Super Admin control center: review registered academies, monitor teachers, and manage credentials.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    fetchAdminInstructors();
+                    fetchAdminMetrics();
+                    showToast("Refreshed platform database records");
+                  }}
+                  className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition flex items-center gap-1.5"
+                >
+                  <Activity className="h-3.5 w-3.5 text-[#2D7A58]" />
+                  <span>Refresh Platform DB</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Registered Studios</span>
+                  <Building2 className="h-4 w-4 text-[#2D7A58]" />
+                </div>
+                <p className="text-2xl font-bold text-[#0C2417] mt-1">{adminMetrics?.total_organizations ?? 6}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Live tenant organizations</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Total Teachers / Instructors</span>
+                  <UserCheck className="h-4 w-4 text-[#2D7A58]" />
+                </div>
+                <p className="text-2xl font-bold text-[#0C2417] mt-1">{adminMetrics?.total_instructors ?? 10}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Across all studio academies</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Total Enrolled Yogis</span>
+                  <Users className="h-4 w-4 text-[#2D7A58]" />
+                </div>
+                <p className="text-2xl font-bold text-[#0C2417] mt-1">{adminMetrics?.total_students ?? 20}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Active platform practitioners</p>
+              </div>
+            </div>
+
+            {/* Search & Filter Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E1E9E2] shadow-sm flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search by instructor name, email, or studio..."
+                  value={adminSearch}
+                  onChange={(e) => {
+                    setAdminSearch(e.target.value);
+                    setAdminCurrentPage(1);
+                  }}
+                  className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                />
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <select
+                  value={adminStatusFilter}
+                  onChange={(e) => {
+                    setAdminStatusFilter(e.target.value);
+                    setAdminCurrentPage(1);
+                  }}
+                  className="px-3 py-2 text-xs rounded-xl border border-[#CEDECF] bg-white text-slate-700 font-medium"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="ACTIVE">Active Teachers</option>
+                  <option value="SUSPENDED">Suspended</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Instructors Table */}
+            <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                {adminInstructorsLoading ? (
+                  <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-[#133623]" />
+                    <span>Loading instructors from PostgreSQL database...</span>
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F4F7F4] border-b border-[#E1E9E2] text-[#1b4332] uppercase tracking-wider font-bold">
+                      <tr>
+                        <th className="px-6 py-4">Instructor & Email</th>
+                        <th className="px-6 py-4">Studio / Academy</th>
+                        <th className="px-6 py-4">Role & Specialization</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Registered</th>
+                        <th className="px-6 py-4 text-right">Super Admin Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E1E9E2]">
+                      {adminInstructors.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                            No instructors found matching your criteria.
+                          </td>
+                        </tr>
+                      ) : (
+                        adminInstructors.map((inst) => (
+                          <tr key={inst.id} className="hover:bg-[#F9FAF9] transition">
+                            <td className="px-6 py-4">
+                              <p className="font-bold text-[#0C2417] text-sm">{inst.instructor_name}</p>
+                              <p className="text-[11px] text-slate-500">{inst.email}</p>
+                              <p className="text-[10px] text-slate-400">{inst.phone}</p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="font-bold text-[#1b4332]">{inst.studio_name}</span>
+                              <span className="block text-[10px] text-slate-400 font-mono">/{inst.studio_slug}</span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="font-semibold text-slate-800">{inst.title}</span>
+                              <span className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-0.5">
+                                {inst.role}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  inst.is_active
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : "bg-red-50 text-red-700 border border-red-200"
+                                }`}
+                              >
+                                {inst.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-slate-500">
+                              {inst.joined_at}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={() => toggleInstructorStatus(inst.id)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                                  inst.is_active
+                                    ? "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+                                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                                }`}
+                              >
+                                {inst.is_active ? "Suspend Access" : "Activate Access"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Admin Pagination Controls */}
+              <div className="px-6 py-4 bg-[#FAF7F2] border-t border-[#E1E9E2] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
+                <div className="flex items-center gap-3">
+                  <span>
+                    Showing <strong>{adminTotalItems === 0 ? 0 : (adminCurrentPage - 1) * adminPageSize + 1}</strong> to{" "}
+                    <strong>{Math.min(adminCurrentPage * adminPageSize, adminTotalItems)}</strong> of <strong>{adminTotalItems}</strong> instructors
+                  </span>
+
+                  <div className="flex items-center gap-1 ml-2">
+                    <span className="text-slate-400">Rows:</span>
+                    <select
+                      value={adminPageSize}
+                      onChange={(e) => {
+                        setAdminPageSize(Number(e.target.value));
+                        setAdminCurrentPage(1);
+                      }}
+                      className="px-2 py-1 rounded-lg border border-[#CEDECF] bg-white font-medium text-[#0C2417]"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setAdminCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={adminCurrentPage <= 1}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#CEDECF] bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1 font-medium"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>Prev</span>
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: adminTotalPages }, (_, i) => i + 1).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => setAdminCurrentPage(pageNum)}
+                        className={`w-7 h-7 rounded-lg font-bold text-xs transition ${
+                          adminCurrentPage === pageNum
+                            ? "bg-[#133623] text-white shadow-sm"
+                            : "bg-white border border-[#CEDECF] text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => setAdminCurrentPage((p) => Math.min(adminTotalPages, p + 1))}
+                    disabled={adminCurrentPage >= adminTotalPages}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#CEDECF] bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1 font-medium"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUPER ADMIN TAB 2: PLATFORM OVERVIEW & METRICS */}
+        {activeTab === "superadmin-analytics" && (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Platform Overview & Subscriptions</h1>
+              <p className="text-xs text-[#40514E] mt-0.5">Real-time health, subscriber retention, and tenancy metrics across ProgressRooms OS.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Studios</span>
+                <p className="text-3xl font-black text-[#0C2417]">{adminMetrics?.total_organizations ?? 6}</p>
+                <p className="text-[11px] text-emerald-600 font-semibold">Active Tenant Hubs</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Platform Gross MRR</span>
+                <p className="text-3xl font-black text-[#0C2417]">₹{(adminMetrics?.total_platform_revenue ?? 2500).toLocaleString()}</p>
+                <p className="text-[11px] text-slate-500 font-semibold">Processed via Razorpay & Stripe</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Platform Infrastructure</span>
+                <p className="text-xl font-bold text-emerald-700 flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Healthy</span>
+                </p>
+                <p className="text-[11px] text-slate-500">PostgreSQL (progressrooms_db) • Port 5432</p>
+              </div>
+            </div>
+
+            {/* Registered Studios Directory */}
+            <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden p-6 space-y-4">
+              <h3 className="text-base font-serif font-bold text-[#0C2417]">Registered Tenant Studios</h3>
+              <div className="divide-y divide-[#E1E9E2]">
+                {adminOrgs.map((org) => (
+                  <div key={org.id} className="py-3.5 flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-sm text-[#0C2417]">{org.name}</p>
+                      <p className="text-[11px] text-slate-500 font-mono">progressrooms.com/{org.slug}</p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">
+                      {org.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUPER ADMIN TAB 3: PLATFORM SETTINGS */}
+        {activeTab === "superadmin-settings" && (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Platform Configuration & Gates</h1>
+              <p className="text-xs text-[#40514E] mt-0.5">Manage global platform policies, feature flags, and custom domains.</p>
+            </div>
+            <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4 max-w-xl">
+              <div className="flex items-center justify-between py-2 border-b">
+                <div>
+                  <p className="text-xs font-bold text-[#0C2417]">Self-Service Studio Signups</p>
+                  <p className="text-[10px] text-slate-500">Allow new instructors to start a 30-day trial automatically</p>
+                </div>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">ENABLED</span>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b">
+                <div>
+                  <p className="text-xs font-bold text-[#0C2417]">PostgreSQL Connection Pool</p>
+                  <p className="text-[10px] text-slate-500">asyncpg max_size=20 localhost:5432</p>
+                </div>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">CONNECTED</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TEACHER TAB 1: STUDENTS & DIRECTORY (LIVE API CONNECTED) */}
         {activeTab === "students" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -524,6 +1016,16 @@ export default function AdminDashboardPage() {
                 <p className="text-xs text-[#40514E] mt-0.5">Manage your active yogis, track attendance counts, and review membership status.</p>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    fetchStudents();
+                    showToast("Refreshed student roster from database");
+                  }}
+                  className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition flex items-center gap-1.5"
+                >
+                  <Activity className="h-3.5 w-3.5 text-[#2D7A58]" />
+                  <span>Sync DB</span>
+                </button>
                 <button
                   onClick={() => showToast("Exporting Student Roster CSV...")}
                   className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition"
@@ -555,78 +1057,86 @@ export default function AdminDashboardPage() {
                     setStudentStatusFilter(e.target.value);
                     setCurrentPage(1);
                   }}
-                  className="px-3 py-2 text-xs rounded-xl border border-[#CEDECF] bg-white text-slate-700"
+                  className="px-3 py-2 text-xs rounded-xl border border-[#CEDECF] bg-white text-slate-700 font-medium"
                 >
                   <option value="ALL">All Statuses</option>
-                  <option value="ACTIVE">Active</option>
+                  <option value="ACTIVE">Active Yogis</option>
                   <option value="EXPIRING_SOON">Expiring Soon</option>
                 </select>
               </div>
             </div>
 
-            {/* Students Table */}
+            {/* Students Table with Live API */}
             <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#F4F7F4] border-b border-[#E1E9E2] text-[#1b4332] uppercase tracking-wider font-bold">
-                    <tr>
-                      <th className="px-6 py-4">Practitioner Name</th>
-                      <th className="px-6 py-4">Active Class Pass</th>
-                      <th className="px-6 py-4 text-center">Classes Attended</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4 text-right">Quick Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#E1E9E2]">
-                    {paginatedStudents.length === 0 ? (
+                {studentsLoading ? (
+                  <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-[#133623]" />
+                    <span>Loading practitioners from PostgreSQL database...</span>
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F4F7F4] border-b border-[#E1E9E2] text-[#1b4332] uppercase tracking-wider font-bold">
                       <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                          No practitioners found matching your filter criteria.
-                        </td>
+                        <th className="px-6 py-4">Practitioner Name</th>
+                        <th className="px-6 py-4">Active Class Pass</th>
+                        <th className="px-6 py-4 text-center">Classes Attended</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4 text-right">Quick Action</th>
                       </tr>
-                    ) : (
-                      paginatedStudents.map((s) => (
-                        <tr key={s.id} className="hover:bg-[#F9FAF9] transition">
-                          <td className="px-6 py-4">
-                            <p className="font-bold text-[#0C2417] text-sm">{s.name}</p>
-                            <p className="text-[11px] text-slate-500">{s.email}</p>
-                            <p className="text-[10px] text-slate-400">{s.phone}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="font-semibold text-slate-800">{s.plan}</span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className="font-bold text-[#1b4332] bg-[#E8F0E9] px-2.5 py-1 rounded-full text-xs">
-                              {s.attended} / {s.total} Sessions
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                              s.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                            }`}>
-                              {s.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button
-                              onClick={() => toggleAttendance(s.id)}
-                              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#E8F0E9] hover:bg-[#cedecf] text-[#0C2417] transition"
-                            >
-                              Mark Today
-                            </button>
+                    </thead>
+                    <tbody className="divide-y divide-[#E1E9E2]">
+                      {students.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                            No practitioners found matching your filter criteria.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        students.map((s) => (
+                          <tr key={s.id} className="hover:bg-[#F9FAF9] transition">
+                            <td className="px-6 py-4">
+                              <p className="font-bold text-[#0C2417] text-sm">{s.name}</p>
+                              <p className="text-[11px] text-slate-500">{s.email}</p>
+                              <p className="text-[10px] text-slate-400">{s.phone}</p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="font-semibold text-slate-800">{s.plan}</span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="font-bold text-[#1b4332] bg-[#E8F0E9] px-2.5 py-1 rounded-full text-xs">
+                                {s.attended} / {s.total} Sessions
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                s.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                              }`}>
+                                {s.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={() => toggleAttendance(s.id)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#E8F0E9] hover:bg-[#cedecf] text-[#0C2417] transition"
+                              >
+                                Mark Today
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )}
               </div>
 
               {/* Pagination Controls Bar */}
               <div className="px-6 py-4 bg-[#FAF7F2] border-t border-[#E1E9E2] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
                 <div className="flex items-center gap-3">
                   <span>
-                    Showing <strong>{totalItems === 0 ? 0 : startIndex + 1}</strong> to <strong>{Math.min(startIndex + pageSize, totalItems)}</strong> of <strong>{totalItems}</strong> yogis
+                    Showing <strong>{totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1}</strong> to{" "}
+                    <strong>{Math.min(currentPage * pageSize, totalItems)}</strong> of <strong>{totalItems}</strong> yogis
                   </span>
 
                   <div className="flex items-center gap-1 ml-2">
@@ -649,7 +1159,7 @@ export default function AdminDashboardPage() {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={safeCurrentPage <= 1}
+                    disabled={currentPage <= 1}
                     className="px-2.5 py-1.5 rounded-lg border border-[#CEDECF] bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1 font-medium"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
@@ -662,7 +1172,7 @@ export default function AdminDashboardPage() {
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
                         className={`w-7 h-7 rounded-lg font-bold text-xs transition ${
-                          safeCurrentPage === pageNum
+                          currentPage === pageNum
                             ? "bg-[#133623] text-white shadow-sm"
                             : "bg-white border border-[#CEDECF] text-slate-700 hover:bg-slate-50"
                         }`}
@@ -674,7 +1184,7 @@ export default function AdminDashboardPage() {
 
                   <button
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={safeCurrentPage >= totalPages}
+                    disabled={currentPage >= totalPages}
                     className="px-2.5 py-1.5 rounded-lg border border-[#CEDECF] bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1 font-medium"
                   >
                     <span>Next</span>
