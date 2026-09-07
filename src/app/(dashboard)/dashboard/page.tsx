@@ -21,7 +21,9 @@ import {
   ArrowRight,
   ExternalLink,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle,
+  X
 } from "lucide-react";
 
 type AdminTab =
@@ -33,17 +35,112 @@ type AdminTab =
   | "analytics"
   | "settings";
 
+interface ClassBatch {
+  id: string;
+  name: string;
+  classType: string;
+  instructor: string;
+  days: string[];
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  price: string;
+  meetingUrl: string;
+  status: "ACTIVE" | "PAUSED";
+}
+
+interface Student {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  plan: string;
+  attended: number;
+  total: number;
+  status: "ACTIVE" | "EXPIRING_SOON";
+}
+
+const DEFAULT_BATCHES: ClassBatch[] = [
+  {
+    id: "batch-1",
+    name: "Morning Hatha Flow",
+    classType: "Hatha Yoga",
+    instructor: "Sahil Sharma (Lead Guru)",
+    days: ["Mon", "Wed", "Fri"],
+    startTime: "07:00",
+    endTime: "08:00",
+    capacity: 25,
+    price: "₹2,500",
+    meetingUrl: "https://meet.progressrooms.com/sahil-flow",
+    status: "ACTIVE"
+  },
+  {
+    id: "batch-2",
+    name: "Aerial Yoga Conditioning",
+    classType: "Aerial Yoga",
+    instructor: "Ananya Sen (Aerial Specialist)",
+    days: ["Tue", "Thu"],
+    startTime: "18:00",
+    endTime: "19:00",
+    capacity: 12,
+    price: "₹3,500",
+    meetingUrl: "https://meet.progressrooms.com/ananya-aerial",
+    status: "ACTIVE"
+  },
+  {
+    id: "batch-3",
+    name: "Meditation & Breathwork",
+    classType: "Meditation",
+    instructor: "Sahil Sharma (Lead Guru)",
+    days: ["Sun"],
+    startTime: "08:30",
+    endTime: "09:30",
+    capacity: 30,
+    price: "₹1,200",
+    meetingUrl: "https://meet.progressrooms.com/sunday-breath",
+    status: "ACTIVE"
+  }
+];
+
+const INITIAL_STUDENTS: Student[] = [
+  { id: "student-1", name: "Aarav Patel", email: "student1@test.progressrooms.local", phone: "+91 98765 43210", plan: "Morning Hatha Flow (Monthly)", attended: 8, total: 12, status: "ACTIVE" },
+  { id: "student-2", name: "Pooja Sharma", email: "student2@test.progressrooms.local", phone: "+91 98765 43211", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE" },
+  { id: "student-3", name: "Rohan Verma", email: "student3@test.progressrooms.local", phone: "+91 98765 43212", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON" },
+  { id: "student-4", name: "Meera Nair", email: "student4@test.progressrooms.local", phone: "+91 98765 43213", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE" },
+  { id: "student-5", name: "Vikram Iyer", email: "student5@test.progressrooms.local", phone: "+91 98765 43214", plan: "Meditation & Breathwork", attended: 3, total: 4, status: "ACTIVE" },
+];
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<AdminTab>("students");
   const [toast, setToast] = useState<string | null>(null);
 
+  // Batches state
+  const [batches, setBatches] = useState<ClassBatch[]>(DEFAULT_BATCHES);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // New batch form state
+  const [newBatchName, setNewBatchName] = useState("");
+  const [newBatchType, setNewBatchType] = useState("Vinyasa Flow");
+  const [newBatchInstructor, setNewBatchInstructor] = useState("Sahil Sharma (Lead Guru)");
+  const [newBatchDays, setNewBatchDays] = useState<string[]>(["Tue", "Thu"]);
+  const [newBatchStart, setNewBatchStart] = useState("17:00");
+  const [newBatchEnd, setNewBatchEnd] = useState("18:00");
+  const [newBatchCap, setNewBatchCap] = useState(15);
+  const [newBatchPrice, setNewBatchPrice] = useState("2,800");
+  const [newBatchUrl, setNewBatchUrl] = useState("https://meet.progressrooms.com/sunset-flow");
+
+  // Conflict warning
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+
   // Filter states
   const [studentSearch, setStudentSearch] = useState("");
   const [studentStatusFilter, setStudentStatusFilter] = useState("ALL");
+  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
 
   // Attendance state
-  const [selectedClassForAttendance, setSelectedClassForAttendance] = useState("sess-1");
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [selectedBatchId, setSelectedBatchId] = useState("batch-1");
   const [attendanceRecords, setAttendanceRecords] = useState<Record<string, "ATTENDED" | "ABSENT">>({
     "student-1": "ATTENDED",
     "student-2": "ATTENDED",
@@ -58,6 +155,46 @@ export default function AdminDashboardPage() {
     { id: "q-2", student: "Pooja Sharma", email: "student2@test.progressrooms.local", question: "What suspension hammock do you recommend for home aerial yoga practice?", status: "UNANSWERED", date: "Yesterday" }
   ]);
 
+  // Load persisted state from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedBatches = localStorage.getItem("pr_studio_batches");
+      if (storedBatches) {
+        setBatches(JSON.parse(storedBatches));
+      }
+      const storedAttendance = localStorage.getItem("pr_attendance_records");
+      if (storedAttendance) {
+        setAttendanceRecords(JSON.parse(storedAttendance));
+      }
+      const storedStudents = localStorage.getItem("pr_students_list");
+      if (storedStudents) {
+        setStudents(JSON.parse(storedStudents));
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }, []);
+
+  // Check double-booking conflicts whenever instructor, days, or time range changes
+  useEffect(() => {
+    const conflict = batches.find((b) => {
+      if (b.instructor !== newBatchInstructor) return false;
+      const commonDays = b.days.filter((d) => newBatchDays.includes(d));
+      if (commonDays.length === 0) return false;
+      // Overlap check
+      const startOverlap = newBatchStart < b.endTime && newBatchEnd > b.startTime;
+      return startOverlap;
+    });
+
+    if (conflict) {
+      setConflictWarning(
+        `⚠️ Scheduling Warning: Instructor ${newBatchInstructor.split(" ")[0]} already teaches "${conflict.name}" on ${conflict.days.join("/")} between ${conflict.startTime} and ${conflict.endTime}.`
+      );
+    } else {
+      setConflictWarning(null);
+    }
+  }, [newBatchInstructor, newBatchDays, newBatchStart, newBatchEnd, batches]);
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
@@ -69,27 +206,106 @@ export default function AdminDashboardPage() {
     router.push("/login");
   };
 
+  const toggleDaySelection = (day: string) => {
+    if (newBatchDays.includes(day)) {
+      if (newBatchDays.length > 1) {
+        setNewBatchDays(newBatchDays.filter((d) => d !== day));
+      }
+    } else {
+      setNewBatchDays([...newBatchDays, day]);
+    }
+  };
+
+  const handleCreateBatch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBatchName.trim()) {
+      showToast("Please enter a batch name");
+      return;
+    }
+
+    const newEntry: ClassBatch = {
+      id: "batch-" + Date.now(),
+      name: newBatchName.trim(),
+      classType: newBatchType,
+      instructor: newBatchInstructor,
+      days: newBatchDays,
+      startTime: newBatchStart,
+      endTime: newBatchEnd,
+      capacity: Number(newBatchCap),
+      price: `₹${newBatchPrice}`,
+      meetingUrl: newBatchUrl || "https://meet.progressrooms.com/" + newBatchName.toLowerCase().replace(/\s+/g, "-"),
+      status: "ACTIVE"
+    };
+
+    const updated = [newEntry, ...batches];
+    setBatches(updated);
+    try {
+      localStorage.setItem("pr_studio_batches", JSON.stringify(updated));
+    } catch (err) {}
+
+    // Reset form & close modal
+    setNewBatchName("");
+    setIsCreateModalOpen(false);
+    showToast(`🌿 New Batch "${newEntry.name}" created! 30-day timetable generated.`);
+  };
+
   const toggleAttendance = (studentId: string) => {
     const current = attendanceRecords[studentId] || "ABSENT";
-    const next = current === "ATTENDED" ? "ABSENT" : "ATTENDED";
-    setAttendanceRecords(prev => ({ ...prev, [studentId]: next }));
+    const next: "ATTENDED" | "ABSENT" = current === "ATTENDED" ? "ABSENT" : "ATTENDED";
+    const updated: Record<string, "ATTENDED" | "ABSENT"> = { ...attendanceRecords, [studentId]: next };
+    setAttendanceRecords(updated);
+
+    // Update student attended count reactively
+    const updatedStudents = students.map((s) => {
+      if (s.id === studentId) {
+        const diff = next === "ATTENDED" ? 1 : -1;
+        return { ...s, attended: Math.max(0, s.attended + diff) };
+      }
+      return s;
+    });
+    setStudents(updatedStudents);
+
+    try {
+      localStorage.setItem("pr_attendance_records", JSON.stringify(updated));
+      localStorage.setItem("pr_students_list", JSON.stringify(updatedStudents));
+    } catch (err) {}
+
     showToast(`Attendance updated: ${next}`);
   };
 
-  // Sample seed data
-  const studentsList = [
-    { id: "student-1", name: "Aarav Patel", email: "student1@test.progressrooms.local", phone: "+91 98765 43210", plan: "Morning Hatha Flow (Monthly)", attended: 8, total: 12, status: "ACTIVE" },
-    { id: "student-2", name: "Pooja Sharma", email: "student2@test.progressrooms.local", phone: "+91 98765 43211", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE" },
-    { id: "student-3", name: "Rohan Verma", email: "student3@test.progressrooms.local", phone: "+91 98765 43212", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON" },
-    { id: "student-4", name: "Meera Nair", email: "student4@test.progressrooms.local", phone: "+91 98765 43213", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE" },
-    { id: "student-5", name: "Vikram Iyer", email: "student5@test.progressrooms.local", phone: "+91 98765 43214", plan: "Meditation & Breathwork", attended: 3, total: 4, status: "ACTIVE" },
-  ];
+  const handleMarkAll = (status: "ATTENDED" | "ABSENT") => {
+    const updated: Record<string, "ATTENDED" | "ABSENT"> = { ...attendanceRecords };
+    students.forEach((s) => {
+      updated[s.id] = status;
+    });
+    setAttendanceRecords(updated);
 
-  const filteredStudents = studentsList.filter(s => {
+    const updatedStudents = students.map((s) => ({
+      ...s,
+      attended: status === "ATTENDED" ? Math.min(s.total, s.attended + 1) : s.attended
+    }));
+    setStudents(updatedStudents);
+
+    try {
+      localStorage.setItem("pr_attendance_records", JSON.stringify(updated));
+      localStorage.setItem("pr_students_list", JSON.stringify(updatedStudents));
+    } catch (err) {}
+
+    showToast(`All students marked as ${status}`);
+  };
+
+  const resolveQuery = (id: string) => {
+    setQueries(queries.map(q => q.id === id ? { ...q, status: "RESOLVED" } : q));
+    showToast("Query marked as resolved");
+  };
+
+  const filteredStudents = students.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) || s.email.toLowerCase().includes(studentSearch.toLowerCase());
     const matchesStatus = studentStatusFilter === "ALL" || s.status === studentStatusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const selectedBatch = batches.find((b) => b.id === selectedBatchId) || batches[0];
 
   return (
     <div className="flex h-screen max-h-screen overflow-hidden bg-[#F4F7F4] text-[#1A2E22] font-sans">
@@ -101,7 +317,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Nature Dark Emerald Sidebar (Inspired by aerial yoga client panel) */}
+      {/* Nature Dark Emerald Sidebar */}
       <aside
         style={{
           background: "linear-gradient(180deg, #0C2417 0%, #133623 50%, #0D291A 100%)",
@@ -150,7 +366,7 @@ export default function AdminDashboardPage() {
               }`}
             >
               <span className="text-base">👥</span>
-              <span>Students & Attendance</span>
+              <span>Students & Directory</span>
             </button>
 
             <button
@@ -249,22 +465,24 @@ export default function AdminDashboardPage() {
         </div>
       </aside>
 
-      {/* Main Workspace (Scrollable) */}
-      <main className="flex-1 h-screen overflow-y-auto p-8 space-y-8">
-        {/* TAB 1: STUDENTS DIRECTORY */}
+      {/* Main Sanctuary Dashboard Viewport */}
+      <main className="flex-1 overflow-y-auto p-8">
+        {/* TAB 1: STUDENTS & DIRECTORY */}
         {activeTab === "students" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Students & Attendance Directory</h1>
-                <p className="text-xs text-[#40514E] mt-0.5">Manage enrolled practitioners, check-in histories, and active memberships.</p>
+                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Enrolled Student Directory</h1>
+                <p className="text-xs text-[#40514E] mt-0.5">Manage your active yogis, track attendance counts, and review membership status.</p>
               </div>
-              <button
-                onClick={() => showToast("Add Student Dialog Opened")}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-semibold text-xs shadow-sm transition"
-              >
-                <Plus className="h-4 w-4" /> Add Student
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => showToast("Exporting Student Roster CSV...")}
+                  className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition"
+                >
+                  Export Roster (CSV)
+                </button>
+              </div>
             </div>
 
             {/* Search & Filter Bar */}
@@ -345,7 +563,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 2: CLASS BATCHES & SCHEDULES */}
+        {/* TAB 2: CLASS BATCHES & SCHEDULES (FEAT-05) */}
         {activeTab === "classes-plans" && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -354,7 +572,7 @@ export default function AdminDashboardPage() {
                 <p className="text-xs text-[#40514E] mt-0.5">Configure your weekly scheduled classes and automated Zoom meeting links.</p>
               </div>
               <button
-                onClick={() => showToast("New Class Batch Modal Opened")}
+                onClick={() => setIsCreateModalOpen(true)}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-semibold text-xs shadow-sm transition"
               >
                 <Plus className="h-4 w-4" /> Create Class Batch
@@ -362,81 +580,47 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase bg-[#E8F0E9] text-[#1b4332]">
-                    Group • Hatha Yoga
-                  </span>
-                  <span className="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
-                    Rolling 30d Active
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-[#0C2417]">Morning Hatha Flow</h3>
-                <p className="text-xs text-slate-600">Daily alignment, Surya Namaskar, and breathwork. 60 Mins.</p>
+              {batches.map((batch) => (
+                <div key={batch.id} className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4 hover:border-[#81A882] transition">
+                  <div className="flex items-center justify-between">
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase bg-[#E8F0E9] text-[#1b4332]">
+                      {batch.classType}
+                    </span>
+                    <span className="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
+                      Rolling 30d Active
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-[#0C2417]">{batch.name}</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Capacity: {batch.capacity} yogis max</p>
+                  </div>
 
-                <div className="p-3 bg-[#F4F7F4] rounded-2xl border border-[#E1E9E2] space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Weekly Schedule:</span>
-                    <span className="font-bold text-[#0C2417]">Mon, Wed, Fri @ 07:00 AM IST</span>
+                  <div className="p-3.5 bg-[#F4F7F4] rounded-2xl border border-[#E1E9E2] space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Weekly Schedule:</span>
+                      <span className="font-bold text-[#0C2417]">{batch.days.join(", ")} @ {batch.startTime} - {batch.endTime} IST</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Assigned Instructor:</span>
+                      <span className="font-bold text-[#0C2417]">{batch.instructor}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Live Video Room:</span>
+                      <span className="font-mono text-emerald-700 font-semibold truncate max-w-[200px]">{batch.meetingUrl}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Assigned Instructor:</span>
-                    <span className="font-bold text-[#0C2417]">Sahil Sharma (Lead Guru)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Live Video Room:</span>
-                    <span className="font-mono text-indigo-600 truncate max-w-[200px]">https://meet.progressrooms.com/sahil-flow</span>
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs font-bold text-slate-800">₹2,500 / Month</span>
-                  <button
-                    onClick={() => showToast("Edit Schedule Opened")}
-                    className="text-xs font-bold text-[#1b4332] hover:underline"
-                  >
-                    Edit Batch Settings →
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase bg-[#E8F0E9] text-[#1b4332]">
-                    Group • Aerial Yoga
-                  </span>
-                  <span className="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
-                    Rolling 30d Active
-                  </span>
-                </div>
-                <h3 className="text-lg font-bold text-[#0C2417]">Aerial Yoga Conditioning</h3>
-                <p className="text-xs text-slate-600">Suspended silks conditioning, core power, and decompression. 60 Mins.</p>
-
-                <div className="p-3 bg-[#F4F7F4] rounded-2xl border border-[#E1E9E2] space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Weekly Schedule:</span>
-                    <span className="font-bold text-[#0C2417]">Tue, Thu @ 06:00 PM IST</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Assigned Instructor:</span>
-                    <span className="font-bold text-[#0C2417]">Ananya Sen (Aerial Specialist)</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Live Video Room:</span>
-                    <span className="font-mono text-indigo-600 truncate max-w-[200px]">https://meet.progressrooms.com/ananya-aerial</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-[#F0F4F0]">
+                    <span className="text-xs font-bold text-slate-800">{batch.price} / Month</span>
+                    <button
+                      onClick={() => showToast(`Editing settings for ${batch.name}`)}
+                      className="text-xs font-bold text-[#1b4332] hover:underline"
+                    >
+                      Edit Batch Settings →
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs font-bold text-slate-800">₹3,500 / Month</span>
-                  <button
-                    onClick={() => showToast("Edit Schedule Opened")}
-                    className="text-xs font-bold text-[#1b4332] hover:underline"
-                  >
-                    Edit Batch Settings →
-                  </button>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
@@ -497,49 +681,81 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 4: ATTENDANCE TRACKER */}
+        {/* TAB 4: ATTENDANCE TRACKER (FEAT-06) */}
         {activeTab === "attendance-tracker" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Daily Attendance Tracker</h1>
-                <p className="text-xs text-[#40514E] mt-0.5">Select a scheduled occurrence and mark attendance with one click.</p>
+                <p className="text-xs text-[#40514E] mt-0.5">Select a batch & session date to record attendance in real time.</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
+                />
                 <select
-                  value={selectedClassForAttendance}
-                  onChange={(e) => setSelectedClassForAttendance(e.target.value)}
+                  value={selectedBatchId}
+                  onChange={(e) => setSelectedBatchId(e.target.value)}
                   className="px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
                 >
-                  <option value="sess-1">Morning Hatha Flow (Today, 07:00 AM)</option>
-                  <option value="sess-2">Aerial Yoga Conditioning (Yesterday, 06:00 PM)</option>
+                  {batches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.days.join("/")} @ {b.startTime})
+                    </option>
+                  ))}
                 </select>
                 <button
-                  onClick={() => showToast("All unmarked students set to Attended")}
+                  onClick={() => handleMarkAll("ATTENDED")}
                   className="px-3 py-2 rounded-xl text-xs font-semibold bg-[#133623] text-white hover:bg-[#0C2417] transition"
                 >
                   Mark All Present
                 </button>
+                <button
+                  onClick={() => handleMarkAll("ABSENT")}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-[#CEDECF] text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Clear Roster
+                </button>
+              </div>
+            </div>
+
+            {/* Selected Session Info Banner */}
+            <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center font-bold">
+                  🗓️
+                </div>
+                <div>
+                  <span className="font-bold text-[#0C2417] text-sm">{selectedBatch?.name}</span>
+                  <span className="text-slate-500 ml-2">({selectedBatch?.instructor} • {selectedBatch?.startTime} - {selectedBatch?.endTime} IST)</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-600">Date:</span>
+                <span className="font-mono bg-[#F4F7F4] px-2 py-0.5 rounded text-[#0C2417] font-bold">{selectedDate}</span>
               </div>
             </div>
 
             <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm divide-y divide-[#E1E9E2]">
-              {studentsList.map((s) => {
+              {students.map((s) => {
                 const isAttended = attendanceRecords[s.id] === "ATTENDED";
                 return (
                   <div key={s.id} className="p-5 flex items-center justify-between hover:bg-[#F9FAF9] transition">
                     <div className="flex items-center space-x-3">
                       <button
                         onClick={() => toggleAttendance(s.id)}
-                        className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition ${
-                          isAttended ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-500"
+                        className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition ${
+                          isAttended ? "bg-emerald-600 text-white shadow-sm" : "bg-slate-200 text-slate-500"
                         }`}
                       >
-                        {isAttended ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                        {isAttended ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
                       </button>
                       <div>
                         <h4 className="font-bold text-sm text-[#0C2417]">{s.name}</h4>
-                        <p className="text-[11px] text-slate-500">{s.plan}</p>
+                        <p className="text-[11px] text-slate-500">{s.plan} • {s.attended}/{s.total} Sessions Logged</p>
                       </div>
                     </div>
 
@@ -553,7 +769,7 @@ export default function AdminDashboardPage() {
                         onClick={() => toggleAttendance(s.id)}
                         className="text-xs text-[#1b4332] font-semibold hover:underline"
                       >
-                        Change
+                        Change Status
                       </button>
                     </div>
                   </div>
@@ -568,36 +784,34 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Student Support & Queries</h1>
-              <p className="text-xs text-[#40514E] mt-0.5">Answer practitioner questions, rescheduling requests, and general inquiries.</p>
+              <p className="text-xs text-[#40514E] mt-0.5">Manage questions from students submitted through the public website or student sanctuary portal.</p>
             </div>
 
             <div className="space-y-4">
               {queries.map((q) => (
-                <div key={q.id} className="p-6 rounded-3xl bg-white border border-[#E1E9E2] shadow-sm space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-sm text-[#0C2417]">{q.student}</h4>
-                      <p className="text-[11px] text-slate-500">{q.email} • {q.date}</p>
+                <div key={q.id} className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm flex items-start justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-[#0C2417]">{q.student}</span>
+                      <span className="text-xs text-slate-500">({q.email})</span>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        q.status === "RESOLVED" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                      }`}>
+                        {q.status}
+                      </span>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                      q.status === "RESOLVED" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                    }`}>
-                      {q.status}
-                    </span>
+                    <p className="text-xs text-[#263328] bg-[#F4F7F4] p-3 rounded-xl border border-[#E1E9E2]">{q.question}</p>
+                    <span className="text-[10px] text-slate-400">Received {q.date}</span>
                   </div>
 
-                  <p className="text-xs text-slate-700 bg-[#F4F7F4] p-3 rounded-2xl border border-[#CEDECF]">
-                    "{q.question}"
-                  </p>
-
-                  <div className="flex items-center justify-end gap-2 pt-1">
+                  {q.status === "UNANSWERED" && (
                     <button
-                      onClick={() => showToast(`Reply sent to ${q.student}`)}
-                      className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#133623] text-white hover:bg-[#0C2417] transition"
+                      onClick={() => resolveQuery(q.id)}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#133623] hover:bg-[#0C2417] text-white transition"
                     >
-                      Reply via Email
+                      Mark Resolved
                     </button>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -609,32 +823,32 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Analytics & Revenue</h1>
-              <p className="text-xs text-[#40514E] mt-0.5">Overview of monthly revenue, attendance rates, and retention.</p>
+              <p className="text-xs text-[#40514E] mt-0.5">Real-time attendance rates, monthly recurring revenue, and student retention metrics.</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
-              <div className="p-5 rounded-3xl bg-white border border-[#E1E9E2] shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#81A882]">Total Revenue</span>
-                <p className="text-2xl font-black text-[#0C2417] mt-1">₹45,000</p>
-                <p className="text-[10px] text-emerald-600 font-semibold mt-1">+18% vs last month</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
+                <span className="text-xs text-slate-500">Monthly Revenue (MRR)</span>
+                <h3 className="text-3xl font-black text-[#0C2417]">₹62,000</h3>
+                <p className="text-[11px] text-emerald-600 font-semibold">↑ +18% from last month</p>
               </div>
 
-              <div className="p-5 rounded-3xl bg-white border border-[#E1E9E2] shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#81A882]">Active Practitioners</span>
-                <p className="text-2xl font-black text-[#0C2417] mt-1">20</p>
-                <p className="text-[10px] text-slate-500 font-semibold mt-1">100% capacity filled</p>
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
+                <span className="text-xs text-slate-500">Active Students</span>
+                <h3 className="text-3xl font-black text-[#0C2417]">{students.length}</h3>
+                <p className="text-[11px] text-emerald-600 font-semibold">100% active retention</p>
               </div>
 
-              <div className="p-5 rounded-3xl bg-white border border-[#E1E9E2] shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#81A882]">Attendance Rate</span>
-                <p className="text-2xl font-black text-[#0C2417] mt-1">92.4%</p>
-                <p className="text-[10px] text-emerald-600 font-semibold mt-1">Excellent commitment</p>
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
+                <span className="text-xs text-slate-500">Overall Attendance Rate</span>
+                <h3 className="text-3xl font-black text-[#0C2417]">91.4%</h3>
+                <p className="text-[11px] text-emerald-600 font-semibold">↑ Higher than industry avg (78%)</p>
               </div>
 
-              <div className="p-5 rounded-3xl bg-white border border-[#E1E9E2] shadow-sm">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#81A882]">Platform Subscription</span>
-                <p className="text-2xl font-black text-[#0C2417] mt-1">Starter</p>
-                <p className="text-[10px] text-[#2f6a45] font-semibold mt-1">30-day trial active</p>
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
+                <span className="text-xs text-slate-500">Active Recurring Batches</span>
+                <h3 className="text-3xl font-black text-[#0C2417]">{batches.length}</h3>
+                <p className="text-[11px] text-slate-500 font-medium">Weekly scheduled sessions</p>
               </div>
             </div>
           </div>
@@ -642,43 +856,244 @@ export default function AdminDashboardPage() {
 
         {/* TAB 7: SETTINGS & WEBSITE */}
         {activeTab === "settings" && (
-          <div className="space-y-6">
+          <div className="space-y-6 max-w-4xl">
             <div>
               <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Settings & Website Preview</h1>
-              <p className="text-xs text-[#40514E] mt-0.5">Manage your public SSR website link, studio branding, and timezone.</p>
+              <p className="text-xs text-[#40514E] mt-0.5">Customize studio branding, domain names, and public SSR teacher landing page.</p>
             </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#0C2417]">Public Website Link</h3>
-              <div className="flex items-center justify-between p-4 bg-[#F4F7F4] rounded-2xl border border-[#CEDECF]">
+            <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-6">
+              <div className="flex items-center justify-between pb-6 border-b border-[#E1E9E2]">
                 <div>
-                  <p className="text-xs font-mono font-bold text-[#0C2417]">https://progressrooms.com/sahil-yoga-studio</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Live Server-Side Rendered landing page.</p>
+                  <h4 className="font-bold text-sm text-[#0C2417]">Public Studio Page</h4>
+                  <p className="text-xs text-slate-500">Your live SSR website powered by Next.js App Router</p>
                 </div>
                 <Link
                   href="/sahil-yoga-studio"
                   target="_blank"
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#133623] text-white hover:bg-[#0C2417] transition flex items-center gap-1.5"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#133623] hover:bg-[#0C2417] text-white shadow-sm transition"
                 >
-                  <span>Open Website</span>
+                  <span>Open Public Website</span>
                   <ExternalLink className="h-3.5 w-3.5" />
                 </Link>
               </div>
-            </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
-              <h3 className="font-bold text-sm text-[#0C2417]">Theme & Sanctuary Appearance</h3>
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-2xl bg-[#0C2417] border border-[#2D7A58]" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs font-bold text-[#0C2417]">Nature Forest & Sage Palette (Active)</p>
-                  <p className="text-[10px] text-slate-500">Serene sanctuary aesthetic configured across all student and admin views.</p>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Studio Name</label>
+                  <input
+                    type="text"
+                    defaultValue="Sahil Yoga Studio"
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Timezone</label>
+                  <input
+                    type="text"
+                    defaultValue="Asia/Kolkata (IST)"
+                    disabled
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F4F7F4] text-slate-500"
+                  />
                 </div>
               </div>
             </div>
           </div>
         )}
       </main>
+
+      {/* CREATE CLASS BATCH MODAL (FEAT-05) */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-[#CEDECF] shadow-2xl max-w-xl w-full p-6 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-[#E1E9E2]">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">✨</span>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Create New Class Batch</h3>
+                  <p className="text-xs text-slate-500">Configure recurring schedule rules and automated meeting room.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Conflict Warning Banner */}
+            {conflictWarning && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block font-bold">Double-Booking Warning</strong>
+                  <span>{conflictWarning}</span>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateBatch} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Batch / Session Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sunset Vinyasa Flow, Aerial Silks Beginner"
+                  value={newBatchName}
+                  onChange={(e) => setNewBatchName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#133623] text-xs bg-[#F9FAF9]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Class Type
+                  </label>
+                  <select
+                    value={newBatchType}
+                    onChange={(e) => setNewBatchType(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white"
+                  >
+                    <option value="Hatha Yoga">Hatha Yoga</option>
+                    <option value="Aerial Yoga">Aerial Yoga</option>
+                    <option value="Vinyasa Flow">Vinyasa Flow</option>
+                    <option value="Meditation">Meditation & Pranayama</option>
+                    <option value="Pilates">Pilates Conditioning</option>
+                    <option value="Workshop">Weekend Intensive Workshop</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Assigned Instructor
+                  </label>
+                  <select
+                    value={newBatchInstructor}
+                    onChange={(e) => setNewBatchInstructor(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white"
+                  >
+                    <option value="Sahil Sharma (Lead Guru)">Sahil Sharma (Lead Guru)</option>
+                    <option value="Ananya Sen (Aerial Specialist)">Ananya Sen (Aerial Specialist)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                  Weekly Recurrence Days
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => {
+                    const isSelected = newBatchDays.includes(d);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => toggleDaySelection(d)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                          isSelected
+                            ? "bg-[#133623] text-white shadow-sm"
+                            : "bg-[#F4F7F4] text-slate-700 hover:bg-[#E8F0E9] border border-[#CEDECF]"
+                        }`}
+                      >
+                        {d}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Start Time
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={newBatchStart}
+                    onChange={(e) => setNewBatchStart(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    End Time
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={newBatchEnd}
+                    onChange={(e) => setNewBatchEnd(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Max Yogis
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={newBatchCap}
+                    onChange={(e) => setNewBatchCap(Number(e.target.value))}
+                    className="w-full px-2.5 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Monthly ₹
+                  </label>
+                  <input
+                    type="text"
+                    value={newBatchPrice}
+                    onChange={(e) => setNewBatchPrice(e.target.value)}
+                    className="w-full px-2.5 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Automated Video / Zoom Meeting URL
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://meet.progressrooms.com/your-batch"
+                  value={newBatchUrl}
+                  onChange={(e) => setNewBatchUrl(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+                >
+                  <span>🌿 Create Batch & Generate Timetable</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
