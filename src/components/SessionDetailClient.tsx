@@ -34,7 +34,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
           <div className="lg:col-span-2 space-y-8">
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm">
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <span className="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700">
+                <span className="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#E8F0E9] text-[#133623]">
                   {session.session_type}
                 </span>
                 <span className="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-slate-100 text-slate-700">
@@ -57,7 +57,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
             {/* Weekly Schedule */}
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
-                <Calendar className="h-5 w-5 text-indigo-600" /> Weekly Class Schedule
+                <Calendar className="h-5 w-5 text-[#133623]" /> Weekly Class Schedule
               </h2>
               <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden">
                 {session.schedule.map((r, i) => (
@@ -130,7 +130,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
 
               <button
                 onClick={() => setModalOpen(true)}
-                className="mt-6 w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md transition"
+                className="mt-6 w-full py-3.5 rounded-2xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold text-sm shadow-md transition"
               >
                 Enroll Now
               </button>

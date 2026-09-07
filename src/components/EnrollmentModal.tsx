@@ -90,7 +90,7 @@ export function EnrollmentModal({
         {step === "EMAIL" && (
           <form onSubmit={handleRequestOtp} className="space-y-4">
             <div className="text-center">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
+              <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#133623] flex items-center justify-center mx-auto mb-3">
                 <Sparkles className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-bold text-slate-900">Enroll in {sessionName}</h3>
@@ -117,7 +117,7 @@ export function EnrollmentModal({
                 placeholder="student@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600 text-sm"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#133623] text-sm"
               />
             </div>
 
@@ -126,7 +126,7 @@ export function EnrollmentModal({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Continue with Email"}
             </button>
@@ -136,7 +136,7 @@ export function EnrollmentModal({
         {step === "OTP" && (
           <form onSubmit={handleVerifyAndEnroll} className="space-y-4">
             <div className="text-center">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
+              <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#133623] flex items-center justify-center mx-auto mb-3">
                 <Lock className="h-6 w-6" />
               </div>
               <h3 className="text-xl font-bold text-slate-900">Verify Code</h3>
@@ -153,7 +153,7 @@ export function EnrollmentModal({
                 placeholder="123456"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                className="w-full text-center tracking-widest text-2xl font-mono py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                className="w-full text-center tracking-widest text-2xl font-mono py-3 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#133623]"
               />
             </div>
 
@@ -162,7 +162,7 @@ export function EnrollmentModal({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify & Authorize Payment"}
             </button>

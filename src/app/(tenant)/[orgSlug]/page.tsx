@@ -21,8 +21,8 @@ const FALLBACK_ORGS: Record<string, PublicWebsitePayload> = {
       headline: "Cultivate Stillness, Strength & Breath",
       subheadline: "Authentic daily Hatha flow, Aerial conditioning, and Himalayan breathwork classes in Bangalore & Online.",
       about_text: "Sahil Yoga Studio is a holistic wellness sanctuary dedicated to alignment, breath awareness, and graceful mobility. Whether you are unrolling a mat for the first time or soaring in silks, welcome home.",
-      primary_color: "#4f46e5",
-      accent_color: "#06b6d4"
+      primary_color: "#133623",
+      accent_color: "#81A882"
     },
     instructors: [
       { name: "Sahil Sharma", role: "OWNER", title: "Founder & Lead Guru", bio: "Certified Hatha & Vinyasa master with 12+ years experience." },
