@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 
 function LoginFormContent() {
   const router = useRouter();
@@ -14,10 +14,22 @@ function LoginFormContent() {
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<"EMAIL" | "OTP">("EMAIL");
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [previewOtp, setPreviewOtp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  // Quick Test User One-Click Login (Strictly 3 Types: Super Admin, Studio/Instructor, Student)
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+
+  // Countdown timer for resending OTP
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  // Quick Test User One-Click Login (Super Admin, Studio/Instructor, Student)
   const handleQuickTestLogin = (userRole: "SUPER_ADMIN" | "INSTRUCTOR" | "STUDENT") => {
     let mockUser: any;
     let targetUrl = "/dashboard";
@@ -25,7 +37,7 @@ function LoginFormContent() {
     if (userRole === "SUPER_ADMIN") {
       mockUser = {
         id: "usr-superadmin",
-        email: "admin@progressrooms.com",
+        email: "admin@test.progressrooms.local",
         full_name: "Platform Super Admin",
         is_superadmin: true,
         role: "SUPER_ADMIN",
@@ -36,7 +48,7 @@ function LoginFormContent() {
     } else if (userRole === "INSTRUCTOR") {
       mockUser = {
         id: "usr-instructor",
-        email: "instructor@yogastudio.com",
+        email: "owner@yogastudio.test",
         full_name: "Lead Teacher (Studio Guide)",
         role: "INSTRUCTOR",
         organization_name: "Tranquil Flow Sanctuary",
@@ -46,7 +58,7 @@ function LoginFormContent() {
     } else {
       mockUser = {
         id: "usr-student-01",
-        email: "student@progressrooms.com",
+        email: "student1@test.progressrooms.local",
         full_name: "Aarav Patel (Practitioner)",
         role: "STUDENT"
       };
@@ -58,52 +70,100 @@ function LoginFormContent() {
     router.push(targetUrl);
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!email.trim()) {
+      setError("Please enter your email address.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setInfoMessage(null);
+
     try {
-      const res = await fetch("http://localhost:8000/api/v1/auth/request-otp", {
+      const res = await fetch(`${API_BASE}/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), purpose: "LOGIN_VERIFICATION" }),
       });
+
       const data = await res.json();
-      setPreviewOtp(data.otp_preview || "123456");
-      setOtp(data.otp_preview || "123456");
+      if (!res.ok) {
+        throw new Error(data.detail || "Unable to send verification code. Please try again.");
+      }
+
+      setPreviewOtp(data.otp_preview || null);
+      if (data.otp_preview && (email.endsWith(".test") || email.endsWith(".local"))) {
+        setOtp(data.otp_preview);
+      } else {
+        setOtp("");
+      }
+
+      setInfoMessage(`Verification passcode sent to ${email}. Valid for 10 minutes.`);
       setStep("OTP");
-    } catch (err) {
-      setPreviewOtp("123456");
-      setOtp("123456");
-      setStep("OTP");
+      setResendCooldown(30);
+    } catch (err: any) {
+      setError(err.message || "Failed to dispatch verification email. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || resending) return;
+    setResending(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:8000/api/v1/auth/verify-otp", {
+      const res = await fetch(`${API_BASE}/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), purpose: "LOGIN_VERIFICATION" }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Invalid verification code");
+      if (!res.ok) throw new Error(data.detail || "Failed to resend code");
+      setPreviewOtp(data.otp_preview || null);
+      setInfoMessage(`New passcode dispatched to ${email}.`);
+      setResendCooldown(30);
+    } catch (err: any) {
+      setError(err.message || "Could not resend passcode.");
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otp.trim()) {
+      setError("Please enter the 6-digit verification code.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/verify-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), otp: otp.trim(), purpose: "LOGIN_VERIFICATION" }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Invalid or expired passcode. Please try again.");
+      }
 
       localStorage.setItem("pr_access_token", data.access_token);
       localStorage.setItem("pr_user", JSON.stringify(data.user));
 
-      if (data.user.email.startsWith("student")) {
+      if (data.user?.email?.startsWith("student") || data.user?.role === "STUDENT") {
         router.push("/student");
       } else {
         router.push("/dashboard");
       }
     } catch (err: any) {
-      handleQuickTestLogin("INSTRUCTOR");
+      setError(err.message || "Invalid verification code.");
     } finally {
       setLoading(false);
     }
@@ -128,6 +188,20 @@ function LoginFormContent() {
         )}
       </div>
 
+      {infoMessage && (
+        <div className="p-3 rounded-xl bg-[#E8F0E9] border border-[#81A882]/40 text-xs text-[#133623] flex items-start gap-2">
+          <CheckCircle2 className="h-4 w-4 text-[#133623] shrink-0 mt-0.5" />
+          <span>{infoMessage}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {step === "EMAIL" ? (
         <form onSubmit={handleSendOtp} className="space-y-4">
           <div>
@@ -135,7 +209,7 @@ function LoginFormContent() {
               Work or Student Email
             </label>
             <input
-              type="email"
+              type="text"
               required
               placeholder="teacher@yogastudio.com"
               value={email}
@@ -143,8 +217,6 @@ function LoginFormContent() {
               className="w-full px-4 py-3 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] text-sm bg-[#FAF7F2]"
             />
           </div>
-
-          {error && <p className="text-xs text-red-600">{error}</p>}
 
           <button
             type="submit"
@@ -163,7 +235,11 @@ function LoginFormContent() {
               </label>
               <button
                 type="button"
-                onClick={() => setStep("EMAIL")}
+                onClick={() => {
+                  setStep("EMAIL");
+                  setError(null);
+                  setInfoMessage(null);
+                }}
                 className="text-xs text-[#618D63] hover:underline"
               >
                 Change Email
@@ -180,12 +256,10 @@ function LoginFormContent() {
             />
             {previewOtp && (
               <p className="mt-2 text-center text-xs text-[#2f6a45] bg-[#E8F0E9] py-1.5 px-2 rounded-lg font-medium">
-                Test OTP Code: <strong className="font-mono">{previewOtp}</strong>
+                💡 Test Passcode: <strong className="font-mono">{previewOtp}</strong>
               </p>
             )}
           </div>
-
-          {error && <p className="text-xs text-red-600">{error}</p>}
 
           <button
             type="submit"
@@ -194,6 +268,18 @@ function LoginFormContent() {
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify & Open Dashboard"}
           </button>
+
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              disabled={resendCooldown > 0 || resending}
+              onClick={handleResendOtp}
+              className="text-xs text-[#618D63] hover:text-[#0C2417] disabled:text-slate-400 inline-flex items-center gap-1.5 transition"
+            >
+              <RefreshCw className={`h-3 w-3 ${resending ? "animate-spin" : ""}`} />
+              {resendCooldown > 0 ? `Resend Passcode in ${resendCooldown}s` : "Resend Passcode"}
+            </button>
+          </div>
         </form>
       )}
 
@@ -213,7 +299,7 @@ function LoginFormContent() {
           >
             <div>
               <p className="text-xs font-bold text-[#0C2417]">Super Admin Login</p>
-              <p className="text-[10px] text-slate-500">Platform Product Owner • admin@progressrooms.com</p>
+              <p className="text-[10px] text-slate-500">Platform Product Owner • admin@test.progressrooms.local</p>
             </div>
             <span className="text-[11px] bg-[#0C2417] text-white px-2.5 py-1 rounded-lg font-semibold">Platform Owner →</span>
           </button>
@@ -226,7 +312,7 @@ function LoginFormContent() {
           >
             <div>
               <p className="text-xs font-bold text-[#0C2417]">Studio / Instructor Login</p>
-              <p className="text-[10px] text-slate-500">Teacher & Studio Operator • instructor@yogastudio.com</p>
+              <p className="text-[10px] text-slate-500">Teacher & Studio Operator • owner@yogastudio.test</p>
             </div>
             <span className="text-[11px] bg-[#133623] text-white px-2.5 py-1 rounded-lg font-semibold">Teacher Login →</span>
           </button>
@@ -239,7 +325,7 @@ function LoginFormContent() {
           >
             <div>
               <p className="text-xs font-bold text-[#0C2417]">Student Login</p>
-              <p className="text-[10px] text-slate-500">Practitioner Portal • student@progressrooms.com</p>
+              <p className="text-[10px] text-slate-500">Practitioner Portal • student1@test.progressrooms.local</p>
             </div>
             <span className="text-[11px] bg-slate-700 text-white px-2.5 py-1 rounded-lg font-semibold">Student Portal →</span>
           </button>
