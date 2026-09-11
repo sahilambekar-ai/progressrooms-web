@@ -30,12 +30,20 @@ import {
   UserCheck,
   UserX,
   Activity,
-  Shield
+  Shield,
+  Edit2,
+  Trash2,
+  Mail,
+  Phone,
+  UserPlus
 } from "lucide-react";
 import { AttendanceCalendar, CalendarSessionEvent } from "@/components/AttendanceCalendar";
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+
 type AdminTab =
-  // Studio / Teacher Tabs
+  // Studio Operations
+  | "studio-teachers"
   | "students"
   | "classes-plans"
   | "subscriptions-manager"
@@ -47,6 +55,22 @@ type AdminTab =
   | "superadmin-instructors"
   | "superadmin-analytics"
   | "superadmin-settings";
+
+interface StudioTeacher {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  phone: string;
+  title: string;
+  bio: string;
+  studio_id: string;
+  studio_name: string;
+  role: string;
+  is_active: boolean;
+  status: "ACTIVE" | "SUSPENDED";
+  joined_at: string;
+}
 
 interface PlatformInstructor {
   id: string;
@@ -99,6 +123,9 @@ interface Student {
   attended: number;
   total: number;
   status: "ACTIVE" | "EXPIRING_SOON";
+  is_verified?: boolean;
+  verification_status?: "VERIFIED" | "NOT VERIFIED";
+  account_status?: string;
 }
 
 const DEFAULT_BATCHES: ClassBatch[] = [
@@ -144,26 +171,26 @@ const DEFAULT_BATCHES: ClassBatch[] = [
 ];
 
 const INITIAL_STUDENTS: Student[] = [
-  { id: "student-1", name: "Aarav Patel", email: "aarav.patel@gmail.com", phone: "+91 98765 43210", plan: "Morning Hatha Flow (Monthly)", attended: 8, total: 12, status: "ACTIVE" },
-  { id: "student-2", name: "Pooja Sharma", email: "pooja.sharma@outlook.com", phone: "+91 98765 43211", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE" },
-  { id: "student-3", name: "Rohan Verma", email: "rohan.verma@yahoo.com", phone: "+91 98765 43212", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON" },
-  { id: "student-4", name: "Meera Nair", email: "meera.nair@gmail.com", phone: "+91 98765 43213", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE" },
-  { id: "student-5", name: "Vikram Iyer", email: "vikram.iyer@gmail.com", phone: "+91 98765 43214", plan: "Meditation & Breathwork", attended: 3, total: 4, status: "ACTIVE" },
-  { id: "student-6", name: "Ananya Desai", email: "ananya.desai@gmail.com", phone: "+91 98765 43215", plan: "Morning Hatha Flow (Monthly)", attended: 10, total: 12, status: "ACTIVE" },
-  { id: "student-7", name: "Kabir Mehta", email: "kabir.mehta@hotmail.com", phone: "+91 98765 43216", plan: "Aerial Yoga Conditioning", attended: 7, total: 8, status: "EXPIRING_SOON" },
-  { id: "student-8", name: "Isha Kapoor", email: "isha.kapoor@gmail.com", phone: "+91 98765 43217", plan: "Meditation & Breathwork", attended: 4, total: 4, status: "EXPIRING_SOON" },
-  { id: "student-9", name: "Siddharth Rao", email: "siddharth.rao@gmail.com", phone: "+91 98765 43218", plan: "Morning Hatha Flow (Monthly)", attended: 5, total: 12, status: "ACTIVE" },
-  { id: "student-10", name: "Tara Sundaram", email: "tara.sundaram@gmail.com", phone: "+91 98765 43219", plan: "Aerial Yoga Conditioning", attended: 2, total: 8, status: "ACTIVE" },
-  { id: "student-11", name: "Aditya Joshi", email: "aditya.joshi@gmail.com", phone: "+91 98765 43220", plan: "Morning Hatha Flow (Monthly)", attended: 9, total: 12, status: "ACTIVE" },
-  { id: "student-12", name: "Kavya Menon", email: "kavya.menon@outlook.com", phone: "+91 98765 43221", plan: "Aerial Yoga Conditioning", attended: 5, total: 8, status: "ACTIVE" },
-  { id: "student-13", name: "Nikhil Chawla", email: "nikhil.chawla@gmail.com", phone: "+91 98765 43222", plan: "Meditation & Breathwork", attended: 2, total: 4, status: "ACTIVE" },
-  { id: "student-14", name: "Divya Nambiar", email: "divya.nambiar@gmail.com", phone: "+91 98765 43223", plan: "Morning Hatha Flow (Monthly)", attended: 12, total: 12, status: "EXPIRING_SOON" },
-  { id: "student-15", name: "Arjun Reddy", email: "arjun.reddy@gmail.com", phone: "+91 98765 43224", plan: "Aerial Yoga Conditioning", attended: 3, total: 8, status: "ACTIVE" },
-  { id: "student-16", name: "Sneha Mukherjee", email: "sneha.mukherjee@gmail.com", phone: "+91 98765 43225", plan: "Morning Hatha Flow (Monthly)", attended: 7, total: 12, status: "ACTIVE" },
-  { id: "student-17", name: "Rishi Saxena", email: "rishi.saxena@gmail.com", phone: "+91 98765 43226", plan: "Meditation & Breathwork", attended: 1, total: 4, status: "ACTIVE" },
-  { id: "student-18", name: "Prerna Roy", email: "prerna.roy@gmail.com", phone: "+91 98765 43227", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE" },
-  { id: "student-19", name: "Manish Agarwal", email: "manish.agarwal@gmail.com", phone: "+91 98765 43228", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON" },
-  { id: "student-20", name: "Zoya Khan", email: "zoya.khan@gmail.com", phone: "+91 98765 43229", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE" }
+  { id: "student-1", name: "Aarav Patel", email: "aarav.patel@gmail.com", phone: "+91 98765 43210", plan: "Morning Hatha Flow (Monthly)", attended: 8, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-2", name: "Pooja Sharma", email: "pooja.sharma@outlook.com", phone: "+91 98765 43211", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-3", name: "Rohan Verma", email: "rohan.verma@yahoo.com", phone: "+91 98765 43212", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON", is_verified: false, verification_status: "NOT VERIFIED" },
+  { id: "student-4", name: "Meera Nair", email: "meera.nair@gmail.com", phone: "+91 98765 43213", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-5", name: "Vikram Iyer", email: "vikram.iyer@gmail.com", phone: "+91 98765 43214", plan: "Meditation & Breathwork", attended: 3, total: 4, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-6", name: "Ananya Desai", email: "ananya.desai@gmail.com", phone: "+91 98765 43215", plan: "Morning Hatha Flow (Monthly)", attended: 10, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-7", name: "Kabir Mehta", email: "kabir.mehta@hotmail.com", phone: "+91 98765 43216", plan: "Aerial Yoga Conditioning", attended: 7, total: 8, status: "EXPIRING_SOON", is_verified: false, verification_status: "NOT VERIFIED" },
+  { id: "student-8", name: "Isha Kapoor", email: "isha.kapoor@gmail.com", phone: "+91 98765 43217", plan: "Meditation & Breathwork", attended: 4, total: 4, status: "EXPIRING_SOON", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-9", name: "Siddharth Rao", email: "siddharth.rao@gmail.com", phone: "+91 98765 43218", plan: "Morning Hatha Flow (Monthly)", attended: 5, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-10", name: "Tara Sundaram", email: "tara.sundaram@gmail.com", phone: "+91 98765 43219", plan: "Aerial Yoga Conditioning", attended: 2, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-11", name: "Aditya Joshi", email: "aditya.joshi@gmail.com", phone: "+91 98765 43220", plan: "Morning Hatha Flow (Monthly)", attended: 9, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-12", name: "Kavya Menon", email: "kavya.menon@outlook.com", phone: "+91 98765 43221", plan: "Aerial Yoga Conditioning", attended: 5, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-13", name: "Nikhil Chawla", email: "nikhil.chawla@gmail.com", phone: "+91 98765 43222", plan: "Meditation & Breathwork", attended: 2, total: 4, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-14", name: "Divya Nambiar", email: "divya.nambiar@gmail.com", phone: "+91 98765 43223", plan: "Morning Hatha Flow (Monthly)", attended: 12, total: 12, status: "EXPIRING_SOON", is_verified: false, verification_status: "NOT VERIFIED" },
+  { id: "student-15", name: "Arjun Reddy", email: "arjun.reddy@gmail.com", phone: "+91 98765 43224", plan: "Aerial Yoga Conditioning", attended: 3, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-16", name: "Sneha Mukherjee", email: "sneha.mukherjee@gmail.com", phone: "+91 98765 43225", plan: "Morning Hatha Flow (Monthly)", attended: 7, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-17", name: "Rishi Saxena", email: "rishi.saxena@gmail.com", phone: "+91 98765 43226", plan: "Meditation & Breathwork", attended: 1, total: 4, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-18", name: "Prerna Roy", email: "prerna.roy@gmail.com", phone: "+91 98765 43227", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
+  { id: "student-19", name: "Manish Agarwal", email: "manish.agarwal@gmail.com", phone: "+91 98765 43228", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON", is_verified: false, verification_status: "NOT VERIFIED" },
+  { id: "student-20", name: "Zoya Khan", email: "zoya.khan@gmail.com", phone: "+91 98765 43229", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" }
 ];
 
 const DEFAULT_CALENDAR_EVENTS: CalendarSessionEvent[] = [
@@ -185,11 +212,27 @@ const DEFAULT_CALENDAR_EVENTS: CalendarSessionEvent[] = [
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<AdminTab>("students");
+  const [activeTab, setActiveTab] = useState<AdminTab>("studio-teachers");
   const [toast, setToast] = useState<string | null>(null);
 
   // Authenticated User State
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Studio Teachers Management State
+  const [studioTeachers, setStudioTeachers] = useState<StudioTeacher[]>([]);
+  const [studioTeachersLoading, setStudioTeachersLoading] = useState(false);
+  const [teacherSearch, setTeacherSearch] = useState("");
+  const [isAddTeacherOpen, setIsAddTeacherOpen] = useState(false);
+  const [isEditTeacherOpen, setIsEditTeacherOpen] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState<StudioTeacher | null>(null);
+
+  // Add / Edit Teacher form fields
+  const [teacherName, setTeacherName] = useState("");
+  const [teacherEmail, setTeacherEmail] = useState("");
+  const [teacherPhone, setTeacherPhone] = useState("");
+  const [teacherTitle, setTeacherTitle] = useState("Sanctuary Guide");
+  const [teacherBio, setTeacherBio] = useState("Certified movement specialist and yoga instructor.");
+  const [teacherIsActive, setTeacherIsActive] = useState(true);
 
   // Batches state
   const [batches, setBatches] = useState<ClassBatch[]>(DEFAULT_BATCHES);
@@ -250,11 +293,122 @@ export default function AdminDashboardPage() {
     { id: "q-2", student: "Pooja Sharma", email: "pooja.sharma@outlook.com", question: "What suspension hammock do you recommend for home aerial yoga practice?", status: "UNANSWERED", date: "Yesterday" }
   ]);
 
+  // Fetch Studio Teachers from Backend
+  const fetchStudioTeachers = async () => {
+    setStudioTeachersLoading(true);
+    try {
+      const url = `${API_BASE_URL}/teachers${teacherSearch ? `?search=${encodeURIComponent(teacherSearch)}` : ""}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setStudioTeachers(data.teachers || []);
+      }
+    } catch (e) {
+      console.warn("Backend API not reachable for studio teachers", e);
+    } finally {
+      setStudioTeachersLoading(false);
+    }
+  };
+
+  // Add a Teacher to the studio
+  const handleCreateTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE_URL}/teachers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: teacherName,
+          email: teacherEmail,
+          phone: teacherPhone,
+          title: teacherTitle,
+          bio: teacherBio,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(`⚠️ ${err.detail || "Failed to create teacher"}`);
+        return;
+      }
+      showToast("🌿 Teacher added to sanctuary successfully!");
+      setIsAddTeacherOpen(false);
+      setTeacherName("");
+      setTeacherEmail("");
+      setTeacherPhone("");
+      setTeacherTitle("Sanctuary Guide");
+      setTeacherBio("Certified movement specialist and yoga instructor.");
+      fetchStudioTeachers();
+    } catch (err) {
+      showToast("⚠️ Error connecting to server to add teacher");
+    }
+  };
+
+  // Open Edit Teacher Modal with existing data
+  const handleOpenEditTeacher = (teacher: StudioTeacher) => {
+    setEditingTeacher(teacher);
+    setTeacherName(teacher.name);
+    setTeacherEmail(teacher.email);
+    setTeacherPhone(teacher.phone);
+    setTeacherTitle(teacher.title);
+    setTeacherBio(teacher.bio);
+    setTeacherIsActive(teacher.is_active);
+    setIsEditTeacherOpen(true);
+  };
+
+  // Update an existing teacher
+  const handleUpdateTeacher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTeacher) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/teachers/${editingTeacher.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: teacherName,
+          phone: teacherPhone,
+          title: teacherTitle,
+          bio: teacherBio,
+          is_active: teacherIsActive,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(`⚠️ ${err.detail || "Failed to update teacher"}`);
+        return;
+      }
+      showToast("🌿 Teacher profile updated successfully!");
+      setIsEditTeacherOpen(false);
+      setEditingTeacher(null);
+      fetchStudioTeachers();
+    } catch (err) {
+      showToast("⚠️ Error connecting to server to update teacher");
+    }
+  };
+
+  // Remove a teacher from the studio
+  const handleDeleteTeacher = async (teacherId: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove teacher "${name}" from this studio?`)) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/teachers/${teacherId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(`⚠️ ${err.detail || "Failed to remove teacher"}`);
+        return;
+      }
+      showToast(`🌿 Teacher "${name}" removed from studio`);
+      fetchStudioTeachers();
+    } catch (err) {
+      showToast("⚠️ Error removing teacher");
+    }
+  };
+
   // Fetch Students from FastAPI Backend
   const fetchStudents = async () => {
     setStudentsLoading(true);
     try {
-      const url = `http://localhost:8000/api/v1/students?page=${currentPage}&page_size=${pageSize}${
+      const url = `${API_BASE_URL}/students?page=${currentPage}&page_size=${pageSize}${
         studentSearch ? `&search=${encodeURIComponent(studentSearch)}` : ""
       }${studentStatusFilter !== "ALL" ? `&status=${studentStatusFilter}` : ""}`;
       const res = await fetch(url);
@@ -276,7 +430,7 @@ export default function AdminDashboardPage() {
     setAdminInstructorsLoading(true);
     try {
       const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
-      const url = `http://localhost:8000/api/v1/admin/instructors?page=${adminCurrentPage}&page_size=${adminPageSize}${
+      const url = `${API_BASE_URL}/admin/instructors?page=${adminCurrentPage}&page_size=${adminPageSize}${
         adminSearch ? `&search=${encodeURIComponent(adminSearch)}` : ""
       }${adminStatusFilter !== "ALL" ? `&status=${adminStatusFilter}` : ""}`;
       const res = await fetch(url, {
@@ -299,7 +453,7 @@ export default function AdminDashboardPage() {
   const fetchAdminMetrics = async () => {
     try {
       const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
-      const res = await fetch("http://localhost:8000/api/v1/admin/metrics", {
+      const res = await fetch(`${API_BASE_URL}/admin/metrics`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -307,7 +461,7 @@ export default function AdminDashboardPage() {
         setAdminMetrics(data);
       }
 
-      const orgRes = await fetch("http://localhost:8000/api/v1/admin/organizations", {
+      const orgRes = await fetch(`${API_BASE_URL}/admin/organizations`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (orgRes.ok) {
@@ -322,7 +476,7 @@ export default function AdminDashboardPage() {
   const toggleInstructorStatus = async (memberId: string) => {
     try {
       const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
-      const res = await fetch(`http://localhost:8000/api/v1/admin/instructors/${memberId}/toggle-status`, {
+      const res = await fetch(`${API_BASE_URL}/admin/instructors/${memberId}/toggle-status`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -369,6 +523,13 @@ export default function AdminDashboardPage() {
       // Ignore localStorage errors
     }
   }, []);
+
+  // Trigger Studio Teachers query when studio browses studio-teachers tab
+  useEffect(() => {
+    if (activeTab === "studio-teachers") {
+      fetchStudioTeachers();
+    }
+  }, [activeTab, teacherSearch]);
 
   // Trigger Students API query when teacher browses students tab
   useEffect(() => {
@@ -583,7 +744,7 @@ export default function AdminDashboardPage() {
             {isSuperAdmin ? (
               <>
                 <p className="text-[10px] uppercase font-bold tracking-widest text-[#81A882] px-3 mb-2">
-                  Super Admin Management
+                  Platform Administration
                 </p>
 
                 <button
@@ -591,7 +752,7 @@ export default function AdminDashboardPage() {
                   className={`nav-item ${activeTab === "superadmin-instructors" ? "active" : ""}`}
                 >
                   <span className="nav-icon">🏢</span>
-                  <span>Studios & Instructors</span>
+                  <span>Manage Studios</span>
                 </button>
 
                 <button
@@ -613,15 +774,23 @@ export default function AdminDashboardPage() {
             ) : (
               <>
                 <p className="text-[10px] uppercase font-bold tracking-widest text-[#81A882] px-3 mb-2">
-                  Teacher Operations Menu
+                  Studio Operations Menu
                 </p>
+
+                <button
+                  onClick={() => setActiveTab("studio-teachers")}
+                  className={`nav-item ${activeTab === "studio-teachers" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">🧘</span>
+                  <span>Manage Teachers</span>
+                </button>
 
                 <button
                   onClick={() => setActiveTab("students")}
                   className={`nav-item ${activeTab === "students" ? "active" : ""}`}
                 >
                   <span className="nav-icon">👥</span>
-                  <span>Students & Directory</span>
+                  <span>Manage Students</span>
                 </button>
 
                 <button
@@ -705,9 +874,9 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Platform Studios & Instructors</h1>
+                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Manage Studios & Organizations</h1>
                 <p className="text-xs text-[#40514E] mt-0.5">
-                  Super Admin control center: review registered academies, monitor teachers, and manage credentials.
+                  Super Admin platform governance: review registered studios, monitor academy health, and manage tenant credentials.
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -1007,13 +1176,212 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TEACHER TAB 1: STUDENTS & DIRECTORY (LIVE API CONNECTED) */}
+        {/* STUDIO TAB 1: MANAGE TEACHERS (LIVE API CONNECTED) */}
+        {activeTab === "studio-teachers" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Manage Studio Teachers</h1>
+                <p className="text-xs text-[#40514E] mt-0.5">
+                  Empower your sanctuary: add certified instructors, modify titles & contact info, or manage access.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    fetchStudioTeachers();
+                    showToast("Synced teachers from database");
+                  }}
+                  className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition flex items-center gap-1.5"
+                >
+                  <Activity className="h-3.5 w-3.5 text-[#2D7A58]" />
+                  <span>Sync DB</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setTeacherName("");
+                    setTeacherEmail("");
+                    setTeacherPhone("");
+                    setTeacherTitle("Sanctuary Instructor");
+                    setTeacherBio("Certified somatic instructor and sanctuary guide.");
+                    setIsAddTeacherOpen(true);
+                  }}
+                  className="btn-primary py-2 px-4 text-xs font-semibold shadow-sm flex items-center gap-1.5"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  <span>Add New Teacher</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar for Studio Teachers */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Active Teachers</span>
+                  <UserCheck className="h-4 w-4 text-[#2D7A58]" />
+                </div>
+                <p className="text-2xl font-bold text-[#0C2417] mt-1">
+                  {studioTeachers.filter(t => t.is_active).length}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Conducting live yoga sessions</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Total Studio Guides</span>
+                  <Users className="h-4 w-4 text-[#2D7A58]" />
+                </div>
+                <p className="text-2xl font-bold text-[#0C2417] mt-1">{studioTeachers.length}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Registered in your sanctuary team</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-500">Studio Sanctuary</span>
+                  <Building2 className="h-4 w-4 text-[#2D7A58]" />
+                </div>
+                <p className="text-base font-bold text-[#0C2417] mt-1 truncate">
+                  {studioTeachers[0]?.studio_name || currentUser?.studio_name || "Sanctuary Studio"}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Primary studio account</p>
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E1E9E2] shadow-sm flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search teachers by name, email, or title..."
+                  value={teacherSearch}
+                  onChange={(e) => setTeacherSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                />
+              </div>
+            </div>
+
+            {/* Teachers Table */}
+            <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                {studioTeachersLoading ? (
+                  <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-[#133623]" />
+                    <span>Loading studio teachers...</span>
+                  </div>
+                ) : (
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#F4F7F4] border-b border-[#E1E9E2] text-[#1b4332] uppercase tracking-wider font-bold">
+                      <tr>
+                        <th className="px-6 py-4">Teacher & Contact</th>
+                        <th className="px-6 py-4">Title & Specialization</th>
+                        <th className="px-6 py-4">Role</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Joined Date</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E1E9E2]">
+                      {studioTeachers.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <span className="text-3xl">🧘</span>
+                              <p className="font-semibold text-slate-600">No teachers found in studio roster</p>
+                              <p className="text-xs text-slate-400">Add your first instructor to start assigning classes.</p>
+                              <button
+                                onClick={() => {
+                                  setTeacherName("");
+                                  setTeacherEmail("");
+                                  setTeacherPhone("");
+                                  setTeacherTitle("Sanctuary Instructor");
+                                  setTeacherBio("Certified somatic instructor.");
+                                  setIsAddTeacherOpen(true);
+                                }}
+                                className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#133623] text-white hover:bg-[#0C2417] transition"
+                              >
+                                + Add Teacher
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : (
+                        studioTeachers.map((teacher) => (
+                          <tr key={teacher.id} className="hover:bg-[#F9FAF9] transition">
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-[#CEDECF] text-[#133623] flex items-center justify-center font-bold text-xs uppercase">
+                                  {teacher.name ? teacher.name.charAt(0) : "T"}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-[#0C2417] text-sm">{teacher.name}</p>
+                                  <p className="text-[11px] text-slate-500">{teacher.email}</p>
+                                  <p className="text-[10px] text-slate-400">{teacher.phone}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <p className="font-semibold text-slate-800">{teacher.title || "Instructor"}</p>
+                              <p className="text-[11px] text-slate-500 line-clamp-1 max-w-xs">{teacher.bio}</p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700">
+                                {teacher.role}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  teacher.is_active
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    : "bg-red-50 text-red-700 border border-red-200"
+                                }`}
+                              >
+                                {teacher.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-slate-500">
+                              {teacher.joined_at}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleOpenEditTeacher(teacher)}
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-[#CEDECF] hover:bg-[#E8F0E9] text-[#0C2417] transition flex items-center gap-1"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                  <span>Edit</span>
+                                </button>
+                                {teacher.role !== "OWNER" && (
+                                  <button
+                                    onClick={() => handleDeleteTeacher(teacher.id, teacher.name)}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition flex items-center gap-1"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    <span>Remove</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STUDIO TAB 2: STUDENTS & DIRECTORY (LIVE API CONNECTED) */}
         {activeTab === "students" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Enrolled Student Directory</h1>
-                <p className="text-xs text-[#40514E] mt-0.5">Manage your active yogis, track attendance counts, and review membership status.</p>
+                <p className="text-xs text-[#40514E] mt-0.5">Manage your active yogis, review OTP account verification, track attendance counts, and review membership status.</p>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -1079,6 +1447,7 @@ export default function AdminDashboardPage() {
                     <thead className="bg-[#F4F7F4] border-b border-[#E1E9E2] text-[#1b4332] uppercase tracking-wider font-bold">
                       <tr>
                         <th className="px-6 py-4">Practitioner Name</th>
+                        <th className="px-6 py-4">Verification</th>
                         <th className="px-6 py-4">Active Class Pass</th>
                         <th className="px-6 py-4 text-center">Classes Attended</th>
                         <th className="px-6 py-4">Status</th>
@@ -1088,7 +1457,7 @@ export default function AdminDashboardPage() {
                     <tbody className="divide-y divide-[#E1E9E2]">
                       {students.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                          <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
                             No practitioners found matching your filter criteria.
                           </td>
                         </tr>
@@ -1099,6 +1468,19 @@ export default function AdminDashboardPage() {
                               <p className="font-bold text-[#0C2417] text-sm">{s.name}</p>
                               <p className="text-[11px] text-slate-500">{s.email}</p>
                               <p className="text-[10px] text-slate-400">{s.phone}</p>
+                            </td>
+                            <td className="px-6 py-4">
+                              {s.verification_status === "VERIFIED" || s.is_verified ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>VERIFIED</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  <span>NOT VERIFIED</span>
+                                </span>
+                              )}
                             </td>
                             <td className="px-6 py-4">
                               <span className="font-semibold text-slate-800">{s.plan}</span>
@@ -1772,6 +2154,258 @@ export default function AdminDashboardPage() {
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
                 >
                   <span>🌿 Create Batch & Generate Timetable</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD TEACHER MODAL */}
+      {isAddTeacherOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-[#CEDECF] shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-[#E1E9E2]">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🧘</span>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Add New Teacher</h3>
+                  <p className="text-xs text-slate-500">Add an instructor to conduct sessions in your sanctuary.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddTeacherOpen(false)}
+                className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTeacher} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Priya Sharma, Vikram Adani"
+                  value={teacherName}
+                  onChange={(e) => setTeacherName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="teacher@studio.com"
+                    value={teacherEmail}
+                    onChange={(e) => setTeacherEmail(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={teacherPhone}
+                    onChange={(e) => setTeacherPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Title & Specialization *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Senior Aerial & Hatha Guide"
+                  value={teacherTitle}
+                  onChange={(e) => setTeacherTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Bio / Sanctuary Notes
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="500hr RYT certified, 7+ years practicing somatic flows..."
+                  value={teacherBio}
+                  onChange={(e) => setTeacherBio(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddTeacherOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Add Teacher</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT TEACHER MODAL */}
+      {isEditTeacherOpen && editingTeacher && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-[#CEDECF] shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-4 border-b border-[#E1E9E2]">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">✏️</span>
+                <div>
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Edit Teacher Profile</h3>
+                  <p className="text-xs text-slate-500">Modify details or update active teaching status.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsEditTeacherOpen(false);
+                  setEditingTeacher(null);
+                }}
+                className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateTeacher} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={teacherName}
+                  onChange={(e) => setTeacherName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Email (Read-Only)
+                  </label>
+                  <input
+                    type="email"
+                    disabled
+                    value={teacherEmail}
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-slate-100 text-slate-500 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={teacherPhone}
+                    onChange={(e) => setTeacherPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Title & Specialization *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={teacherTitle}
+                  onChange={(e) => setTeacherTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Bio / Sanctuary Notes
+                </label>
+                <textarea
+                  rows={3}
+                  value={teacherBio}
+                  onChange={(e) => setTeacherBio(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Teaching Status
+                </label>
+                <div className="flex items-center gap-4 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="teacher_status"
+                      checked={teacherIsActive}
+                      onChange={() => setTeacherIsActive(true)}
+                      className="text-[#133623] focus:ring-[#133623]"
+                    />
+                    <span className="text-emerald-700 font-bold">ACTIVE (Can teach sessions)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="teacher_status"
+                      checked={!teacherIsActive}
+                      onChange={() => setTeacherIsActive(false)}
+                      className="text-[#133623] focus:ring-[#133623]"
+                    />
+                    <span className="text-red-700 font-bold">SUSPENDED</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditTeacherOpen(false);
+                    setEditingTeacher(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>

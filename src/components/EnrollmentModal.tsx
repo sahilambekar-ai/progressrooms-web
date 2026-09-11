@@ -32,8 +32,9 @@ export function EnrollmentModal({
     e.preventDefault();
     setLoading(true);
     setError(null);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
     try {
-      const res = await fetch("http://localhost:8000/api/v1/auth/request-otp", {
+      const res = await fetch(`${apiUrl}/auth/request-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -55,8 +56,9 @@ export function EnrollmentModal({
     e.preventDefault();
     setLoading(true);
     setError(null);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
     try {
-      const res = await fetch("http://localhost:8000/api/v1/auth/verify-otp", {
+      const res = await fetch(`${apiUrl}/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp }),

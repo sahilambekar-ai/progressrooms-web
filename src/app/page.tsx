@@ -54,15 +54,15 @@ export default function HomePage() {
 
             <Link
               href="/login"
-              className="text-sm font-semibold text-[#1b4332] hover:text-[#0C2417] px-3 py-2"
+              className="text-sm font-semibold text-[#1b4332] hover:text-[#0C2417] px-3.5 py-2 transition"
             >
-              Sign In
+              Login
             </Link>
             <Link
-              href="/login?plan=starter"
+              href="/register"
               className="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] shadow-sm transition-all"
             >
-              Start Free Trial
+              Register
             </Link>
           </div>
         </div>
@@ -90,7 +90,7 @@ export default function HomePage() {
 
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
-            href="/login?plan=starter"
+            href="/register?plan=starter"
             className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-semibold text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
           >
             <span>Start 30-Day Free Trial</span>
@@ -322,7 +322,7 @@ export default function HomePage() {
               </div>
 
               <Link
-                href="/login?plan=starter"
+                href="/register?plan=starter"
                 className="mt-8 w-full py-3 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold text-sm text-center shadow-sm transition"
               >
                 Start Free Trial
@@ -372,7 +372,7 @@ export default function HomePage() {
               </div>
 
               <Link
-                href="/login?plan=core"
+                href="/register?plan=core"
                 className="mt-8 w-full py-3 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold text-sm text-center shadow-sm transition"
               >
                 Buy Now
@@ -426,7 +426,7 @@ export default function HomePage() {
               </div>
 
               <Link
-                href="/login?plan=studio"
+                href="/register?plan=studio"
                 className="mt-8 w-full py-3.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#275539] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-sm text-center shadow-md hover:shadow-lg transition"
               >
                 Buy Now

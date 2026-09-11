@@ -100,7 +100,12 @@ function LoginFormContent() {
         setOtp("");
       }
 
-      setInfoMessage(`Verification passcode sent to ${email}. Valid for 10 minutes.`);
+      if (data.requires_activation || data.is_verified === false) {
+        setInfoMessage(data.message || `⚠️ Account Not Verified: Please enter the 6-digit OTP sent to ${email} to activate and verify your account.`);
+      } else {
+        setInfoMessage(`Verification passcode sent to ${email}. Valid for 10 minutes.`);
+      }
+
       setStep("OTP");
       setResendCooldown(30);
     } catch (err: any) {
@@ -225,6 +230,13 @@ function LoginFormContent() {
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send One-Time Passcode"}
           </button>
+
+          <p className="text-center text-xs text-[#618D63] pt-2">
+            Don&apos;t have an account yet?{" "}
+            <Link href="/register" className="font-bold text-[#0C2417] hover:underline">
+              Register your sanctuary
+            </Link>
+          </p>
         </form>
       ) : (
         <form onSubmit={handleVerifyOtp} className="space-y-4">
