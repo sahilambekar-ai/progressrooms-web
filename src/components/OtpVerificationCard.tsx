@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, RefreshCw, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export interface OtpVerificationCardProps {
   email: string;
@@ -32,7 +33,7 @@ export function OtpVerificationCard({
     `Verification passcode sent to ${email}. Valid for 10 minutes.`
   );
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
   // Pre-fill dev code for .test or .local domains
   useEffect(() => {
@@ -119,22 +120,22 @@ export function OtpVerificationCard({
   return (
     <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
       <div className="text-center">
-        <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#0C2417] to-[#1b4332] text-white flex items-center justify-center mx-auto mb-3 text-xl shadow-md">
-          🛡️
+        <div className="flex justify-center mb-3">
+          <BrandLogo size={48} variant="tile-dark" />
         </div>
         <h2 className="text-2xl font-serif font-bold text-[#0C2417]">{title}</h2>
         <p className="text-xs text-[#7E7970] mt-1 max-w-sm mx-auto">{subtitle}</p>
       </div>
 
       {infoMessage && (
-        <div className="p-3 rounded-xl bg-[#E8F0E9] border border-[#81A882]/40 text-xs text-[#133623] flex items-start gap-2">
+        <div role="status" className="p-3 rounded-xl bg-[#E8F0E9] border border-[#81A882]/40 text-xs text-[#133623] flex items-start gap-2">
           <CheckCircle2 className="h-4 w-4 text-[#133623] shrink-0 mt-0.5" />
           <span>{infoMessage}</span>
         </div>
       )}
 
       {error && (
-        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+        <div role="alert" className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
           <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>
@@ -160,7 +161,7 @@ export function OtpVerificationCard({
           <input
             type="text"
             required
-            maxLength={6}
+            maxLength={6} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" aria-label="Six-digit verification code"
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
             placeholder="123456"

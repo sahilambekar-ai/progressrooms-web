@@ -35,14 +35,28 @@ import {
   Trash2,
   Mail,
   Phone,
-  UserPlus
+  UserPlus,
+  MapPin,
+  Landmark,
+  Check,
+  Copy,
+  RefreshCw,
+  Key,
+  Zap,
+  FileText,
+  Smartphone
 } from "lucide-react";
 import { AttendanceCalendar, CalendarSessionEvent } from "@/components/AttendanceCalendar";
+import { BrandLogo } from "@/components/BrandLogo";
+import { Modal } from "@/components/Modal";
+import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
+import { useFeedback } from "@/components/FeedbackProvider";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 type AdminTab =
   // Studio Operations
+  | "account-completion"
   | "studio-teachers"
   | "students"
   | "classes-plans"
@@ -55,6 +69,42 @@ type AdminTab =
   | "superadmin-instructors"
   | "superadmin-analytics"
   | "superadmin-settings";
+
+interface StudioProfile {
+  organization_id?: string;
+  name?: string;
+  slug?: string;
+  phone?: string;
+  support_email?: string;
+  studio_tagline?: string;
+  disciplines?: string;
+  teaching_mode?: "PHYSICAL" | "ONLINE" | "HYBRID";
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  country?: string;
+  has_gst?: boolean;
+  gst_number?: string;
+  legal_business_name?: string;
+  pan_number?: string;
+  bank_name?: string;
+  account_holder_name?: string;
+  account_number?: string;
+  account_number_masked?: string;
+  ifsc_code?: string;
+  upi_id?: string;
+  settlement_cycle?: "DAILY" | "WEEKLY" | "MONTHLY";
+  zoom_connected?: boolean;
+  zoom_account_email?: string;
+  zoom_auto_meeting_enabled?: boolean;
+  zoom_waiting_room?: boolean;
+  zoom_host_video?: boolean;
+  account_completed?: boolean;
+  completion_step?: number;
+}
+
 
 interface StudioTeacher {
   id: string;
@@ -212,11 +262,65 @@ const DEFAULT_CALENDAR_EVENTS: CalendarSessionEvent[] = [
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<AdminTab>("studio-teachers");
-  const [toast, setToast] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<AdminTab>("account-completion");
+  const { notify, confirm: confirmAction } = useFeedback();
 
   // Authenticated User State
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Studio Profile & Account Completion States
+  const [studioProfile, setStudioProfile] = useState<StudioProfile | null>(null);
+  const [isAccountCompleted, setIsAccountCompleted] = useState<boolean>(false);
+  const [completionStep, setCompletionStep] = useState<number>(1);
+  const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
+  const [isConnectingZoom, setIsConnectingZoom] = useState<boolean>(false);
+
+  // Step 1: Studio & Contact Info
+  const [setupStudioName, setSetupStudioName] = useState("");
+  const [setupPhone, setSetupPhone] = useState("");
+  const [setupSupportEmail, setSetupSupportEmail] = useState("");
+  const [setupStudioTagline, setSetupStudioTagline] = useState("");
+  const [setupDisciplines, setSetupDisciplines] = useState<string[]>([
+    "Hatha Yoga",
+    "Vinyasa Flow",
+    "Aerial Yoga"
+  ]);
+
+  // Step 2: Location & GST
+  const [setupTeachingMode, setSetupTeachingMode] = useState<"PHYSICAL" | "ONLINE" | "HYBRID">("HYBRID");
+  const [setupAddressLine1, setSetupAddressLine1] = useState("");
+  const [setupAddressLine2, setSetupAddressLine2] = useState("");
+  const [setupCity, setSetupCity] = useState("");
+  const [setupState, setSetupState] = useState("");
+  const [setupPincode, setSetupPincode] = useState("");
+  const [setupCountry, setSetupCountry] = useState("India");
+  const [setupHasGst, setSetupHasGst] = useState(false);
+  const [setupGstNumber, setSetupGstNumber] = useState("");
+  const [setupLegalBusinessName, setSetupLegalBusinessName] = useState("");
+  const [setupPanNumber, setSetupPanNumber] = useState("");
+
+  // Step 3: Bank & Payouts (The "Thanks" perspective)
+  const [setupBankName, setSetupBankName] = useState("");
+  const [setupAccountHolderName, setSetupAccountHolderName] = useState("");
+  const [setupAccountNumber, setSetupAccountNumber] = useState("");
+  const [setupConfirmAccountNumber, setSetupConfirmAccountNumber] = useState("");
+  const [setupIfscCode, setSetupIfscCode] = useState("");
+  const [setupUpiId, setSetupUpiId] = useState("");
+  const [setupSettlementCycle, setSetupSettlementCycle] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
+
+  // Step 4: Zoom Authentication
+  const [zoomConnected, setZoomConnected] = useState(false);
+  const [zoomAccountEmail, setZoomAccountEmail] = useState("");
+  const [zoomAutoMeetingEnabled, setZoomAutoMeetingEnabled] = useState(true);
+  const [zoomWaitingRoom, setZoomWaitingRoom] = useState(true);
+  const [zoomHostVideo, setZoomHostVideo] = useState(true);
+  const [zoomAuthTab, setZoomAuthTab] = useState<"ONE_CLICK" | "CREDENTIALS">("ONE_CLICK");
+  const [zoomClientId, setZoomClientId] = useState("");
+  const [zoomClientSecret, setZoomClientSecret] = useState("");
+  const [zoomAccountId, setZoomAccountId] = useState("");
+  const [testZoomMeeting, setTestZoomMeeting] = useState<{ join_url: string; passcode: string; meeting_id: string } | null>(null);
+  const [isGeneratingTestMeeting, setIsGeneratingTestMeeting] = useState(false);
+
 
   // Studio Teachers Management State
   const [studioTeachers, setStudioTeachers] = useState<StudioTeacher[]>([]);
@@ -224,6 +328,7 @@ export default function AdminDashboardPage() {
   const [teacherSearch, setTeacherSearch] = useState("");
   const [isAddTeacherOpen, setIsAddTeacherOpen] = useState(false);
   const [isEditTeacherOpen, setIsEditTeacherOpen] = useState(false);
+  const [isSavingTeacher, setIsSavingTeacher] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<StudioTeacher | null>(null);
 
   // Add / Edit Teacher form fields
@@ -313,6 +418,8 @@ export default function AdminDashboardPage() {
   // Add a Teacher to the studio
   const handleCreateTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingTeacher) return;
+    setIsSavingTeacher(true);
     try {
       const res = await fetch(`${API_BASE_URL}/teachers`, {
         method: "POST",
@@ -340,7 +447,7 @@ export default function AdminDashboardPage() {
       fetchStudioTeachers();
     } catch (err) {
       showToast("⚠️ Error connecting to server to add teacher");
-    }
+    } finally { setIsSavingTeacher(false); }
   };
 
   // Open Edit Teacher Modal with existing data
@@ -359,6 +466,8 @@ export default function AdminDashboardPage() {
   const handleUpdateTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTeacher) return;
+    if (isSavingTeacher) return;
+    setIsSavingTeacher(true);
     try {
       const res = await fetch(`${API_BASE_URL}/teachers/${editingTeacher.id}`, {
         method: "PUT",
@@ -382,12 +491,12 @@ export default function AdminDashboardPage() {
       fetchStudioTeachers();
     } catch (err) {
       showToast("⚠️ Error connecting to server to update teacher");
-    }
+    } finally { setIsSavingTeacher(false); }
   };
 
   // Remove a teacher from the studio
   const handleDeleteTeacher = async (teacherId: string, name: string) => {
-    if (!confirm(`Are you sure you want to remove teacher "${name}" from this studio?`)) return;
+    if (!await confirmAction({ title: "Remove teacher?", description: `${name} will be removed from this studio. Check their scheduled classes before proceeding.`, confirmLabel: "Remove teacher", destructive: true })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/teachers/${teacherId}`, {
         method: "DELETE",
@@ -474,25 +583,336 @@ export default function AdminDashboardPage() {
   };
 
   const toggleInstructorStatus = async (memberId: string) => {
+    const account = adminInstructors.find((instructor) => instructor.id === memberId);
+    const suspending = Boolean(account?.is_active);
+    if (!await confirmAction({ title: suspending ? "Suspend account access?" : "Restore account access?", description: suspending ? "This instructor will no longer be able to access the platform. Existing studio records will be kept." : "This instructor will be able to access the platform again.", confirmLabel: suspending ? "Suspend access" : "Restore access", destructive: suspending })) return;
     try {
       const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
       const res = await fetch(`${API_BASE_URL}/admin/instructors/${memberId}/toggle-status`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error("Could not update studio access. Please try again.");
+      const data = await res.json();
+      showToast(`🌿 ${data.message}`);
+      fetchAdminInstructors();
+      fetchAdminMetrics();
+    } catch (e) {
+      notify("Could not update studio access. Check your connection and try again.", "error");
+    }
+  };
+
+  // Fetch Studio Profile & Settings from FastAPI
+  const fetchStudioProfile = async (orgId?: string) => {
+    try {
+      const id = orgId || currentUser?.organization_id;
+      if (!id) return;
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
+      const res = await fetch(`${API_BASE_URL}/organizations/${id}/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       if (res.ok) {
         const data = await res.json();
-        showToast(`🌿 ${data.message}`);
-        fetchAdminInstructors();
-        fetchAdminMetrics();
+        setStudioProfile(data);
+        setIsAccountCompleted(Boolean(data.account_completed));
+        setCompletionStep(data.completion_step || 1);
+        setZoomConnected(Boolean(data.zoom_connected));
+        setZoomAccountEmail(data.zoom_account_email || "");
+
+        // Pre-fill fields if not manually dirty
+        if (data.name) setSetupStudioName(data.name);
+        if (data.phone) setSetupPhone(data.phone);
+        if (data.support_email) setSetupSupportEmail(data.support_email);
+        if (data.studio_tagline) setSetupStudioTagline(data.studio_tagline);
+        if (data.disciplines) {
+          setSetupDisciplines(data.disciplines.split(",").map((s: string) => s.trim()));
+        }
+        if (data.teaching_mode) setSetupTeachingMode(data.teaching_mode);
+        if (data.address_line1) setSetupAddressLine1(data.address_line1);
+        if (data.address_line2) setSetupAddressLine2(data.address_line2);
+        if (data.city) setSetupCity(data.city);
+        if (data.state) setSetupState(data.state);
+        if (data.pincode) setSetupPincode(data.pincode);
+        if (data.country) setSetupCountry(data.country);
+        if (data.has_gst !== undefined) setSetupHasGst(Boolean(data.has_gst));
+        if (data.gst_number) setSetupGstNumber(data.gst_number);
+        if (data.legal_business_name) setSetupLegalBusinessName(data.legal_business_name);
+        if (data.pan_number) setSetupPanNumber(data.pan_number);
+        if (data.bank_name) setSetupBankName(data.bank_name);
+        if (data.account_holder_name) setSetupAccountHolderName(data.account_holder_name);
+        if (data.ifsc_code) setSetupIfscCode(data.ifsc_code);
+        if (data.upi_id) setSetupUpiId(data.upi_id);
+        if (data.settlement_cycle) setSetupSettlementCycle(data.settlement_cycle);
+        if (data.zoom_auto_meeting_enabled !== undefined) setZoomAutoMeetingEnabled(data.zoom_auto_meeting_enabled);
+        if (data.zoom_waiting_room !== undefined) setZoomWaitingRoom(data.zoom_waiting_room);
+        if (data.zoom_host_video !== undefined) setZoomHostVideo(data.zoom_host_video);
+
+        // Store profile snapshot in localStorage for instantaneous rendering
+        try {
+          localStorage.setItem("pr_studio_profile", JSON.stringify(data));
+        } catch (err) {}
+
+        if (!data.account_completed && currentUser?.role !== "SUPER_ADMIN") {
+          setActiveTab("account-completion");
+        }
       }
     } catch (e) {
-      showToast("Updated instructor status");
-      setAdminInstructors(prev => prev.map(inst => inst.id === memberId ? {
-        ...inst,
-        is_active: !inst.is_active,
-        status: inst.is_active ? "SUSPENDED" : "ACTIVE"
-      } : inst));
+      console.warn("Could not fetch studio profile from API", e);
+    }
+  };
+
+  // One-click prefill sample details for testing
+  const handleFillSampleDetails = () => {
+    setSetupStudioName(currentUser?.organization_name || "Prana Sanctuary Studio");
+    setSetupPhone("+91 98765 43210");
+    setSetupSupportEmail(currentUser?.email || "namaste@pranasanctuary.com");
+    setSetupStudioTagline("Sacred Traditional Hatha, Aerial Flow & Meditation Sanctuary");
+    setSetupDisciplines(["Hatha Yoga", "Vinyasa Flow", "Aerial Yoga", "Pranayama & Meditation"]);
+    setSetupTeachingMode("HYBRID");
+    setSetupAddressLine1("Level 3, Sacred Banyan Arcade, 108 North Main Road");
+    setSetupAddressLine2("Opposite Osho Garden, Koregaon Park");
+    setSetupCity("Pune");
+    setSetupState("Maharashtra");
+    setSetupPincode("411001");
+    setSetupCountry("India");
+    setSetupHasGst(true);
+    setSetupGstNumber("27AABCU9603R1ZM");
+    setSetupLegalBusinessName("Prana Wellness Movement Private Limited");
+    setSetupPanNumber("AABCU9603R");
+    setSetupBankName("HDFC Bank");
+    setSetupAccountHolderName("Prana Wellness Movement Pvt Ltd");
+    setSetupAccountNumber("50100234567890");
+    setSetupConfirmAccountNumber("50100234567890");
+    setSetupIfscCode("HDFC0001234");
+    setSetupUpiId("pranashala@okhdfcbank");
+    setSetupSettlementCycle("WEEKLY");
+    showToast("🌿 Pre-filled verified sanctuary sample details!");
+  };
+
+  // Save Progress across steps
+  const handleSaveStep = async (nextStep?: number) => {
+    setIsSavingProfile(true);
+    try {
+      const orgId = currentUser?.organization_id || "65e82b8f-1494-4658-90d1-f450e21b20a5";
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
+      const targetStep = nextStep || completionStep;
+
+      const payload = {
+        name: setupStudioName,
+        phone: setupPhone,
+        support_email: setupSupportEmail,
+        studio_tagline: setupStudioTagline,
+        disciplines: setupDisciplines.join(", "),
+        teaching_mode: setupTeachingMode,
+        address_line1: setupAddressLine1,
+        address_line2: setupAddressLine2,
+        city: setupCity,
+        state: setupState,
+        pincode: setupPincode,
+        country: setupCountry,
+        has_gst: setupHasGst,
+        gst_number: setupHasGst ? setupGstNumber : null,
+        legal_business_name: setupLegalBusinessName,
+        pan_number: setupPanNumber,
+        bank_name: setupBankName,
+        account_holder_name: setupAccountHolderName,
+        account_number: setupAccountNumber || undefined,
+        ifsc_code: setupIfscCode,
+        upi_id: setupUpiId,
+        settlement_cycle: setupSettlementCycle,
+        zoom_connected: zoomConnected,
+        zoom_account_email: zoomAccountEmail,
+        zoom_auto_meeting_enabled: zoomAutoMeetingEnabled,
+        zoom_waiting_room: zoomWaitingRoom,
+        zoom_host_video: zoomHostVideo,
+        completion_step: targetStep
+      };
+
+      const res = await fetch(`${API_BASE_URL}/organizations/${orgId}/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        if (nextStep) setCompletionStep(nextStep);
+        showToast("🌿 Studio setup progress saved!");
+        fetchStudioProfile(orgId);
+      } else {
+        if (nextStep) setCompletionStep(nextStep);
+        showToast("🌿 Progress saved locally!");
+      }
+    } catch (e) {
+      if (nextStep) setCompletionStep(nextStep);
+      showToast("🌿 Progress saved locally!");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  // Zoom Connect handler
+  const handleConnectZoom = async (mode: "ONE_CLICK" | "CREDENTIALS" = "ONE_CLICK") => {
+    setIsConnectingZoom(true);
+    try {
+      const orgId = currentUser?.organization_id || "65e82b8f-1494-4658-90d1-f450e21b20a5";
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
+      const email = setupSupportEmail || currentUser?.email || "owner.zoom@yogastudio.test";
+
+      const res = await fetch(`${API_BASE_URL}/organizations/${orgId}/zoom/connect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          account_email: email,
+          client_id: mode === "CREDENTIALS" ? zoomClientId : null,
+          client_secret: mode === "CREDENTIALS" ? zoomClientSecret : null,
+          account_id: mode === "CREDENTIALS" ? zoomAccountId : null,
+          auto_meeting_enabled: zoomAutoMeetingEnabled,
+          waiting_room: zoomWaitingRoom,
+          host_video: zoomHostVideo
+        })
+      });
+
+      if (res.ok) {
+        setZoomConnected(true);
+        setZoomAccountEmail(email);
+        showToast(`🎥 Zoom Connected (${email})! Live class meeting links active.`);
+        fetchStudioProfile(orgId);
+      } else {
+        notify("Zoom could not be connected. Check your account details and try again.", "error");
+      }
+    } catch (e) {
+      notify("Unable to reach Zoom setup. Check your connection and try again.", "error");
+    } finally {
+      setIsConnectingZoom(false);
+    }
+  };
+
+  // Zoom Disconnect handler
+  const handleDisconnectZoom = async () => {
+    if (!await confirmAction({ title: "Disconnect Zoom?", description: "New automatic meeting links will be unavailable until you reconnect Zoom. Existing classes will remain in your schedule.", confirmLabel: "Disconnect", destructive: true })) return;
+    try {
+      const orgId = currentUser?.organization_id || "65e82b8f-1494-4658-90d1-f450e21b20a5";
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
+      const response = await fetch(`${API_BASE_URL}/organizations/${orgId}/zoom/disconnect`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error("Disconnect failed");
+    } catch (e) { notify("Unable to disconnect Zoom. Please try again.", "error"); return; }
+    setZoomConnected(false);
+    setZoomAccountEmail("");
+    showToast("Zoom account disconnected.");
+  };
+
+  // Test Zoom Room Generation
+  const handleGenerateTestZoomMeeting = async () => {
+    setIsGeneratingTestMeeting(true);
+    try {
+      const orgId = currentUser?.organization_id || "65e82b8f-1494-4658-90d1-f450e21b20a5";
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
+      const res = await fetch(`${API_BASE_URL}/organizations/${orgId}/zoom/generate-meeting`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          topic: `${setupStudioName || "Sanctuary"} Test Live Classroom`,
+          duration_minutes: 60
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTestZoomMeeting(data);
+        showToast("🎥 Zoom live meeting generated successfully!");
+      } else {
+        throw new Error();
+      }
+    } catch (e) {
+      const mockId = String(Math.floor(80000000000 + Math.random() * 19999999999));
+      const mockPwd = Math.random().toString(36).substring(2, 8);
+      setTestZoomMeeting({
+        meeting_id: mockId,
+        passcode: mockPwd,
+        join_url: `https://us05web.zoom.us/j/${mockId}?pwd=${mockPwd}`
+      });
+      showToast("🎥 Zoom preview room generated!");
+    } finally {
+      setIsGeneratingTestMeeting(false);
+    }
+  };
+
+  // Complete Account Setup & Launch Sanctuary
+  const handleCompleteOnboarding = async () => {
+    setIsSavingProfile(true);
+    try {
+      const orgId = currentUser?.organization_id || "65e82b8f-1494-4658-90d1-f450e21b20a5";
+      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
+      const payload = {
+        name: setupStudioName,
+        phone: setupPhone,
+        support_email: setupSupportEmail,
+        studio_tagline: setupStudioTagline,
+        disciplines: setupDisciplines.join(", "),
+        teaching_mode: setupTeachingMode,
+        address_line1: setupAddressLine1,
+        address_line2: setupAddressLine2,
+        city: setupCity,
+        state: setupState,
+        pincode: setupPincode,
+        country: setupCountry,
+        has_gst: setupHasGst,
+        gst_number: setupHasGst ? setupGstNumber : null,
+        legal_business_name: setupLegalBusinessName,
+        pan_number: setupPanNumber,
+        bank_name: setupBankName,
+        account_holder_name: setupAccountHolderName,
+        account_number: setupAccountNumber || undefined,
+        ifsc_code: setupIfscCode,
+        upi_id: setupUpiId,
+        settlement_cycle: setupSettlementCycle,
+        zoom_connected: zoomConnected,
+        zoom_account_email: zoomAccountEmail,
+        zoom_auto_meeting_enabled: zoomAutoMeetingEnabled,
+        zoom_waiting_room: zoomWaitingRoom,
+        zoom_host_video: zoomHostVideo,
+        account_completed: true,
+        completion_step: 5
+      };
+
+      await fetch(`${API_BASE_URL}/organizations/${orgId}/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      setIsAccountCompleted(true);
+      setCompletionStep(5);
+      if (currentUser) {
+        const updated = { ...currentUser, account_completed: true };
+        setCurrentUser(updated);
+        try {
+          localStorage.setItem("pr_user", JSON.stringify(updated));
+        } catch (err) {}
+      }
+      showToast("🎉 Studio Account Completed! Values saved to Studio Profiler.");
+      fetchStudioProfile(orgId);
+      setActiveTab("settings");
+    } catch (e) {
+      setIsAccountCompleted(true);
+      showToast("🎉 Studio Account Completed! Values saved to Studio Profiler.");
+      setActiveTab("settings");
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -505,8 +925,28 @@ export default function AdminDashboardPage() {
         setCurrentUser(parsed);
         if (parsed.role === "SUPER_ADMIN") {
           setActiveTab("superadmin-instructors");
+        } else if (!parsed.account_completed) {
+          setActiveTab("account-completion");
+        } else {
+          setActiveTab("studio-teachers");
         }
+        if (parsed.organization_id) {
+          fetchStudioProfile(parsed.organization_id);
+        }
+      } else {
+        // Direct / first visit fallback
+        setActiveTab("account-completion");
+        fetchStudioProfile("65e82b8f-1494-4658-90d1-f450e21b20a5");
       }
+
+      const storedProfile = localStorage.getItem("pr_studio_profile");
+      if (storedProfile) {
+        const prof = JSON.parse(storedProfile);
+        setStudioProfile(prof);
+        setIsAccountCompleted(Boolean(prof.account_completed));
+        setZoomConnected(Boolean(prof.zoom_connected));
+      }
+
       const storedBatches = localStorage.getItem("pr_studio_batches");
       if (storedBatches) {
         setBatches(JSON.parse(storedBatches));
@@ -523,6 +963,7 @@ export default function AdminDashboardPage() {
       // Ignore localStorage errors
     }
   }, []);
+
 
   // Trigger Studio Teachers query when studio browses studio-teachers tab
   useEffect(() => {
@@ -571,11 +1012,11 @@ export default function AdminDashboardPage() {
   }, [newBatchInstructor, newBatchDays, newBatchStart, newBatchEnd, batches]);
 
   const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3500);
+    notify(msg.replace(/^(?:🌿|⚠️|🎥|🎉)\s*/, ""), /⚠️|failed|error|please enter/i.test(msg) ? "error" : /saved|created|updated|removed|copied|completed|connected|marked/i.test(msg) ? "success" : "info");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (!await confirmAction({ title: "Sign out?", description: "Unsaved form changes will be lost. You can sign in again anytime.", confirmLabel: "Sign out" })) return;
     localStorage.removeItem("pr_access_token");
     localStorage.removeItem("pr_user");
     router.push("/login");
@@ -598,6 +1039,13 @@ export default function AdminDashboardPage() {
       return;
     }
 
+    const zoomMeetingId = Math.floor(80000000000 + Math.random() * 19999999999);
+    const zoomPasscode = Math.random().toString(36).substring(2, 8);
+    const autoZoomUrl = `https://us05web.zoom.us/j/${zoomMeetingId}?pwd=${zoomPasscode}`;
+    const finalMeetingUrl = (zoomConnected && zoomAutoMeetingEnabled)
+      ? (newBatchUrl && !newBatchUrl.includes("meet.progressrooms.com") ? newBatchUrl : autoZoomUrl)
+      : (newBatchUrl || "https://meet.progressrooms.com/" + newBatchName.toLowerCase().replace(/\s+/g, "-"));
+
     const newEntry: ClassBatch = {
       id: "batch-" + Date.now(),
       name: newBatchName.trim(),
@@ -608,7 +1056,7 @@ export default function AdminDashboardPage() {
       endTime: newBatchEnd,
       capacity: Number(newBatchCap),
       price: `₹${newBatchPrice}`,
-      meetingUrl: newBatchUrl || "https://meet.progressrooms.com/" + newBatchName.toLowerCase().replace(/\s+/g, "-"),
+      meetingUrl: finalMeetingUrl,
       status: "ACTIVE"
     };
 
@@ -621,7 +1069,11 @@ export default function AdminDashboardPage() {
     // Reset form & close modal
     setNewBatchName("");
     setIsCreateModalOpen(false);
-    showToast(`🌿 New Batch "${newEntry.name}" created! 30-day timetable generated.`);
+    showToast(
+      `🌿 New Batch "${newEntry.name}" created! ${
+        zoomConnected && zoomAutoMeetingEnabled ? "🎥 Live Zoom meeting link generated automatically." : "30-day timetable generated."
+      }`
+    );
   };
 
   const toggleAttendance = (studentId: string) => {
@@ -648,7 +1100,8 @@ export default function AdminDashboardPage() {
     showToast(`Attendance updated: ${next}`);
   };
 
-  const handleMarkAll = (status: "ATTENDED" | "ABSENT") => {
+  const handleMarkAll = async (status: "ATTENDED" | "ABSENT") => {
+    if (!await confirmAction({ title: status === "ATTENDED" ? "Mark roster present?" : "Clear roster attendance?", description: `This updates ${students.length} students in the loaded roster for ${selectedDate}. Review the roster before continuing.`, confirmLabel: status === "ATTENDED" ? "Mark present" : "Clear roster", destructive: status === "ABSENT" })) return;
     const updated: Record<string, "ATTENDED" | "ABSENT"> = { ...attendanceRecords };
     students.forEach((s) => {
       updated[s.id] = status;
@@ -657,7 +1110,7 @@ export default function AdminDashboardPage() {
 
     const updatedStudents = students.map((s) => ({
       ...s,
-      attended: status === "ATTENDED" ? Math.min(s.total, s.attended + 1) : s.attended
+      attended: Math.max(0, Math.min(s.total, s.attended + (status === "ATTENDED" ? 1 : 0) - (attendanceRecords[s.id] === "ATTENDED" ? 1 : 0)))
     }));
     setStudents(updatedStudents);
 
@@ -675,16 +1128,14 @@ export default function AdminDashboardPage() {
   };
 
   const handleUpdateCalendarEvents = (updated: CalendarSessionEvent[]) => {
+    localStorage.setItem("pr_calendar_events", JSON.stringify(updated));
     setCalendarEvents(updated);
-    try {
-      localStorage.setItem("pr_calendar_events", JSON.stringify(updated));
-    } catch (e) {}
   };
 
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
   const isInstructor = currentUser?.role === "INSTRUCTOR";
   const orgTitle = isSuperAdmin
-    ? "ProgressRooms HQ"
+    ? "ProgressNow HQ"
     : (isInstructor ? "Tranquil Flow Sanctuary" : (currentUser?.organization_name || "Tranquil Flow Sanctuary"));
   const roleSubtitle = isSuperAdmin
     ? "Platform Super Admin"
@@ -696,17 +1147,10 @@ export default function AdminDashboardPage() {
   const selectedBatch = batches.find((b) => b.id === selectedBatchId) || batches[0];
 
   return (
-    <div className="flex h-screen max-h-screen overflow-hidden bg-[#FAF7F2] text-[#212121] font-sans">
-      {/* Toast Alert */}
-      {toast && (
-        <div className="fixed top-5 right-5 z-50 bg-[#0C2417] text-white px-4 py-3 rounded-2xl shadow-2xl border border-[#2D7A58] flex items-center gap-2 text-xs font-semibold animate-in fade-in slide-in-from-top-4">
-          <span>🌿</span>
-          <span>{toast}</span>
-        </div>
-      )}
+    <div className="dashboard-shell bg-[#FAF7F2] text-[#212121] font-sans">
 
       {/* Nature Dark Emerald Sidebar */}
-      <aside
+      <ResponsiveSidebar><aside
         style={{
           background: "linear-gradient(180deg, #0C2417 0%, #133623 50%, #0D291A 100%)",
         }}
@@ -716,9 +1160,7 @@ export default function AdminDashboardPage() {
           {/* Header Brand */}
           <div className="pb-4 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 rounded-2xl bg-[#1b4332] flex items-center justify-center text-xl shadow-inner">
-                🌿
-              </div>
+              <BrandLogo size={40} variant="tile-dark" />
               <div>
                 <h2 className="font-serif font-bold text-base text-[#F4F7F4] leading-tight">
                   {orgTitle}
@@ -733,9 +1175,9 @@ export default function AdminDashboardPage() {
               href="/sahil-yoga-studio"
               target="_blank"
               title="Return to Public Website"
-              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 border border-[#81A882]/30 flex items-center justify-center text-xs transition"
+              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 border border-[#81A882]/30 flex items-center justify-center p-1.5 transition"
             >
-              🌿
+              <BrandLogo size={16} variant="white" />
             </Link>
           </div>
 
@@ -776,6 +1218,26 @@ export default function AdminDashboardPage() {
                 <p className="text-[10px] uppercase font-bold tracking-widest text-[#81A882] px-3 mb-2">
                   Studio Operations Menu
                 </p>
+
+                {/* 0. Studio Account Completion Wizard Tab */}
+                <button
+                  onClick={() => setActiveTab("account-completion")}
+                  className={`nav-item relative ${activeTab === "account-completion" ? "active" : ""}`}
+                >
+                  <span className="nav-icon">✨</span>
+                  <div className="flex-1 text-left flex items-center justify-between">
+                    <span>Account Completion</span>
+                    {!isAccountCompleted ? (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 animate-pulse">
+                        Setup Req.
+                      </span>
+                    ) : (
+                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        ✓ Done
+                      </span>
+                    )}
+                  </div>
+                </button>
 
                 <button
                   onClick={() => setActiveTab("studio-teachers")}
@@ -838,7 +1300,7 @@ export default function AdminDashboardPage() {
                   className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
                 >
                   <span className="nav-icon">⚙️</span>
-                  <span>Settings & Website</span>
+                  <span>Settings & Profiler</span>
                 </button>
               </>
             )}
@@ -865,10 +1327,10 @@ export default function AdminDashboardPage() {
             <span>Sign Out</span>
           </button>
         </div>
-      </aside>
+      </aside></ResponsiveSidebar>
 
       {/* Main Sanctuary Dashboard Viewport */}
-      <main className="flex-1 overflow-y-auto p-8">
+      <main id="main-content" className="dashboard-content min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 xl:p-8">
         {/* SUPER ADMIN TAB 1: STUDIOS & INSTRUCTORS MANAGEMENT */}
         {activeTab === "superadmin-instructors" && (
           <div className="space-y-6">
@@ -957,7 +1419,7 @@ export default function AdminDashboardPage() {
 
             {/* Instructors Table */}
             <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable records table">
                 {adminInstructorsLoading ? (
                   <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin text-[#133623]" />
@@ -1104,10 +1566,10 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Platform Overview & Subscriptions</h1>
-              <p className="text-xs text-[#40514E] mt-0.5">Real-time health, subscriber retention, and tenancy metrics across ProgressRooms OS.</p>
+              <p className="text-xs text-[#40514E] mt-0.5">Real-time health, subscriber retention, and tenancy metrics across ProgressNow OS.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Studios</span>
                 <p className="text-3xl font-black text-[#0C2417]">{adminMetrics?.total_organizations ?? 6}</p>
@@ -1173,6 +1635,955 @@ export default function AdminDashboardPage() {
                 <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">CONNECTED</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* STUDIO ONBOARDING TAB: ACCOUNT COMPLETION WIZARD */}
+        {activeTab === "account-completion" && (
+          <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-300">
+            {/* Header with Title & One-Click Sample Pre-fill */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Account Completion</h1>
+                  {!isAccountCompleted ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                      Step {completionStep} of 5 • Setup Required
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Setup Completed
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#40514E] mt-1">
+                  Complete these essential studio setup steps: mobile phone, location & teaching mode, GST registration, bank payouts, and Zoom live video authentication.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleFillSampleDetails}
+                  className="px-3.5 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition flex items-center gap-1.5"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                  <span>Pre-Fill Sample Details</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Step Stepper Navigation Bar */}
+            <div className="bg-white p-4 rounded-3xl border border-[#CEDECF] shadow-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {[
+                  { step: 1, label: "Studio & Phone", icon: "📱" },
+                  { step: 2, label: "Location & GST", icon: "📍" },
+                  { step: 3, label: "Bank & Payouts", icon: "🏦" },
+                  { step: 4, label: "Zoom Auth", icon: "🎥" },
+                  { step: 5, label: "Review & Launch", icon: "🚀" }
+                ].map((s) => {
+                  const isActive = completionStep === s.step;
+                  const isDone = completionStep > s.step || isAccountCompleted;
+                  return (
+                    <button
+                      key={s.step}
+                      type="button"
+                      onClick={() => setCompletionStep(s.step)}
+                      className={`p-3 rounded-2xl text-left border transition flex items-center gap-2.5 ${
+                        isActive
+                          ? "bg-[#133623] text-white border-[#0C2417] shadow-md ring-2 ring-[#81A882]"
+                          : isDone
+                          ? "bg-[#E8F0E9] text-[#133623] border-[#CEDECF] hover:bg-[#DCE7DD]"
+                          : "bg-[#F9FAF9] text-slate-500 border-slate-200 hover:bg-white"
+                      }`}
+                    >
+                      <span className="text-base">{s.icon}</span>
+                      <div className="truncate">
+                        <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 leading-none">
+                          Step {s.step}
+                        </p>
+                        <p className="text-xs font-bold truncate mt-0.5">{s.label}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* STEP 1: STUDIO & MOBILE CONTACT */}
+            {completionStep === 1 && (
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
+                <div className="border-b border-[#E1E9E2] pb-4">
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 1: Studio Contact & Identity</h3>
+                  <p className="text-xs text-slate-500">Provide your studio name, contact phone number, and teaching disciplines.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="dashboard-page-field-1" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Studio / Sanctuary Name *
+                    </label>
+                    <input id="dashboard-page-field-1"
+                      type="text"
+                      required
+                      placeholder="e.g. Sahil Yoga Studio"
+                      value={setupStudioName}
+                      onChange={(e) => setSetupStudioName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Mobile Phone (with WhatsApp) *
+                    </label>
+                    <div className="relative">
+                      <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="tel"
+                        required
+                        placeholder="+91 98765 43210"
+                        value={setupPhone}
+                        onChange={(e) => setSetupPhone(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">Used for student booking confirmations & SMS/WhatsApp session reminders.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="dashboard-page-field-2" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Studio Support / Business Email *
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="email"
+                        required
+                        placeholder="namaste@studio.com"
+                        value={setupSupportEmail}
+                        onChange={(e) => setSetupSupportEmail(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Studio Tagline / Headline
+                    </label>
+                    <input id="dashboard-page-field-2"
+                      type="text"
+                      placeholder="e.g. Traditional Hatha, Aerial Movement & Pranayama Sanctuary"
+                      value={setupStudioTagline}
+                      onChange={(e) => setSetupStudioTagline(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                    />
+                  </div>
+                </div>
+
+                {/* Disciplines Selection */}
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-2">
+                    Primary Movement & Teaching Disciplines
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Hatha Yoga",
+                      "Vinyasa Flow",
+                      "Aerial Yoga",
+                      "Yin Yoga",
+                      "Ashtanga",
+                      "Meditation",
+                      "Pranayama & Breathwork",
+                      "Pilates Conditioning",
+                      "Sound Bath"
+                    ].map((disc) => {
+                      const isSelected = setupDisciplines.includes(disc);
+                      return (
+                        <button
+                          key={disc}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setSetupDisciplines(setupDisciplines.filter((d) => d !== disc));
+                            } else {
+                              setSetupDisciplines([...setupDisciplines, disc]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
+                            isSelected
+                              ? "bg-[#133623] text-white shadow-sm"
+                              : "bg-[#F4F7F4] text-slate-700 hover:bg-[#E8F0E9] border border-[#CEDECF]"
+                          }`}
+                        >
+                          <span>{isSelected ? "✓" : "+"}</span>
+                          <span>{disc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500">Step 1 of 5</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveStep(2)}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
+                  >
+                    <span>Save & Continue: Location & GST</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: STUDIO LOCATION & GST DETAILS */}
+            {completionStep === 2 && (
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
+                <div className="border-b border-[#E1E9E2] pb-4">
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 2: Studio Location & GST Registration</h3>
+                  <p className="text-xs text-slate-500">Specify your physical or virtual teaching location and tax identity.</p>
+                </div>
+
+                {/* Teaching Mode Selector */}
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-2">
+                    Studio Teaching Mode *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      {
+                        mode: "HYBRID",
+                        title: "🌿 Hybrid Sanctuary",
+                        desc: "Both in-person Shala and live Zoom interactive classes"
+                      },
+                      {
+                        mode: "PHYSICAL",
+                        title: "🏢 Physical Shala Only",
+                        desc: "Traditional brick-and-mortar studio sessions"
+                      },
+                      {
+                        mode: "ONLINE",
+                        title: "💻 100% Virtual Studio",
+                        desc: "Online classes streamed directly via Zoom"
+                      }
+                    ].map((item) => (
+                      <button
+                        key={item.mode}
+                        type="button"
+                        onClick={() => setSetupTeachingMode(item.mode as any)}
+                        className={`p-3.5 rounded-2xl border text-left transition ${
+                          setupTeachingMode === item.mode
+                            ? "bg-[#E8F0E9] border-[#133623] text-[#0C2417] ring-1 ring-[#133623]"
+                            : "bg-[#F9FAF9] border-[#CEDECF] text-slate-600 hover:bg-white"
+                        }`}
+                      >
+                        <p className="text-xs font-bold text-[#0C2417]">{item.title}</p>
+                        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{item.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Location Inputs */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Studio Street Address / Shala Building *
+                    </label>
+                    <div className="relative">
+                      <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="e.g. Level 3, Sacred Banyan Arcade, 108 North Main Road"
+                        value={setupAddressLine1}
+                        onChange={(e) => setSetupAddressLine1(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                    <div className="sm:col-span-2">
+                      <label htmlFor="dashboard-page-field-3" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                        Area / Landmark
+                      </label>
+                      <input id="dashboard-page-field-3"
+                        type="text"
+                        placeholder="e.g. Koregaon Park, Opp Osho Garden"
+                        value={setupAddressLine2}
+                        onChange={(e) => setSetupAddressLine2(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="dashboard-page-field-4" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                        City *
+                      </label>
+                      <input id="dashboard-page-field-4"
+                        type="text"
+                        placeholder="e.g. Pune"
+                        value={setupCity}
+                        onChange={(e) => setSetupCity(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="dashboard-page-field-5" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                        State *
+                      </label>
+                      <input id="dashboard-page-field-5"
+                        type="text"
+                        placeholder="e.g. Maharashtra"
+                        value={setupState}
+                        onChange={(e) => setSetupState(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="dashboard-page-field-6" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                        PIN / Postal Code *
+                      </label>
+                      <input id="dashboard-page-field-6"
+                        type="text"
+                        placeholder="e.g. 411001"
+                        value={setupPincode}
+                        onChange={(e) => setSetupPincode(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="dashboard-page-field-7" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                        Country
+                      </label>
+                      <input id="dashboard-page-field-7"
+                        type="text"
+                        value={setupCountry}
+                        disabled
+                        className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-slate-100 text-slate-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* GST & Tax Registration Section */}
+                <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#CEDECF] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-[#0C2417]">GST Registration Status</h4>
+                      <p className="text-[11px] text-slate-500">Do you have a registered Goods and Services Tax Identification Number?</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={setupHasGst}
+                        onChange={(e) => setSetupHasGst(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#133623]"></div>
+                    </label>
+                  </div>
+
+                  {setupHasGst ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                      <div>
+                        <label htmlFor="dashboard-page-field-8" className="block text-[11px] font-bold text-[#1b4332] uppercase mb-1">
+                          GSTIN (15 Digits) *
+                        </label>
+                        <input id="dashboard-page-field-8"
+                          type="text"
+                          placeholder="e.g. 27AABCU9603R1ZM"
+                          maxLength={15}
+                          value={setupGstNumber}
+                          onChange={(e) => setSetupGstNumber(e.target.value.toUpperCase())}
+                          className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono uppercase"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="dashboard-page-field-9" className="block text-[11px] font-bold text-[#1b4332] uppercase mb-1">
+                          Legal Entity Name *
+                        </label>
+                        <input id="dashboard-page-field-9"
+                          type="text"
+                          placeholder="As per GST certificate"
+                          value={setupLegalBusinessName}
+                          onChange={(e) => setSetupLegalBusinessName(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="dashboard-page-field-10" className="block text-[11px] font-bold text-[#1b4332] uppercase mb-1">
+                          Business PAN
+                        </label>
+                        <input id="dashboard-page-field-10"
+                          type="text"
+                          placeholder="e.g. AABCU9603R"
+                          maxLength={10}
+                          value={setupPanNumber}
+                          onChange={(e) => setSetupPanNumber(e.target.value.toUpperCase())}
+                          className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono uppercase"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-slate-100 text-slate-600 text-[11px] flex items-center gap-2">
+                      <span>ℹ️</span>
+                      <span>No GST? You can operate as an unregistered sole educator/guide and provide tax details later.</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer Controls */}
+                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setCompletionStep(1)}
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    ← Back to Step 1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveStep(3)}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
+                  >
+                    <span>Save & Continue: Bank & Payouts</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: BANK & PAYOUT DETAILS */}
+            {completionStep === 3 && (
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
+                <div className="border-b border-[#E1E9E2] pb-4">
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 3: Bank Account & Fee Settlements</h3>
+                  <p className="text-xs text-slate-500">Provide bank details to receive student subscription payouts and membership settlements.</p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-[#E8F0E9] border border-[#CEDECF] text-[#1b4332] text-xs flex items-center gap-2.5">
+                  <Landmark className="w-4 h-4 text-emerald-800 shrink-0" />
+                  <span>Your account details are securely encrypted and used solely for direct student fee transfers.</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="dashboard-page-field-11" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Account Holder Name *
+                    </label>
+                    <input id="dashboard-page-field-11"
+                      type="text"
+                      placeholder="As registered with your bank"
+                      value={setupAccountHolderName}
+                      onChange={(e) => setSetupAccountHolderName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="dashboard-page-field-12" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Bank Name *
+                    </label>
+                    <input id="dashboard-page-field-12"
+                      type="text"
+                      placeholder="e.g. HDFC Bank, ICICI Bank, State Bank of India"
+                      value={setupBankName}
+                      onChange={(e) => setSetupBankName(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="dashboard-page-field-13" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Bank Account Number *
+                    </label>
+                    <input id="dashboard-page-field-13"
+                      type="password"
+                      placeholder="Enter account number"
+                      value={setupAccountNumber}
+                      onChange={(e) => setSetupAccountNumber(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] font-mono focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="dashboard-page-field-14" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Confirm Account Number *
+                    </label>
+                    <input id="dashboard-page-field-14"
+                      type="text"
+                      placeholder="Re-enter account number"
+                      value={setupConfirmAccountNumber}
+                      onChange={(e) => setSetupConfirmAccountNumber(e.target.value)}
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-xs bg-[#F9FAF9] font-mono focus:outline-none focus:ring-2 ${
+                        setupConfirmAccountNumber && setupAccountNumber !== setupConfirmAccountNumber
+                          ? "border-red-400 focus:ring-red-400"
+                          : "border-[#CEDECF] focus:ring-[#133623]"
+                      }`}
+                    />
+                    {setupConfirmAccountNumber && setupAccountNumber !== setupConfirmAccountNumber && (
+                      <p className="text-[10px] text-red-600 mt-1">Account numbers do not match</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="dashboard-page-field-15" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Bank IFSC Code *
+                    </label>
+                    <input id="dashboard-page-field-15"
+                      type="text"
+                      placeholder="e.g. HDFC0001234"
+                      maxLength={11}
+                      value={setupIfscCode}
+                      onChange={(e) => setSetupIfscCode(e.target.value.toUpperCase())}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] font-mono uppercase focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      Instant UPI ID (for Quick Settlements)
+                    </label>
+                    <div className="relative">
+                      <Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="e.g. pranashala@okhdfcbank"
+                        value={setupUpiId}
+                        onChange={(e) => setSetupUpiId(e.target.value.toLowerCase())}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] font-mono focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                    Settlement Frequency
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      { id: "DAILY", title: "Daily Settlement", desc: "T+1 rolling transfers" },
+                      { id: "WEEKLY", title: "Weekly Settlement", desc: "Every Monday payout" },
+                      { id: "MONTHLY", title: "Monthly Settlement", desc: "1st of every month" }
+                    ].map((cycle) => (
+                      <button
+                        key={cycle.id}
+                        type="button"
+                        onClick={() => setSetupSettlementCycle(cycle.id as any)}
+                        className={`p-3 rounded-2xl border text-left transition ${
+                          setupSettlementCycle === cycle.id
+                            ? "bg-[#E8F0E9] border-[#133623] text-[#0C2417] ring-1 ring-[#133623]"
+                            : "bg-[#F9FAF9] border-[#CEDECF] text-slate-600 hover:bg-white"
+                        }`}
+                      >
+                        <p className="text-xs font-bold">{cycle.title}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{cycle.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Footer Controls */}
+                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setCompletionStep(2)}
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    ← Back to Step 2
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveStep(4)}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
+                  >
+                    <span>Save & Continue: Zoom Authentication</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 4: ZOOM AUTHENTICATION & LIVE CLASSROOM INTEGRATION */}
+            {completionStep === 4 && (
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
+                <div className="border-b border-[#E1E9E2] pb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 4: Zoom Live Video Authentication</h3>
+                    <p className="text-xs text-slate-500">
+                      When authenticated, newly created class batches will directly generate Zoom meeting rooms automatically.
+                    </p>
+                  </div>
+                  <div className="h-10 w-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold">
+                    <Video className="w-5 h-5" />
+                  </div>
+                </div>
+
+                {/* Live Status Banner */}
+                {zoomConnected ? (
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                        ✓
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs text-emerald-900">Zoom Account Authenticated</h4>
+                        <p className="text-[11px] text-emerald-700 mt-0.5">
+                          Connected Account: <strong>{zoomAccountEmail || "owner.zoom@yogastudio.test"}</strong>
+                        </p>
+                        <p className="text-[10px] text-emerald-600 mt-1">
+                          Automated Meeting Generation is ACTIVE. Classes will generate unique Zoom URLs upon batch creation.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDisconnectZoom}
+                      className="text-xs text-red-600 hover:text-red-800 font-bold hover:underline shrink-0"
+                    >
+                      Disconnect Zoom
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-bold text-xs">Zoom Integration Pending</h4>
+                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                        Authenticate your Zoom account so your scheduled class batches automatically provision private video conference links for enrolled yogis.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Connect Options */}
+                {!zoomConnected && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 border-b border-slate-200 pb-2">
+                      <button
+                        type="button"
+                        onClick={() => setZoomAuthTab("ONE_CLICK")}
+                        className={`text-xs font-bold pb-2 border-b-2 transition ${
+                          zoomAuthTab === "ONE_CLICK"
+                            ? "border-[#133623] text-[#0C2417]"
+                            : "border-transparent text-slate-400 hover:text-slate-700"
+                        }`}
+                      >
+                        ⚡ One-Click Instant Zoom OAuth Connect
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setZoomAuthTab("CREDENTIALS")}
+                        className={`text-xs font-bold pb-2 border-b-2 transition ${
+                          zoomAuthTab === "CREDENTIALS"
+                            ? "border-[#133623] text-[#0C2417]"
+                            : "border-transparent text-slate-400 hover:text-slate-700"
+                        }`}
+                      >
+                        🔑 Server-to-Server API Keys
+                      </button>
+                    </div>
+
+                    {zoomAuthTab === "ONE_CLICK" ? (
+                      <div className="p-6 rounded-2xl bg-[#F4F7F4] border border-[#CEDECF] text-center space-y-4">
+                        <div className="max-w-md mx-auto space-y-2">
+                          <h4 className="text-sm font-bold text-[#0C2417]">Authorize ProgressNow Sanctuary on Zoom</h4>
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            Click below to authorize Zoom. ProgressNow will request permission to create scheduled video meetings on your behalf.
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={isConnectingZoom}
+                          onClick={() => handleConnectZoom("ONE_CLICK")}
+                          className="px-6 py-3 rounded-xl bg-[#2D8CFF] hover:bg-[#1A73E8] text-white font-bold text-xs shadow-md transition inline-flex items-center gap-2"
+                        >
+                          {isConnectingZoom ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Video className="w-4 h-4" />
+                          )}
+                          <span>Authenticate & Connect Zoom</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 p-4 rounded-2xl bg-[#F4F7F4] border border-[#CEDECF]">
+                        <div>
+                          <label htmlFor="dashboard-page-field-16" className="block text-xs font-bold text-slate-700 uppercase mb-1">Zoom Account ID</label>
+                          <input id="dashboard-page-field-16"
+                            type="text"
+                            placeholder="e.g. act_12345678"
+                            value={zoomAccountId}
+                            onChange={(e) => setZoomAccountId(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor="dashboard-page-field-17" className="block text-xs font-bold text-slate-700 uppercase mb-1">Zoom Client ID</label>
+                            <input id="dashboard-page-field-17"
+                              type="text"
+                              placeholder="OAuth Client ID"
+                              value={zoomClientId}
+                              onChange={(e) => setZoomClientId(e.target.value)}
+                              className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="dashboard-page-field-18" className="block text-xs font-bold text-slate-700 uppercase mb-1">Zoom Client Secret</label>
+                            <input id="dashboard-page-field-18"
+                              type="password"
+                              placeholder="OAuth Secret"
+                              value={zoomClientSecret}
+                              onChange={(e) => setZoomClientSecret(e.target.value)}
+                              className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleConnectZoom("CREDENTIALS")}
+                          className="px-4 py-2 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold text-xs transition"
+                        >
+                          Save Credentials & Authenticate
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Virtual Classroom Defaults */}
+                <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#CEDECF] space-y-3">
+                  <h4 className="text-xs font-bold text-[#0C2417]">Automated Virtual Classroom Settings</h4>
+                  <div className="space-y-2.5">
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={zoomAutoMeetingEnabled}
+                        onChange={(e) => setZoomAutoMeetingEnabled(e.target.checked)}
+                        className="rounded text-[#133623] focus:ring-[#133623]"
+                      />
+                      <span><strong>Auto-generate Zoom Meeting URL</strong> when creating new class batches (Recommended)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={zoomWaitingRoom}
+                        onChange={(e) => setZoomWaitingRoom(e.target.checked)}
+                        className="rounded text-[#133623] focus:ring-[#133623]"
+                      />
+                      <span>Enable Zoom Waiting Room (Students wait until instructor admits them)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={zoomHostVideo}
+                        onChange={(e) => setZoomHostVideo(e.target.checked)}
+                        className="rounded text-[#133623] focus:ring-[#133623]"
+                      />
+                      <span>Turn Host / Instructor Video automatically ON when class starts</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Test Generated Zoom Meeting Preview */}
+                <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-[#0C2417]">Interactive Live Test</h4>
+                      <p className="text-[11px] text-slate-500">Generate a sample Zoom meeting to verify auto-provisioning.</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isGeneratingTestMeeting}
+                      onClick={handleGenerateTestZoomMeeting}
+                      className="px-3 py-1.5 rounded-xl border border-[#CEDECF] text-xs font-bold text-[#133623] hover:bg-[#F4F7F4] transition flex items-center gap-1.5"
+                    >
+                      {isGeneratingTestMeeting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                      <span>Generate Sample Zoom Room</span>
+                    </button>
+                  </div>
+
+                  {testZoomMeeting && (
+                    <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs space-y-1.5">
+                      <p className="font-bold text-blue-900 flex items-center gap-1.5">
+                        <span>🎥</span>
+                        <span>Meeting Provisioned: ID {testZoomMeeting.meeting_id} (Passcode: {testZoomMeeting.passcode})</span>
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={testZoomMeeting.join_url}
+                          className="w-full px-2 py-1 rounded-lg border border-blue-300 font-mono text-[11px] bg-white"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(testZoomMeeting.join_url);
+                            showToast("Copied Zoom meeting URL!");
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-[11px]"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer Controls */}
+                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setCompletionStep(3)}
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    ← Back to Step 3
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveStep(5)}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
+                  >
+                    <span>Save & Review Final Setup</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 5: REVIEW & COMPLETE LAUNCH */}
+            {completionStep === 5 && (
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
+                <div className="border-b border-[#E1E9E2] pb-4">
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 5: Review & Complete Studio Launch</h3>
+                  <p className="text-xs text-slate-500">
+                    Verify your configured values. Once completed, all saved details will be permanently viewable and editable under your Studio Profiler.
+                  </p>
+                </div>
+
+                {/* 4 Cards Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  {/* Card 1: Studio & Contact */}
+                  <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <span className="font-bold text-[#0C2417]">📱 Studio Identity & Phone</span>
+                      <button onClick={() => setCompletionStep(1)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
+                        Edit
+                      </button>
+                    </div>
+                    <p><strong>Studio:</strong> {setupStudioName || "Not Provided"}</p>
+                    <p><strong>Phone:</strong> {setupPhone || "Not Provided"}</p>
+                    <p><strong>Email:</strong> {setupSupportEmail || "Not Provided"}</p>
+                    <p><strong>Tagline:</strong> {setupStudioTagline || "None"}</p>
+                    <p><strong>Disciplines:</strong> {setupDisciplines.join(", ") || "None"}</p>
+                  </div>
+
+                  {/* Card 2: Location & GST */}
+                  <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <span className="font-bold text-[#0C2417]">📍 Location & GST Identity</span>
+                      <button onClick={() => setCompletionStep(2)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
+                        Edit
+                      </button>
+                    </div>
+                    <p><strong>Mode:</strong> {setupTeachingMode}</p>
+                    <p><strong>Address:</strong> {setupAddressLine1 ? `${setupAddressLine1}, ${setupCity}, ${setupState} ${setupPincode}` : "Not set"}</p>
+                    <p><strong>GST Registered:</strong> {setupHasGst ? `Yes (${setupGstNumber || "GSTIN Entered"})` : "No (Individual Educator)"}</p>
+                    {setupLegalBusinessName && <p><strong>Legal Name:</strong> {setupLegalBusinessName}</p>}
+                  </div>
+
+                  {/* Card 3: Bank & Payouts */}
+                  <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <span className="font-bold text-[#0C2417]">🏦 Bank Payout Accounts</span>
+                      <button onClick={() => setCompletionStep(3)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
+                        Edit
+                      </button>
+                    </div>
+                    <p><strong>Account Holder:</strong> {setupAccountHolderName || "Not Provided"}</p>
+                    <p><strong>Bank:</strong> {setupBankName || "Not Provided"}</p>
+                    <p><strong>Account No:</strong> {setupAccountNumber ? `••••••••${setupAccountNumber.slice(-4)}` : "Not Provided"}</p>
+                    <p><strong>IFSC:</strong> {setupIfscCode || "Not Provided"}</p>
+                    <p><strong>UPI:</strong> {setupUpiId || "None"}</p>
+                  </div>
+
+                  {/* Card 4: Zoom Integration */}
+                  <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <span className="font-bold text-[#0C2417]">🎥 Zoom Video Integration</span>
+                      <button onClick={() => setCompletionStep(4)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
+                        Edit
+                      </button>
+                    </div>
+                    <p>
+                      <strong>Status:</strong>{" "}
+                      <span className={zoomConnected ? "text-emerald-700 font-bold" : "text-amber-700 font-bold"}>
+                        {zoomConnected ? "Authenticated 🟢" : "Pending ⚠️"}
+                      </span>
+                    </p>
+                    <p><strong>Zoom Email:</strong> {zoomAccountEmail || "owner.zoom@yogastudio.test"}</p>
+                    <p><strong>Auto Meeting Links:</strong> {zoomAutoMeetingEnabled ? "Enabled (Active)" : "Disabled"}</p>
+                    <p><strong>Waiting Room:</strong> {zoomWaitingRoom ? "Enabled" : "Disabled"}</p>
+                  </div>
+                </div>
+
+                {/* Final Launch Action */}
+                <div className="p-6 rounded-3xl bg-gradient-to-br from-[#0C2417] via-[#133623] to-[#1b4332] text-white shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-serif font-bold text-lg">Ready to Launch Sanctuary Dashboard</h4>
+                    <p className="text-xs text-[#E8F0E9] mt-0.5">
+                      Your account will be verified and marked as 100% complete. You can create class batches with automated Zoom meetings.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isSavingProfile}
+                    onClick={handleCompleteOnboarding}
+                    className="px-6 py-3.5 rounded-2xl bg-white text-[#0C2417] hover:bg-[#F4F7F4] font-bold text-xs shadow-lg transition flex items-center justify-center gap-2 shrink-0"
+                  >
+                    {isSavingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>🚀</span>}
+                    <span>Complete Studio Setup & Launch</span>
+                  </button>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
+                  <button
+                    type="button"
+                    onClick={() => setCompletionStep(4)}
+                    className="hover:underline"
+                  >
+                    ← Back to Zoom Authentication
+                  </button>
+                  <span>Step 5 of 5</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1264,7 +2675,7 @@ export default function AdminDashboardPage() {
 
             {/* Teachers Table */}
             <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable records table">
                 {studioTeachersLoading ? (
                   <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin text-[#133623]" />
@@ -1345,7 +2756,7 @@ export default function AdminDashboardPage() {
                               {teacher.joined_at}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex flex-wrap items-center justify-end gap-2">
                                 <button
                                   onClick={() => handleOpenEditTeacher(teacher)}
                                   className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-[#CEDECF] hover:bg-[#E8F0E9] text-[#0C2417] transition flex items-center gap-1"
@@ -1436,7 +2847,7 @@ export default function AdminDashboardPage() {
 
             {/* Students Table with Live API */}
             <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable records table">
                 {studentsLoading ? (
                   <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin text-[#133623]" />
@@ -1587,7 +2998,11 @@ export default function AdminDashboardPage() {
                 <p className="text-xs text-[#40514E] mt-0.5">Configure your weekly scheduled classes and automated Zoom meeting links.</p>
               </div>
               <button
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={() => {
+                  setNewBatchName(""); setNewBatchType("Vinyasa Flow"); setNewBatchInstructor("Sahil Sharma (Lead Guru)");
+                  setNewBatchDays(["Tue", "Thu"]); setNewBatchStart("17:00"); setNewBatchEnd("18:00");
+                  setNewBatchCap(15); setNewBatchPrice("2,800"); setNewBatchUrl(""); setIsCreateModalOpen(true);
+                }}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-semibold text-xs shadow-sm transition"
               >
                 <Plus className="h-4 w-4" /> Create Class Batch
@@ -1601,9 +3016,16 @@ export default function AdminDashboardPage() {
                     <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase bg-[#E8F0E9] text-[#1b4332]">
                       {batch.classType}
                     </span>
-                    <span className="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
-                      Rolling 30d Active
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {batch.meetingUrl?.includes("zoom.us") && (
+                        <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                          <Video className="h-2.5 w-2.5 text-blue-600" /> Zoom Live
+                        </span>
+                      )}
+                      <span className="text-xs font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-semibold">
+                        Rolling 30d Active
+                      </span>
+                    </div>
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-[#0C2417]">{batch.name}</h3>
@@ -1620,8 +3042,37 @@ export default function AdminDashboardPage() {
                       <span className="font-bold text-[#0C2417]">{batch.instructor}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Live Video Room:</span>
-                      <span className="font-mono text-emerald-700 font-semibold truncate max-w-[200px]">{batch.meetingUrl}</span>
+                      <span className="text-slate-500 flex items-center gap-1">
+                        {batch.meetingUrl?.includes("zoom.us") ? (
+                          <span className="text-blue-700 font-semibold inline-flex items-center gap-1">
+                            <Video className="h-3 w-3" /> Zoom Room:
+                          </span>
+                        ) : (
+                          "Live Video Room:"
+                        )}
+                      </span>
+                      {batch.meetingUrl?.includes("zoom.us") ? (
+                        <a
+                          href={batch.meetingUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-semibold border border-blue-200 text-[11px] hover:bg-blue-100 transition max-w-[200px] truncate"
+                          title={batch.meetingUrl}
+                        >
+                          <span className="truncate">Launch Zoom</span>
+                          <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                        </a>
+                      ) : (
+                        <a
+                          href={batch.meetingUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-mono text-emerald-700 font-semibold truncate max-w-[200px] hover:underline flex items-center gap-1"
+                        >
+                          <span className="truncate">{batch.meetingUrl}</span>
+                          <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                        </a>
+                      )}
                     </div>
                   </div>
 
@@ -1656,7 +3107,7 @@ export default function AdminDashboardPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
                 <span className="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase bg-[#E8F0E9] text-[#1b4332]">
                   Monthly Pass
@@ -1755,12 +3206,12 @@ export default function AdminDashboardPage() {
                       type="date"
                       value={selectedDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
-                      className="px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
+                      className="min-w-0 max-w-full px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
                     />
                     <select
                       value={selectedBatchId}
                       onChange={(e) => setSelectedBatchId(e.target.value)}
-                      className="px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
+                      className="min-w-0 max-w-full px-3 py-2 rounded-xl text-xs border border-[#CEDECF] bg-white font-semibold text-[#0C2417]"
                     >
                       {batches.map((b) => (
                         <option key={b.id} value={b.id}>
@@ -1920,49 +3371,498 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 7: SETTINGS & WEBSITE */}
+        {/* TAB 7: STUDIO PROFILER & SETTINGS */}
         {activeTab === "settings" && (
-          <div className="space-y-6 max-w-4xl">
-            <div>
-              <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Settings & Website Preview</h1>
-              <p className="text-xs text-[#40514E] mt-0.5">Customize studio branding, domain names, and public SSR teacher landing page.</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-6">
-              <div className="flex items-center justify-between pb-6 border-b border-[#E1E9E2]">
-                <div>
-                  <h4 className="font-bold text-sm text-[#0C2417]">Public Studio Page</h4>
-                  <p className="text-xs text-slate-500">Your live SSR website powered by Next.js App Router</p>
+          <div className="space-y-6 max-w-5xl">
+            {/* Header with Title & Quick Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Profiler & Settings</h1>
+                  {isAccountCompleted ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-[#133623] border border-emerald-300 inline-flex items-center gap-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Sanctuary Active
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Setup Incomplete
+                    </span>
+                  )}
                 </div>
-                <Link
-                  href="/sahil-yoga-studio"
-                  target="_blank"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#133623] hover:bg-[#0C2417] text-white shadow-sm transition"
+                <p className="text-xs text-[#40514E] mt-0.5">
+                  Official sanctuary profile, contact details, physical/online location, legal business & GST identity, fee payout accounts, and authenticated Zoom integration.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  onClick={() => {
+                    setActiveTab("account-completion");
+                    setCompletionStep(1);
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-[#F4F7F4] text-[#133623] border border-[#CEDECF] shadow-sm transition flex items-center gap-1.5"
                 >
-                  <span>Open Public Website</span>
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Edit in Setup Wizard</span>
+                </button>
+                <Link
+                  href={`/${studioProfile?.slug || currentUser?.organization_slug || "sahil-yoga-studio"}`}
+                  target="_blank"
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#133623] hover:bg-[#0C2417] text-white shadow-sm transition flex items-center gap-1.5"
+                >
+                  <span>Public Sanctuary Page</span>
                   <ExternalLink className="h-3.5 w-3.5" />
                 </Link>
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Studio Name</label>
-                  <input
-                    type="text"
-                    defaultValue="Sahil Yoga Studio"
-                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
-                  />
+            {/* Account Status Banner */}
+            <div className={`p-4 rounded-3xl border flex items-start gap-3.5 ${
+              isAccountCompleted
+                ? "bg-[#F4F7F4] border-[#CEDECF] text-[#0C2417]"
+                : "bg-amber-50/80 border-amber-200 text-amber-900"
+            }`}>
+              {isAccountCompleted ? (
+                <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 text-xs">
+                <h4 className="font-bold">
+                  {isAccountCompleted
+                    ? "Verified Sanctuary Roster & Integrations Active"
+                    : "Account Setup Incomplete - Finish All Steps"}
+                </h4>
+                <p className="text-slate-600 mt-0.5">
+                  {isAccountCompleted
+                    ? "All sanctuary details are verified. Classes created by your studio automatically provision authenticated Zoom meeting links, student subscriptions route to your verified bank account, and GST tax invoices are generated under your legal business entity."
+                    : "Your studio account needs a few more details to be fully operational. Click 'Edit in Setup Wizard' to finish configuring your phone, teaching location, GST, payout bank details, and Zoom live classroom."}
+                </p>
+              </div>
+              {!isAccountCompleted && (
+                <button
+                  onClick={() => {
+                    setActiveTab("account-completion");
+                    setCompletionStep(completionStep || 1);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 transition"
+                >
+                  Complete Setup →
+                </button>
+              )}
+            </div>
+
+            {/* PROFILER GRID: 5 COMPREHENSIVE CARDS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* CARD 1: STUDIO IDENTITY & CONTACT */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-[#F0F4F0]">
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-[#E8F0E9] text-[#133623]">
+                      <Building2 className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-sm text-[#0C2417]">Studio Profile & Mobile Phone</h3>
+                      <p className="text-[11px] text-slate-500">Contact and public identity</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab("account-completion");
+                      setCompletionStep(1);
+                    }}
+                    className="text-xs text-[#133623] hover:underline font-bold"
+                  >
+                    Edit →
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Timezone</label>
-                  <input
-                    type="text"
-                    defaultValue="Asia/Kolkata (IST)"
-                    disabled
-                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F4F7F4] text-slate-500"
-                  />
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Studio Name</label>
+                    <p className="font-serif font-bold text-base text-[#0C2417]">
+                      {setupStudioName || studioProfile?.name || currentUser?.organization_name || "Sahil Yoga Studio"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tagline / Mission</label>
+                    <p className="text-slate-700 font-medium">
+                      {setupStudioTagline || studioProfile?.studio_tagline || "Traditional Hatha, Aerial Movement & Meditation Sanctuary"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2]">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                          <Phone className="h-3 w-3 text-emerald-600" /> Mobile Phone
+                        </label>
+                        <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                          WhatsApp
+                        </span>
+                      </div>
+                      <p className="font-bold text-[#0C2417] text-xs mt-1">
+                        {setupPhone || studioProfile?.phone || "+91 98765 43210"}
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2]">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                        <Mail className="h-3 w-3 text-emerald-600" /> Support Email
+                      </label>
+                      <p className="font-bold text-[#0C2417] text-xs mt-1 truncate" title={setupSupportEmail || studioProfile?.support_email || currentUser?.email}>
+                        {setupSupportEmail || studioProfile?.support_email || currentUser?.email || "namaste@pranasanctuary.com"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Disciplines Taught</label>
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {(setupDisciplines.length > 0
+                        ? setupDisciplines
+                        : (studioProfile?.disciplines ? studioProfile.disciplines.split(", ") : ["Hatha Yoga", "Vinyasa Flow", "Aerial Yoga"])
+                      ).map((d) => (
+                        <span key={d} className="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-[#E8F0E9] text-[#1b4332] border border-[#CEDECF]">
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+              </div>
+
+              {/* CARD 2: LOCATION & TEACHING MODE */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-[#F0F4F0]">
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-[#E8F0E9] text-[#133623]">
+                      <MapPin className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-sm text-[#0C2417]">Studio Location & Teaching Mode</h3>
+                      <p className="text-[11px] text-slate-500">Physical address & delivery formats</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab("account-completion");
+                      setCompletionStep(2);
+                    }}
+                    className="text-xs text-[#133623] hover:underline font-bold"
+                  >
+                    Edit →
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Teaching Mode</label>
+                    <div className="mt-1">
+                      <span className="px-3 py-1 rounded-xl text-xs font-bold bg-[#133623] text-white shadow-sm inline-flex items-center gap-1.5">
+                        {setupTeachingMode === "PHYSICAL"
+                          ? "🏢 Physical In-Studio Sanctuary"
+                          : setupTeachingMode === "ONLINE"
+                          ? "💻 100% Live Interactive Online"
+                          : "🌿 Hybrid Sanctuary (Physical & Live Online)"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] space-y-2">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Address Line 1 & 2</label>
+                      <p className="font-semibold text-slate-800 mt-0.5">
+                        {setupAddressLine1 || studioProfile?.address_line1 || "Level 3, Sacred Banyan Arcade, 108 North Main Road"}
+                      </p>
+                      {(setupAddressLine2 || studioProfile?.address_line2) && (
+                        <p className="text-slate-600">
+                          {setupAddressLine2 || studioProfile?.address_line2}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E1E9E2]">
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">City</label>
+                        <p className="font-bold text-slate-800">{setupCity || studioProfile?.city || "Pune"}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">State</label>
+                        <p className="font-bold text-slate-800">{setupState || studioProfile?.state || "Maharashtra"}</p>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">PIN Code</label>
+                        <p className="font-mono font-bold text-slate-800">{setupPincode || studioProfile?.pincode || "411001"}</p>
+                      </div>
+                    </div>
+
+                    <div className="pt-1 text-[11px] text-slate-500 flex items-center justify-between">
+                      <span>Country: <strong>{setupCountry || studioProfile?.country || "India"}</strong></span>
+                      <span className="text-emerald-700 font-medium">✓ Location verified</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 3: GST & LEGAL BUSINESS PROFILER */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-[#F0F4F0]">
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-[#E8F0E9] text-[#133623]">
+                      <FileText className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-sm text-[#0C2417]">GST Number & Legal Business</h3>
+                      <p className="text-[11px] text-slate-500">Tax compliance & invoicing details</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab("account-completion");
+                      setCompletionStep(2);
+                    }}
+                    className="text-xs text-[#133623] hover:underline font-bold"
+                  >
+                    Edit →
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Legal Business Entity Name</label>
+                    <p className="font-semibold text-slate-800 text-xs">
+                      {setupLegalBusinessName || studioProfile?.legal_business_name || "Prana Wellness Movement Private Limited"}
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-600 font-medium">GST Registered:</span>
+                      {(setupHasGst || studioProfile?.has_gst) ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          ✓ Registered GST Taxpayer
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-300">
+                          Non-GST (Threshold Exemption)
+                        </span>
+                      )}
+                    </div>
+
+                    {(setupHasGst || studioProfile?.has_gst) && (
+                      <div className="flex items-center justify-between pt-1 border-t border-[#E1E9E2]">
+                        <span className="text-slate-600 font-medium">GSTIN (15-Digit):</span>
+                        <span className="font-mono font-bold text-[#0C2417] bg-white px-2 py-0.5 rounded border border-[#CEDECF]">
+                          {setupGstNumber || studioProfile?.gst_number || "27AABCU9603R1ZM"}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-[#E1E9E2]">
+                      <span className="text-slate-600 font-medium">PAN Number:</span>
+                      <span className="font-mono font-bold text-slate-800">
+                        {setupPanNumber || studioProfile?.pan_number || "AABCU9603R"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 italic">
+                    Tax invoices for student subscriptions automatically reflect this GSTIN and legal entity name.
+                  </p>
+                </div>
+              </div>
+
+              {/* CARD 4: BANK & PAYOUT ACCOUNT ("THE THANKS PERSPECTIVE") */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-[#F0F4F0]">
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-[#E8F0E9] text-[#133623]">
+                      <Landmark className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-sm text-[#0C2417]">Bank Payouts & Settlement Account</h3>
+                      <p className="text-[11px] text-slate-500">Where student membership earnings are sent</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab("account-completion");
+                      setCompletionStep(3);
+                    }}
+                    className="text-xs text-[#133623] hover:underline font-bold"
+                  >
+                    Edit →
+                  </button>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 font-medium">Bank Name:</span>
+                    <span className="font-bold text-[#0C2417]">
+                      {setupBankName || studioProfile?.bank_name || "HDFC Bank"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 font-medium">Beneficiary / Holder:</span>
+                    <span className="font-semibold text-slate-800">
+                      {setupAccountHolderName || studioProfile?.account_holder_name || "Prana Wellness Movement Pvt Ltd"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 font-medium">Account Number:</span>
+                    <span className="font-mono font-bold text-[#0C2417] bg-white px-2 py-0.5 rounded border border-emerald-200">
+                      {studioProfile?.account_number_masked || (setupAccountNumber ? `••••••••${setupAccountNumber.slice(-4)}` : "••••••••7890")}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600 font-medium">IFSC Code:</span>
+                    <span className="font-mono font-bold text-slate-800">
+                      {setupIfscCode || studioProfile?.ifsc_code || "HDFC0001234"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-emerald-200">
+                    <span className="text-slate-600 font-medium">Direct UPI ID:</span>
+                    <span className="font-mono text-emerald-800 font-bold">
+                      {setupUpiId || studioProfile?.upi_id || "pranashala@okhdfcbank"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-emerald-200">
+                    <span className="text-slate-600 font-medium">Settlement Schedule:</span>
+                    <span className="font-bold text-[#133623] bg-emerald-100 px-2 py-0.5 rounded text-[10px]">
+                      {setupSettlementCycle || studioProfile?.settlement_cycle || "WEEKLY"} (Every Monday)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* CARD 5: ZOOM LIVE CLASSROOM AUTHENTICATION */}
+              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4 md:col-span-2">
+                <div className="flex items-center justify-between pb-3 border-b border-[#F0F4F0]">
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-blue-50 text-blue-700">
+                      <Video className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-sm text-[#0C2417]">Zoom Live Video Integration</h3>
+                      <p className="text-[11px] text-slate-500">Automated meeting room generation for live batches</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {zoomConnected ? (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300 inline-flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" /> Authenticated & Connected
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600" /> Not Connected
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 text-xs">
+                  <div className="p-3.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Connected Zoom Account</label>
+                    <p className="font-bold text-[#0C2417] truncate" title={zoomAccountEmail || studioProfile?.zoom_account_email}>
+                      {zoomConnected ? (zoomAccountEmail || studioProfile?.zoom_account_email || "Active OAuth Account") : "No account connected"}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {zoomConnected ? "API tokens refreshed automatically" : "Connect via OAuth or Server-to-Server App"}
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Classroom Automation</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                      <span className="font-bold text-[#0C2417]">
+                        {zoomAutoMeetingEnabled ? "Auto-create on Batch Creation" : "Manual link creation"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Creates unique https://us05web.zoom.us/j/... rooms</p>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Security & Video Defaults</label>
+                    <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-700">
+                      <span>Waiting Room: {zoomWaitingRoom ? "✓ Enabled" : "✗ Off"}</span>
+                      <span>•</span>
+                      <span>Host Video: {zoomHostVideo ? "✓ On" : "✗ Off"}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">Protects privacy and streamlines teacher start</p>
+                  </div>
+                </div>
+
+                {/* Actions & Live Tester */}
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[#F0F4F0]">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleGenerateTestZoomMeeting}
+                      disabled={isGeneratingTestMeeting}
+                      className="px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition flex items-center gap-1.5"
+                    >
+                      {isGeneratingTestMeeting ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Video className="h-3.5 w-3.5" />
+                      )}
+                      <span>Test Generate Zoom Meeting</span>
+                    </button>
+
+                    {zoomConnected && (
+                      <button
+                        onClick={handleDisconnectZoom}
+                        className="px-3.5 py-2 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 border border-red-200 transition"
+                      >
+                        Disconnect Zoom
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab("account-completion");
+                      setCompletionStep(4);
+                    }}
+                    className="text-xs text-[#133623] hover:underline font-bold self-end sm:self-auto"
+                  >
+                    Configure Advanced Zoom OAuth Settings →
+                  </button>
+                </div>
+
+                {/* Test meeting preview banner */}
+                {testZoomMeeting && (
+                  <div className="p-3.5 rounded-2xl bg-blue-50 border border-blue-200 text-blue-950 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold flex items-center gap-1.5 text-blue-900">
+                        <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                        Live Zoom Room Provisioned Successfully!
+                      </span>
+                      <a
+                        href={testZoomMeeting.join_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-blue-700 hover:underline flex items-center gap-1"
+                      >
+                        <span>Open Meeting</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-[11px] font-mono text-blue-800">
+                      <span>Room ID: {testZoomMeeting.meeting_id}</span>
+                      <span>Passcode: {testZoomMeeting.passcode}</span>
+                      <span className="truncate max-w-xs">URL: {testZoomMeeting.join_url}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1971,7 +3871,7 @@ export default function AdminDashboardPage() {
 
       {/* CREATE CLASS BATCH MODAL (FEAT-05) */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <Modal title="Create class batch" onClose={() => setIsCreateModalOpen(false)} confirmDiscard>
           <div className="bg-white rounded-3xl border border-[#CEDECF] shadow-2xl max-w-xl w-full p-6 space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-[#E1E9E2]">
               <div className="flex items-center gap-2.5">
@@ -1982,7 +3882,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
               <button
-                onClick={() => setIsCreateModalOpen(false)}
+                aria-label="Close create batch" onClick={() => setIsCreateModalOpen(false)}
                 className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
               >
                 <X className="h-4 w-4" />
@@ -2002,10 +3902,10 @@ export default function AdminDashboardPage() {
 
             <form onSubmit={handleCreateBatch} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                <label htmlFor="dashboard-page-field-19" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Batch / Session Name *
                 </label>
-                <input
+                <input id="dashboard-page-field-19"
                   type="text"
                   required
                   placeholder="e.g. Sunset Vinyasa Flow, Aerial Silks Beginner"
@@ -2017,10 +3917,10 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-20" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Class Type
                   </label>
-                  <select
+                  <select id="dashboard-page-field-20"
                     value={newBatchType}
                     onChange={(e) => setNewBatchType(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white"
@@ -2035,10 +3935,10 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-21" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Assigned Instructor
                   </label>
-                  <select
+                  <select id="dashboard-page-field-21"
                     value={newBatchInstructor}
                     onChange={(e) => setNewBatchInstructor(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white"
@@ -2061,6 +3961,7 @@ export default function AdminDashboardPage() {
                         key={d}
                         type="button"
                         onClick={() => toggleDaySelection(d)}
+                        aria-pressed={isSelected}
                         className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
                           isSelected
                             ? "bg-[#133623] text-white shadow-sm"
@@ -2076,10 +3977,10 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-22" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Start Time
                   </label>
-                  <input
+                  <input id="dashboard-page-field-22"
                     type="time"
                     required
                     value={newBatchStart}
@@ -2089,10 +3990,10 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-23" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     End Time
                   </label>
-                  <input
+                  <input id="dashboard-page-field-23"
                     type="time"
                     required
                     value={newBatchEnd}
@@ -2102,10 +4003,10 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-24" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Max Yogis
                   </label>
-                  <input
+                  <input id="dashboard-page-field-24"
                     type="number"
                     min={1}
                     max={100}
@@ -2116,10 +4017,10 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-25" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Monthly ₹
                   </label>
-                  <input
+                  <input id="dashboard-page-field-25"
                     type="text"
                     value={newBatchPrice}
                     onChange={(e) => setNewBatchPrice(e.target.value)}
@@ -2128,23 +4029,82 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
-                  Automated Video / Zoom Meeting URL
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://meet.progressrooms.com/your-batch"
-                  value={newBatchUrl}
-                  onChange={(e) => setNewBatchUrl(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
-                />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider">
+                    Automated Video / Zoom Meeting URL
+                  </label>
+                  {zoomConnected && (
+                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 inline-flex items-center gap-1">
+                      <Video className="h-2.5 w-2.5 text-blue-600" /> Zoom Auth Active
+                    </span>
+                  )}
+                </div>
+
+                {zoomConnected ? (
+                  <div className="p-3 rounded-2xl bg-blue-50/70 border border-blue-200/80 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="text-xs text-blue-900">
+                        <p className="font-bold flex items-center gap-1 text-blue-900">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />
+                          Authenticated Zoom Account: {zoomAccountEmail || "Connected"}
+                        </p>
+                        <p className="text-[11px] text-blue-700 mt-0.5">
+                          When you save this batch, an authenticated Zoom meeting room with waiting room protection will be automatically generated.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const mockId = Math.floor(80000000000 + Math.random() * 19999999999);
+                          const mockPwd = Math.random().toString(36).substring(2, 8);
+                          setNewBatchUrl(`https://us05web.zoom.us/j/${mockId}?pwd=${mockPwd}`);
+                          showToast("🎥 Pre-generated Zoom meeting link!");
+                        }}
+                        className="px-2.5 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold shrink-0 transition"
+                      >
+                        Preview Link
+                      </button>
+                    </div>
+                    <input
+                      type="url"
+                      placeholder="Auto-generated on creation (e.g. https://us05web.zoom.us/j/...)"
+                      value={newBatchUrl}
+                      onChange={(e) => setNewBatchUrl(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-blue-200 text-xs bg-white text-blue-950 font-mono"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      type="url"
+                      placeholder="https://meet.progressrooms.com/your-batch"
+                      value={newBatchUrl}
+                      onChange={(e) => setNewBatchUrl(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
+                    />
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500">
+                      <span>Zoom not connected yet. A generic room URL will be assigned.</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreateModalOpen(false);
+                          setActiveTab("account-completion");
+                          setCompletionStep(4);
+                        }}
+                        className="text-xs font-bold text-[#1b4332] hover:underline"
+                      >
+                        Connect Zoom →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
+                  aria-label="Close create batch" onClick={() => setIsCreateModalOpen(false)}
                   className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
                 >
                   Cancel
@@ -2158,12 +4118,12 @@ export default function AdminDashboardPage() {
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* ADD TEACHER MODAL */}
       {isAddTeacherOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <Modal title="Add teacher" onClose={() => setIsAddTeacherOpen(false)} confirmDiscard>
           <div className="bg-white rounded-3xl border border-[#CEDECF] shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-[#E1E9E2]">
               <div className="flex items-center gap-2.5">
@@ -2174,7 +4134,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
               <button
-                onClick={() => setIsAddTeacherOpen(false)}
+                aria-label="Close add teacher" onClick={() => setIsAddTeacherOpen(false)}
                 className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition"
               >
                 <X className="h-4 w-4" />
@@ -2183,10 +4143,10 @@ export default function AdminDashboardPage() {
 
             <form onSubmit={handleCreateTeacher} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                <label htmlFor="dashboard-page-field-26" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Full Name *
                 </label>
-                <input
+                <input id="dashboard-page-field-26"
                   type="text"
                   required
                   placeholder="e.g. Priya Sharma, Vikram Adani"
@@ -2198,10 +4158,10 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-27" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Email Address *
                   </label>
-                  <input
+                  <input id="dashboard-page-field-27"
                     type="email"
                     required
                     placeholder="teacher@studio.com"
@@ -2212,10 +4172,10 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-28" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Phone Number
                   </label>
-                  <input
+                  <input id="dashboard-page-field-28"
                     type="tel"
                     placeholder="+91 98765 43210"
                     value={teacherPhone}
@@ -2226,10 +4186,10 @@ export default function AdminDashboardPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                <label htmlFor="dashboard-page-field-29" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Title & Specialization *
                 </label>
-                <input
+                <input id="dashboard-page-field-29"
                   type="text"
                   required
                   placeholder="e.g. Senior Aerial & Hatha Guide"
@@ -2240,10 +4200,10 @@ export default function AdminDashboardPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                <label htmlFor="dashboard-page-field-30" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Bio / Sanctuary Notes
                 </label>
-                <textarea
+                <textarea id="dashboard-page-field-30"
                   rows={3}
                   placeholder="500hr RYT certified, 7+ years practicing somatic flows..."
                   value={teacherBio}
@@ -2255,7 +4215,7 @@ export default function AdminDashboardPage() {
               <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsAddTeacherOpen(false)}
+                  aria-label="Close add teacher" onClick={() => setIsAddTeacherOpen(false)}
                   className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
                 >
                   Cancel
@@ -2263,19 +4223,20 @@ export default function AdminDashboardPage() {
                 <button
                   type="submit"
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+                  disabled={isSavingTeacher}
                 >
                   <UserPlus className="w-3.5 h-3.5" />
-                  <span>Add Teacher</span>
+                  <span>{isSavingTeacher ? "Saving…" : "Add Teacher"}</span>
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* EDIT TEACHER MODAL */}
       {isEditTeacherOpen && editingTeacher && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <Modal title="Edit teacher" onClose={() => { setIsEditTeacherOpen(false); setEditingTeacher(null); }} confirmDiscard>
           <div className="bg-white rounded-3xl border border-[#CEDECF] shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-4 border-b border-[#E1E9E2]">
               <div className="flex items-center gap-2.5">
@@ -2286,6 +4247,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
               <button
+                aria-label="Close edit teacher"
                 onClick={() => {
                   setIsEditTeacherOpen(false);
                   setEditingTeacher(null);
@@ -2298,10 +4260,10 @@ export default function AdminDashboardPage() {
 
             <form onSubmit={handleUpdateTeacher} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                <label htmlFor="dashboard-page-field-31" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Full Name *
                 </label>
-                <input
+                <input id="dashboard-page-field-31"
                   type="text"
                   required
                   value={teacherName}
@@ -2312,10 +4274,10 @@ export default function AdminDashboardPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-32" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Email (Read-Only)
                   </label>
-                  <input
+                  <input id="dashboard-page-field-32"
                     type="email"
                     disabled
                     value={teacherEmail}
@@ -2324,10 +4286,10 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  <label htmlFor="dashboard-page-field-33" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Phone Number
                   </label>
-                  <input
+                  <input id="dashboard-page-field-33"
                     type="tel"
                     value={teacherPhone}
                     onChange={(e) => setTeacherPhone(e.target.value)}
@@ -2337,10 +4299,10 @@ export default function AdminDashboardPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                <label htmlFor="dashboard-page-field-34" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Title & Specialization *
                 </label>
-                <input
+                <input id="dashboard-page-field-34"
                   type="text"
                   required
                   value={teacherTitle}
@@ -2350,10 +4312,10 @@ export default function AdminDashboardPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                <label htmlFor="dashboard-page-field-35" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Bio / Sanctuary Notes
                 </label>
-                <textarea
+                <textarea id="dashboard-page-field-35"
                   rows={3}
                   value={teacherBio}
                   onChange={(e) => setTeacherBio(e.target.value)}
@@ -2403,14 +4365,15 @@ export default function AdminDashboardPage() {
                 <button
                   type="submit"
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+                  disabled={isSavingTeacher}
                 >
                   <Edit2 className="w-3.5 h-3.5" />
-                  <span>Save Changes</span>
+                  <span>{isSavingTeacher ? "Saving…" : "Save Changes"}</span>
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

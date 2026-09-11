@@ -17,28 +17,19 @@ import {
   X as XIcon
 } from "lucide-react";
 import { FontSelector } from "@/components/FontSelector";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#212121] flex flex-col font-sans">
       {/* Nature Navigation Bar */}
       <header className="bg-white/90 backdrop-blur border-b border-[#E1E9E2] sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-3 group">
-            <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-[#0C2417] to-[#1b4332] flex items-center justify-center text-white text-2xl shadow-md group-hover:scale-105 transition-transform">
-              🌿
-            </div>
-            <div>
-              <span className="font-serif text-2xl font-bold tracking-tight text-[#0C2417]">
-                ProgressRooms
-              </span>
-              <span className="block text-[11px] uppercase font-bold tracking-widest text-[#81A882]">
-                Virtual Studio OS
-              </span>
-            </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+          <Link href="/" className="group">
+            <BrandLogo size={36} variant="tile-dark" showText subtitle="Virtual Studio OS" />
           </Link>
 
-          <nav className="hidden md:flex items-center space-x-8 text-base font-semibold text-[#40514E]">
+          <nav className="hidden xl:flex items-center space-x-5 text-base font-semibold text-[#40514E]">
             <a href="#features" className="hover:text-[#0C2417] transition">Features</a>
             <a href="#how-it-works" className="hover:text-[#0C2417] transition">How it Works</a>
             <a href="#pricing" className="hover:text-[#0C2417] transition">Pricing Plans</a>
@@ -48,13 +39,13 @@ export default function HomePage() {
             </Link>
           </nav>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-1 sm:gap-3">
             {/* Live Typography Font Switcher */}
-            <FontSelector />
+            <div className="hidden lg:block"><FontSelector /></div>
 
             <Link
               href="/login"
-              className="text-sm font-semibold text-[#1b4332] hover:text-[#0C2417] px-3.5 py-2 transition"
+              className="text-sm font-semibold text-[#1b4332] hover:text-[#0C2417] px-2 sm:px-3.5 py-2 transition"
             >
               Login
             </Link>
@@ -66,10 +57,16 @@ export default function HomePage() {
             </Link>
           </div>
         </div>
+        <nav aria-label="Explore ProgressNow" className="xl:hidden flex gap-5 overflow-x-auto whitespace-nowrap border-t border-[#E1E9E2] px-4 py-2 text-xs font-semibold text-[#40514E]">
+          <a className="py-2" href="#features">Features</a>
+          <a className="py-2" href="#how-it-works">How it works</a>
+          <a className="py-2" href="#pricing">Pricing</a>
+          <Link className="py-2" href="/sahil-yoga-studio">Demo studio</Link>
+        </nav>
       </header>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-16 pb-20 lg:pt-24 lg:pb-28 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto text-center">
+      <section id="main-content" className="relative overflow-hidden pt-16 pb-20 lg:pt-24 lg:pb-28 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto text-center">
         {/* Decorative background glow */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-[#ABC5AD]/20 blur-[120px] rounded-full pointer-events-none -z-10" />
 
@@ -105,7 +102,7 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="mt-8 flex items-center justify-center gap-6 text-xs text-[#618D63] font-medium">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-xs text-[#618D63] font-medium">
           <span className="flex items-center gap-1.5">
             <Check className="h-4 w-4 text-[#2f6a45]" /> No Credit Card Required
           </span>
@@ -203,13 +200,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Comparison: Old Way vs ProgressRooms Sanctuary */}
+      {/* Comparison: Old Way vs ProgressNow Sanctuary */}
       <section id="how-it-works" className="py-20 bg-[#F4F7F4]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <span className="text-xs uppercase font-bold tracking-widest text-[#81A882]">The Comparison</span>
             <h2 className="text-3xl font-serif font-bold text-[#0C2417] mt-1">
-              Why Instructors Choose ProgressRooms
+              Why Instructors Choose ProgressNow
             </h2>
           </div>
 
@@ -242,7 +239,7 @@ export default function HomePage() {
             <div className="p-8 rounded-3xl bg-white border-2 border-[#81A882] shadow-md space-y-4">
               <div className="flex items-center gap-2 text-[#1b4332] font-bold text-base">
                 <span>🌿</span>
-                <span>The ProgressRooms Sanctuary Way</span>
+                <span>The ProgressNow Sanctuary Way</span>
               </div>
               <ul className="space-y-3 text-sm text-[#275539]">
                 <li className="flex items-start gap-2">
@@ -487,12 +484,12 @@ export default function HomePage() {
                 Compare Plan Features In-Depth
               </h3>
               <p className="text-sm text-[#40514E] mt-1">
-                Everything you need to know about what is included across each ProgressRooms plan.
+                Everything you need to know about what is included across each ProgressNow plan.
               </p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs sm:text-sm">
+            <div className="comparison-scroll overflow-x-auto" tabIndex={0} role="region" aria-label="Compare plans; scroll horizontally to see every plan">
+              <table className="min-w-[640px] w-full text-left border-collapse text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b border-[#E1E9E2] bg-[#FAF7F2] text-[#0C2417]">
                     <th className="p-4 sm:p-5 font-bold uppercase tracking-wider text-xs">Platform Feature</th>
@@ -645,12 +642,10 @@ export default function HomePage() {
       {/* Nature Footer */}
       <footer className="bg-[#0C2417] text-white py-14 border-t border-[#133623]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center space-x-3">
-            <div className="h-8 w-8 rounded-xl bg-[#1b4332] flex items-center justify-center text-lg">
-              🌿
-            </div>
+          <div className="flex items-center gap-1 sm:gap-3">
+            <BrandLogo size={36} variant="tile-dark" />
             <div>
-              <p className="font-serif font-bold text-base text-[#F4F7F4]">ProgressRooms</p>
+              <p className="font-serif font-bold text-base text-[#F4F7F4]">ProgressNow</p>
               <p className="text-[11px] text-[#81A882]">The Sanctuary Operating System for Instructors</p>
             </div>
           </div>
@@ -663,7 +658,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 pt-6 border-t border-white/10 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} ProgressRooms. All rights reserved. Built with love for instructors worldwide.
+          © {new Date().getFullYear()} ProgressNow. All rights reserved. Built with love for instructors worldwide.
         </div>
       </footer>
     </div>

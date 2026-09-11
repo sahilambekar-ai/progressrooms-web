@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/BrandLogo";
 import { notFound } from "next/navigation";
 import { Calendar, Clock, Users, ArrowRight, CheckCircle2, Globe, Shield } from "lucide-react";
 import { fetchPublicOrganization } from "@/lib/api";
@@ -123,8 +124,8 @@ export default async function TenantPublicPage({ params }: { params: { orgSlug: 
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Studio Header */}
       <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div
               className="h-10 w-10 rounded-xl flex items-center justify-center text-white font-bold shadow-sm"
               style={{ backgroundColor: website.primary_color }}
@@ -138,7 +139,7 @@ export default async function TenantPublicPage({ params }: { params: { orgSlug: 
               </p>
             </div>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/student"
               className="text-sm font-medium text-slate-600 hover:text-slate-900"
@@ -157,10 +158,10 @@ export default async function TenantPublicPage({ params }: { params: { orgSlug: 
       </header>
 
       {/* Hero Banner */}
-      <section className="bg-white border-b py-16 px-4 sm:px-6">
+      <section id="main-content" className="bg-white border-b py-10 sm:py-16 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold mb-4">
-            <Shield className="h-3.5 w-3.5 text-indigo-600" /> Verified ProgressRooms Partner
+            <Shield className="h-3.5 w-3.5 text-indigo-600" /> Verified ProgressNow Partner
           </div>
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
             {website.headline}
@@ -230,7 +231,7 @@ export default async function TenantPublicPage({ params }: { params: { orgSlug: 
               className="p-6 rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-md transition flex flex-col justify-between"
             >
               <div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 uppercase tracking-wider">
                     {sess.session_type}
                   </span>
@@ -255,7 +256,7 @@ export default async function TenantPublicPage({ params }: { params: { orgSlug: 
                 )}
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+              <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Pricing</p>
                   <p className="text-lg font-black text-slate-900">
@@ -279,7 +280,8 @@ export default async function TenantPublicPage({ params }: { params: { orgSlug: 
 
       {/* Footer */}
       <footer className="bg-white border-t py-8 px-4 text-center text-xs text-slate-400">
-        <p>© {new Date().getFullYear()} {organization.name}. Powered by <Link href="/" className="font-semibold text-slate-600 underline">ProgressRooms</Link>.</p>
+        <Link href="/" aria-label="ProgressNow home" className="inline-flex mb-3"><BrandLogo size={36} /></Link>
+        <p>© {new Date().getFullYear()} {organization.name}. Powered by <Link href="/" className="font-semibold text-slate-600 underline">ProgressNow</Link>.</p>
       </footer>
     </div>
   );

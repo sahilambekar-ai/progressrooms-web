@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, AlertCircle, Building2, User, Lock, Mail, Phone } from "lucide-react";
 import { OtpVerificationCard } from "@/components/OtpVerificationCard";
+import { BrandLogo } from "@/components/BrandLogo";
 
 function RegisterFormContent() {
   const router = useRouter();
@@ -24,7 +25,28 @@ function RegisterFormContent() {
   const [previewOtp, setPreviewOtp] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+  const isTestFilled = email === "sambekar777@gmail.com" && password === "sahil777";
+
+  const toggleTestCredentials = () => {
+    if (isTestFilled) {
+      setFullName("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setPhone("");
+      setStudioName("");
+    } else {
+      setRole("STUDIO");
+      setFullName("Sahil Ambekar");
+      setEmail("sambekar777@gmail.com");
+      setPassword("sahil777");
+      setConfirmPassword("sahil777");
+      setPhone("+91 98765 43210");
+      setStudioName("Sahil Sanctuary Studio");
+    }
+  };
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,7 +109,7 @@ function RegisterFormContent() {
   };
 
   return (
-    <div className="card-nature max-w-lg w-full mx-auto my-8 p-8 space-y-6">
+    <div id="main-content" className="card-nature max-w-lg w-full mx-auto my-4 sm:my-8 p-5 sm:p-8 space-y-6">
       {step === "OTP" ? (
         <OtpVerificationCard
           email={email}
@@ -104,12 +126,25 @@ function RegisterFormContent() {
       ) : (
         <>
           <div className="text-center">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#0C2417] to-[#1b4332] text-white flex items-center justify-center mx-auto mb-3 text-xl shadow-md">
-              🌿
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-8 h-8" />
+              <BrandLogo size={48} variant="tile-dark" />
+              <button
+                type="button"
+                onClick={toggleTestCredentials}
+                title={isTestFilled ? "Clear test credentials" : "Fill test credentials (sambekar777@gmail.com)"}
+                className={`w-8 h-8 rounded-xl font-bold text-xs flex items-center justify-center transition shadow-sm border ${
+                  isTestFilled
+                    ? "bg-[#133623] text-white border-[#0C2417] ring-2 ring-[#81A882]"
+                    : "bg-white text-[#133623] border-[#CEDECF] hover:bg-[#E8F0E9] hover:border-[#133623]"
+                }`}
+              >
+                T
+              </button>
             </div>
             <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Create Sanctuary Account</h1>
             <p className="text-xs text-[#7E7970] mt-1">
-              Join ProgressRooms to manage your classes, teachers, student roster, or practitioner journey.
+              Join ProgressNow to manage your classes, teachers, student roster, or practitioner journey.
             </p>
 
             {selectedPlan && (
@@ -121,7 +156,7 @@ function RegisterFormContent() {
           </div>
 
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+            <div role="alert" className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -169,10 +204,10 @@ function RegisterFormContent() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-page-field-1" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                 Full Name *
               </label>
-              <input
+              <input id="register-page-field-1"
                 type="text"
                 required
                 placeholder="e.g. Sahil Sharma"
@@ -183,13 +218,14 @@ function RegisterFormContent() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-email" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                 Email Address *
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
+                  id="register-email" autoComplete="email"
                   required
                   placeholder="name@sanctuary.com"
                   value={email}
@@ -202,13 +238,14 @@ function RegisterFormContent() {
             {/* Password and Confirm Password */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                <label htmlFor="register-password" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                   Password *
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="password"
+                    id="register-password" autoComplete="new-password"
                     required
                     placeholder="Min 6 characters"
                     value={password}
@@ -219,13 +256,14 @@ function RegisterFormContent() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                <label htmlFor="register-confirm-password" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                   Confirm Password *
                 </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="password"
+                    id="register-confirm-password" autoComplete="new-password"
                     required
                     placeholder="Re-enter password"
                     value={confirmPassword}
@@ -238,13 +276,14 @@ function RegisterFormContent() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                <label htmlFor="register-phone" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                   Phone Number
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="tel"
+                    id="register-phone" autoComplete="tel"
                     placeholder="+91 98765 43210"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -255,10 +294,10 @@ function RegisterFormContent() {
 
               {role === "STUDIO" && (
                 <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                  <label htmlFor="register-page-field-2" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                     Studio Name
                   </label>
-                  <input
+                  <input id="register-page-field-2"
                     type="text"
                     placeholder="e.g. Prana Movement Sanctuary"
                     value={studioName}
@@ -307,7 +346,7 @@ export default function RegisterPage() {
       </Suspense>
 
       <footer className="max-w-lg w-full mx-auto py-4 text-center text-[11px] text-[#7E7970]">
-        ProgressRooms Sanctuary Multi-Tenant Platform • Secure Brevo OTP & Encrypted Auth
+        ProgressNow Sanctuary Multi-Tenant Platform • Secure Brevo OTP & Encrypted Auth
       </footer>
     </div>
   );

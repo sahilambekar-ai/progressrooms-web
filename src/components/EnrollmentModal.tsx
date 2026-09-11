@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { CheckCircle, Loader2, Lock, Sparkles, X } from "lucide-react";
+import { Modal } from "./Modal";
+import { BrandLogo } from "./BrandLogo";
+import { useFeedback } from "./FeedbackProvider";
 
 interface EnrollmentModalProps {
   sessionId: string;
@@ -25,6 +28,7 @@ export function EnrollmentModal({
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { notify } = useFeedback();
 
   if (!isOpen) return null;
 
@@ -32,7 +36,7 @@ export function EnrollmentModal({
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
     try {
       const res = await fetch(`${apiUrl}/auth/request-otp`, {
         method: "POST",
@@ -41,12 +45,11 @@ export function EnrollmentModal({
       });
       if (!res.ok) throw new Error("Failed to request OTP");
       const data = await res.json();
-      setOtp(data.otp_preview || "123456");
+      setOtp(data.otp_preview || "");
       setStep("OTP");
     } catch (err) {
-      // Offline / demo fallback
-      setOtp("123456");
-      setStep("OTP");
+      setError("We couldn’t send your verification code. Check your email and connection, then try again.");
+      notify("Verification code was not sent. Please try again.", "error");
     } finally {
       setLoading(false);
     }
@@ -56,7 +59,7 @@ export function EnrollmentModal({
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
     try {
       const res = await fetch(`${apiUrl}/auth/verify-otp`, {
         method: "POST",
@@ -72,17 +75,18 @@ export function EnrollmentModal({
 
       setStep("SUCCESS");
     } catch (err: any) {
-      // Demo fallback success
-      setStep("SUCCESS");
+      setError(err instanceof Error ? err.message : "Verification failed. Please try again.");
+      notify("We couldn’t verify your code. Review it and try again.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <Modal title={`Enrollment: ${sessionName}`} onClose={onClose}>
       <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative border border-slate-100">
         <button
+          aria-label="Close enrollment"
           onClick={onClose}
           className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
         >
@@ -93,7 +97,7 @@ export function EnrollmentModal({
           <form onSubmit={handleRequestOtp} className="space-y-4">
             <div className="text-center">
               <div className="h-12 w-12 rounded-2xl bg-[#E8F0E9] text-[#133623] flex items-center justify-center mx-auto mb-3">
-                <Sparkles className="h-6 w-6" />
+                <BrandLogo size={32} />
               </div>
               <h3 className="text-xl font-bold text-slate-900">Enroll in {sessionName}</h3>
               <p className="text-xs text-slate-500 mt-1">
@@ -110,10 +114,10 @@ export function EnrollmentModal({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              <label htmlFor="components-EnrollmentModal-field-1" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Email Address
               </label>
-              <input
+              <input id="components-EnrollmentModal-field-1"
                 type="email"
                 required
                 placeholder="student@example.com"
@@ -123,7 +127,7 @@ export function EnrollmentModal({
               />
             </div>
 
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
 
             <button
               type="submit"
@@ -151,7 +155,7 @@ export function EnrollmentModal({
               <input
                 type="text"
                 required
-                maxLength={6}
+                maxLength={6} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" aria-label="Six-digit verification code"
                 placeholder="123456"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
@@ -159,14 +163,14 @@ export function EnrollmentModal({
               />
             </div>
 
-            {error && <p className="text-xs text-red-600 text-center">{error}</p>}
+            {error && <p role="alert" className="text-xs text-red-600 text-center">{error}</p>}
 
             <button
               type="submit"
               disabled={loading}
               className="w-full py-3 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify & Authorize Payment"}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verify Email"}
             </button>
           </form>
         )}
@@ -176,9 +180,9 @@ export function EnrollmentModal({
             <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
               <CheckCircle className="h-8 w-8" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900">Enrollment Confirmed!</h3>
+            <h3 className="text-xl font-bold text-slate-900">Email Verified</h3>
             <p className="text-xs text-slate-600">
-              Your payment for <span className="font-semibold">{sessionName}</span> was successfully processed. Your class schedule is active in your Student Portal.
+              Your email has been verified. Open your Student Portal to review your enrollment for <span className="font-semibold">{sessionName}</span>. No payment has been taken by this form.
             </p>
             <a
               href="/student"
@@ -189,6 +193,6 @@ export function EnrollmentModal({
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

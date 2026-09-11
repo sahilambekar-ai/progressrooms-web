@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Calendar, Clock, Users, Shield, ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
 import { PublicSessionDetailPayload } from "@/types";
 import { EnrollmentModal } from "@/components/EnrollmentModal";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -15,7 +16,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top Breadcrumb Header */}
       <header className="bg-white border-b sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
           <Link
             href={`/${session.organization.slug}`}
             className="inline-flex items-center text-sm font-semibold text-slate-600 hover:text-slate-900 transition"
@@ -28,11 +29,11 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 w-full flex-1">
+      <main id="main-content" className="max-w-5xl mx-auto px-4 sm:px-6 py-10 w-full flex-1">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Info */}
           <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm">
+            <div className="bg-white p-5 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm">
               <div className="flex flex-wrap items-center gap-2 mb-3">
                 <span className="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-[#E8F0E9] text-[#133623]">
                   {session.session_type}
@@ -55,13 +56,13 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
             </div>
 
             {/* Weekly Schedule */}
-            <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm">
+            <div className="bg-white p-5 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
                 <Calendar className="h-5 w-5 text-[#133623]" /> Weekly Class Schedule
               </h2>
               <div className="divide-y divide-slate-100 border border-slate-100 rounded-2xl overflow-hidden">
                 {session.schedule.map((r, i) => (
-                  <div key={i} className="p-4 bg-slate-50/50 flex items-center justify-between text-sm">
+                  <div key={i} className="p-4 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
                     <span className="font-bold text-slate-800">{DAY_NAMES[r.day_of_week]}</span>
                     <span className="text-slate-600 font-mono">
                       {r.start_time.slice(0, 5)} – {r.end_time.slice(0, 5)} ({session.organization.timezone})
@@ -73,7 +74,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
 
             {/* Requirements & Preparation */}
             {session.requirements && (
-              <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+              <div className="bg-white p-5 sm:p-8 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
                 <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-amber-500" /> Prerequisites & Equipment
                 </h2>
@@ -101,7 +102,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
 
           {/* Checkout Card Sidebar */}
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm sticky top-24">
+            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm lg:sticky lg:top-24">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pricing Tier</span>
               <div className="mt-2 flex items-baseline gap-1">
                 <span className="text-3xl font-black text-slate-900">
@@ -138,6 +139,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
           </div>
         </div>
       </main>
+      <footer className="flex justify-center border-t bg-white py-6"><Link href="/" aria-label="ProgressNow home"><BrandLogo size={28} showText /></Link></footer>
 
       <EnrollmentModal
         isOpen={modalOpen}

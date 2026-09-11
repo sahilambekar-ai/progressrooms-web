@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle2, Lock, Mail } from "lucide-react";
 import { OtpVerificationCard } from "@/components/OtpVerificationCard";
+import { BrandLogo } from "@/components/BrandLogo";
 
 function LoginFormContent() {
   const router = useRouter();
@@ -19,7 +20,19 @@ function LoginFormContent() {
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+  const isTestFilled = email === "sambekar777@gmail.com" && password === "sahil777";
+
+  const toggleTestCredentials = () => {
+    if (isTestFilled) {
+      setEmail("");
+      setPassword("");
+    } else {
+      setEmail("sambekar777@gmail.com");
+      setPassword("sahil777");
+    }
+  };
+
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
   // Handle email + password sign in
   const handlePasswordLogin = async (e: React.FormEvent) => {
@@ -97,7 +110,7 @@ function LoginFormContent() {
         full_name: "Platform Super Admin",
         is_superadmin: true,
         role: "SUPER_ADMIN",
-        organization_name: "ProgressRooms Platform",
+        organization_name: "ProgressNow Platform",
         organization_slug: "platform"
       };
       targetUrl = "/dashboard";
@@ -127,7 +140,7 @@ function LoginFormContent() {
   };
 
   return (
-    <div className="card-nature max-w-md w-full mx-auto my-8 p-8 space-y-6">
+    <div id="main-content" className="card-nature max-w-md w-full mx-auto my-4 sm:my-8 p-5 sm:p-8 space-y-6">
       {step === "OTP_VERIFICATION" ? (
         <OtpVerificationCard
           email={email}
@@ -145,10 +158,23 @@ function LoginFormContent() {
       ) : (
         <>
           <div className="text-center">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#0C2417] to-[#1b4332] text-white flex items-center justify-center mx-auto mb-3 text-xl shadow-md">
-              🌿
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-8 h-8" />
+              <BrandLogo size={48} variant="tile-dark" />
+              <button
+                type="button"
+                onClick={toggleTestCredentials}
+                title={isTestFilled ? "Clear test credentials" : "Fill test credentials (sambekar777@gmail.com)"}
+                className={`w-8 h-8 rounded-xl font-bold text-xs flex items-center justify-center transition shadow-sm border ${
+                  isTestFilled
+                    ? "bg-[#133623] text-white border-[#0C2417] ring-2 ring-[#81A882]"
+                    : "bg-white text-[#133623] border-[#CEDECF] hover:bg-[#E8F0E9] hover:border-[#133623]"
+                }`}
+              >
+                T
+              </button>
             </div>
-            <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Sign In to ProgressRooms</h1>
+            <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Sign In to ProgressNow</h1>
             <p className="text-xs text-[#7E7970] mt-1">
               Access your studio operations, teacher schedule, or student sanctuary portal.
             </p>
@@ -162,14 +188,14 @@ function LoginFormContent() {
           </div>
 
           {infoMessage && (
-            <div className="p-3 rounded-xl bg-[#E8F0E9] border border-[#81A882]/40 text-xs text-[#133623] flex items-start gap-2">
+            <div role="status" className="p-3 rounded-xl bg-[#E8F0E9] border border-[#81A882]/40 text-xs text-[#133623] flex items-start gap-2">
               <CheckCircle2 className="h-4 w-4 text-[#133623] shrink-0 mt-0.5" />
               <span>{infoMessage}</span>
             </div>
           )}
 
           {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+            <div role="alert" className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -177,13 +203,14 @@ function LoginFormContent() {
 
           <form onSubmit={handlePasswordLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+              <label htmlFor="login-email" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                 Work or Student Email
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
+                  id="login-email" autoComplete="email"
                   required
                   placeholder="teacher@yogastudio.com"
                   value={email}
@@ -194,13 +221,14 @@ function LoginFormContent() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+              <label htmlFor="login-password" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                 Password
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="password"
+                  id="login-password" autoComplete="current-password"
                   required
                   placeholder="••••••••"
                   value={password}
@@ -297,7 +325,7 @@ export default function LoginPage() {
       </Suspense>
 
       <footer className="max-w-md w-full mx-auto py-4 text-center text-[11px] text-[#7E7970]">
-        ProgressRooms Sanctuary Multi-Tenant Platform • Secure Brevo OTP & Encrypted Auth
+        ProgressNow Sanctuary Multi-Tenant Platform • Secure Brevo OTP & Encrypted Auth
       </footer>
     </div>
   );
