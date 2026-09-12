@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
 import { FeedbackProvider } from "@/components/FeedbackProvider";
+import { FontInitializer } from "@/components/FontSelector";
 
 const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
@@ -37,6 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${cormorant.variable} ${manrope.variable}`}>
       <body className="min-h-screen antialiased flex flex-col font-sans bg-[#FAF7F2] text-[#212121]">
+        <FontInitializer />
         <a href="#main-content" className="skip-link">Skip to content</a>
         <FeedbackProvider>{children}</FeedbackProvider>
       </body>

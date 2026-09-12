@@ -8,6 +8,11 @@ interface FontSelectorProps {
   variant?: 'compact' | 'full';
 }
 
+export const FontInitializer = () => {
+  useEffect(() => { themeService.initFont(); }, []);
+  return null;
+};
+
 export const FontSelector: React.FC<FontSelectorProps> = ({ variant = 'compact' }) => {
   const [activeFont, setActiveFont] = useState<DashboardFont>(() => themeService.getActiveFont());
   const [isOpen, setIsOpen] = useState(false);
@@ -42,21 +47,21 @@ export const FontSelector: React.FC<FontSelectorProps> = ({ variant = 'compact' 
   };
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className={`relative inline-block text-left ${variant === 'full' ? 'w-full sm:w-auto' : ''}`} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-xl bg-white/90 border border-[#CEDECF] text-[#0C2417] hover:border-[#81A882] hover:bg-white shadow-sm transition"
+        className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-xl bg-white/90 border border-[#CEDECF] text-[#0C2417] hover:border-[#81A882] hover:bg-white shadow-sm transition ${variant === 'full' ? 'w-full sm:w-auto justify-between' : ''}`}
         title="Switch Typography Font"
       >
         <Type className="h-3.5 w-3.5 text-[#2D7A58]" />
-        <span className="hidden sm:inline font-medium">Font:</span>
+        <span className={`${variant === 'full' ? 'inline' : 'hidden sm:inline'} font-medium`}>Font:</span>
         <span className="font-bold truncate max-w-[140px]">{activeFont.name.split('+')[0].trim()}</span>
         <ChevronDown className="h-3 w-3 text-slate-400" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-[#CEDECF] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95">
+        <div className="absolute right-0 mt-2 w-[min(18rem,calc(100vw-3rem))] rounded-2xl bg-white border border-[#CEDECF] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95">
           <div className="px-3 py-2 border-b border-[#F0F4F0] mb-1">
             <p className="text-[11px] uppercase tracking-wider font-bold text-[#81A882]">Select Studio Typography</p>
             <p className="text-[10px] text-slate-500">Live preview applies across entire website & dashboard.</p>

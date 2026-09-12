@@ -44,13 +44,17 @@ import {
   Key,
   Zap,
   FileText,
-  Smartphone
+  Smartphone,
+  Palette,
+  UserRound,
+  MonitorCog
 } from "lucide-react";
 import { AttendanceCalendar, CalendarSessionEvent } from "@/components/AttendanceCalendar";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Modal } from "@/components/Modal";
 import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
 import { useFeedback } from "@/components/FeedbackProvider";
+import { FontSelector } from "@/components/FontSelector";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -69,6 +73,9 @@ type AdminTab =
   | "superadmin-instructors"
   | "superadmin-analytics"
   | "superadmin-settings";
+
+type SettingsSection = "profile" | "dashboard";
+type DashboardTheme = "forest" | "sage" | "sand";
 
 interface StudioProfile {
   organization_id?: string;
@@ -103,6 +110,8 @@ interface StudioProfile {
   zoom_host_video?: boolean;
   account_completed?: boolean;
   completion_step?: number;
+  whatsapp_number?: string;
+  completion_percentage?: number;
 }
 
 
@@ -263,7 +272,26 @@ const DEFAULT_CALENDAR_EVENTS: CalendarSessionEvent[] = [
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<AdminTab>("account-completion");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("profile");
+  const [dashboardTheme, setDashboardTheme] = useState<DashboardTheme>("forest");
   const { notify, confirm: confirmAction } = useFeedback();
+
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("progressnow_dashboard_theme");
+      if (savedTheme === "forest" || savedTheme === "sage" || savedTheme === "sand") setDashboardTheme(savedTheme);
+    } catch { /* Use the default theme when storage is unavailable. */ }
+  }, []);
+
+  const applyDashboardTheme = (theme: DashboardTheme) => {
+    setDashboardTheme(theme);
+    try {
+      localStorage.setItem("progressnow_dashboard_theme", theme);
+      notify(`${theme.charAt(0).toUpperCase() + theme.slice(1)} dashboard theme applied.`, "success");
+    } catch {
+      notify("Theme applied for this visit, but it could not be saved on this device.", "info");
+    }
+  };
 
   // Authenticated User State
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -272,12 +300,14 @@ export default function AdminDashboardPage() {
   const [studioProfile, setStudioProfile] = useState<StudioProfile | null>(null);
   const [isAccountCompleted, setIsAccountCompleted] = useState<boolean>(false);
   const [completionStep, setCompletionStep] = useState<number>(1);
+  const [completionPercentage, setCompletionPercentage] = useState<number>(0);
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
   const [isConnectingZoom, setIsConnectingZoom] = useState<boolean>(false);
 
   // Step 1: Studio & Contact Info
   const [setupStudioName, setSetupStudioName] = useState("");
   const [setupPhone, setSetupPhone] = useState("");
+  const [setupWhatsappNumber, setSetupWhatsappNumber] = useState("");
   const [setupSupportEmail, setSetupSupportEmail] = useState("");
   const [setupStudioTagline, setSetupStudioTagline] = useState("");
   const [setupDisciplines, setSetupDisciplines] = useState<string[]>([
@@ -286,7 +316,7 @@ export default function AdminDashboardPage() {
     "Aerial Yoga"
   ]);
 
-  // Step 2: Location & GST
+  // Step 2: Teaching Location & Mode
   const [setupTeachingMode, setSetupTeachingMode] = useState<"PHYSICAL" | "ONLINE" | "HYBRID">("HYBRID");
   const [setupAddressLine1, setSetupAddressLine1] = useState("");
   const [setupAddressLine2, setSetupAddressLine2] = useState("");
@@ -294,12 +324,14 @@ export default function AdminDashboardPage() {
   const [setupState, setSetupState] = useState("");
   const [setupPincode, setSetupPincode] = useState("");
   const [setupCountry, setSetupCountry] = useState("India");
+
+  // Step 3: GST & Legal Business Identity
   const [setupHasGst, setSetupHasGst] = useState(false);
   const [setupGstNumber, setSetupGstNumber] = useState("");
   const [setupLegalBusinessName, setSetupLegalBusinessName] = useState("");
   const [setupPanNumber, setSetupPanNumber] = useState("");
 
-  // Step 3: Bank & Payouts (The "Thanks" perspective)
+  // Step 4: Bank & Payouts (The "Thanks" perspective)
   const [setupBankName, setSetupBankName] = useState("");
   const [setupAccountHolderName, setSetupAccountHolderName] = useState("");
   const [setupAccountNumber, setSetupAccountNumber] = useState("");
@@ -308,7 +340,7 @@ export default function AdminDashboardPage() {
   const [setupUpiId, setSetupUpiId] = useState("");
   const [setupSettlementCycle, setSetupSettlementCycle] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
 
-  // Step 4: Zoom Authentication
+  // Step 5: Zoom Live Classroom Authentication
   const [zoomConnected, setZoomConnected] = useState(false);
   const [zoomAccountEmail, setZoomAccountEmail] = useState("");
   const [zoomAutoMeetingEnabled, setZoomAutoMeetingEnabled] = useState(true);
@@ -320,6 +352,42 @@ export default function AdminDashboardPage() {
   const [zoomAccountId, setZoomAccountId] = useState("");
   const [testZoomMeeting, setTestZoomMeeting] = useState<{ join_url: string; passcode: string; meeting_id: string } | null>(null);
   const [isGeneratingTestMeeting, setIsGeneratingTestMeeting] = useState(false);
+
+  // Exact step-by-step verification checks
+  const isStep1Complete = Boolean(setupStudioName?.trim() && setupPhone?.trim() && setupSupportEmail?.trim());
+  const isStep2Complete = Boolean(setupAddressLine1?.trim() && setupCity?.trim() && setupState?.trim() && setupPincode?.trim());
+  const isStep3Complete = setupHasGst
+    ? Boolean(setupGstNumber?.trim() && setupLegalBusinessName?.trim())
+    : Boolean(setupPanNumber?.trim() || !setupHasGst);
+  const isStep4Complete = Boolean(
+    setupBankName?.trim() &&
+    setupAccountHolderName?.trim() &&
+    (setupAccountNumber?.trim() || studioProfile?.account_number_masked) &&
+    setupIfscCode?.trim()
+  );
+  const isStep5Complete = Boolean(zoomConnected);
+  const isStep6Complete = Boolean(isAccountCompleted);
+
+  const checkStepCompleted = (stepNum: number) => {
+    if (isAccountCompleted) return true;
+    switch (stepNum) {
+      case 1: return isStep1Complete;
+      case 2: return isStep2Complete;
+      case 3: return isStep3Complete;
+      case 4: return isStep4Complete;
+      case 5: return isStep5Complete;
+      case 6: return isStep6Complete;
+      default: return false;
+    }
+  };
+
+  const calculatedPercentage = isAccountCompleted
+    ? 100
+    : Math.round(
+        ([isStep1Complete, isStep2Complete, isStep3Complete, isStep4Complete, isStep5Complete].filter(Boolean).length / 6) * 100
+      );
+
+  const displayPercentage = isAccountCompleted ? 100 : Math.max(completionPercentage, calculatedPercentage);
 
 
   // Studio Teachers Management State
@@ -622,6 +690,8 @@ export default function AdminDashboardPage() {
         // Pre-fill fields if not manually dirty
         if (data.name) setSetupStudioName(data.name);
         if (data.phone) setSetupPhone(data.phone);
+        if (data.whatsapp_number) setSetupWhatsappNumber(data.whatsapp_number);
+        if (data.completion_percentage !== undefined) setCompletionPercentage(data.completion_percentage);
         if (data.support_email) setSetupSupportEmail(data.support_email);
         if (data.studio_tagline) setSetupStudioTagline(data.studio_tagline);
         if (data.disciplines) {
@@ -665,6 +735,7 @@ export default function AdminDashboardPage() {
   const handleFillSampleDetails = () => {
     setSetupStudioName(currentUser?.organization_name || "Prana Sanctuary Studio");
     setSetupPhone("+91 98765 43210");
+    setSetupWhatsappNumber("+91 98765 43210");
     setSetupSupportEmail(currentUser?.email || "namaste@pranasanctuary.com");
     setSetupStudioTagline("Sacred Traditional Hatha, Aerial Flow & Meditation Sanctuary");
     setSetupDisciplines(["Hatha Yoga", "Vinyasa Flow", "Aerial Yoga", "Pranayama & Meditation"]);
@@ -700,6 +771,7 @@ export default function AdminDashboardPage() {
       const payload = {
         name: setupStudioName,
         phone: setupPhone,
+        whatsapp_number: setupWhatsappNumber || setupPhone,
         support_email: setupSupportEmail,
         studio_tagline: setupStudioTagline,
         disciplines: setupDisciplines.join(", "),
@@ -738,6 +810,8 @@ export default function AdminDashboardPage() {
       });
 
       if (res.ok) {
+        const resData = await res.json();
+        if (resData.completion_percentage !== undefined) setCompletionPercentage(resData.completion_percentage);
         if (nextStep) setCompletionStep(nextStep);
         showToast("🌿 Studio setup progress saved!");
         fetchStudioProfile(orgId);
@@ -857,6 +931,7 @@ export default function AdminDashboardPage() {
       const payload = {
         name: setupStudioName,
         phone: setupPhone,
+        whatsapp_number: setupWhatsappNumber || setupPhone,
         support_email: setupSupportEmail,
         studio_tagline: setupStudioTagline,
         disciplines: setupDisciplines.join(", "),
@@ -883,7 +958,8 @@ export default function AdminDashboardPage() {
         zoom_waiting_room: zoomWaitingRoom,
         zoom_host_video: zoomHostVideo,
         account_completed: true,
-        completion_step: 5
+        completion_step: 6,
+        completion_percentage: 100
       };
 
       await fetch(`${API_BASE_URL}/organizations/${orgId}/profile`, {
@@ -896,9 +972,15 @@ export default function AdminDashboardPage() {
       });
 
       setIsAccountCompleted(true);
-      setCompletionStep(5);
+      setCompletionStep(6);
+      setCompletionPercentage(100);
       if (currentUser) {
-        const updated = { ...currentUser, account_completed: true };
+        const updated = {
+          ...currentUser,
+          account_completed: true,
+          completion_step: 6,
+          completion_percentage: 100
+        };
         setCurrentUser(updated);
         try {
           localStorage.setItem("pr_user", JSON.stringify(updated));
@@ -909,6 +991,8 @@ export default function AdminDashboardPage() {
       setActiveTab("settings");
     } catch (e) {
       setIsAccountCompleted(true);
+      setCompletionStep(6);
+      setCompletionPercentage(100);
       showToast("🎉 Studio Account Completed! Values saved to Studio Profiler.");
       setActiveTab("settings");
     } finally {
@@ -923,6 +1007,9 @@ export default function AdminDashboardPage() {
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
         setCurrentUser(parsed);
+        if (parsed.completion_percentage !== undefined) {
+          setCompletionPercentage(parsed.completion_percentage);
+        }
         if (parsed.role === "SUPER_ADMIN") {
           setActiveTab("superadmin-instructors");
         } else if (!parsed.account_completed) {
@@ -944,6 +1031,9 @@ export default function AdminDashboardPage() {
         const prof = JSON.parse(storedProfile);
         setStudioProfile(prof);
         setIsAccountCompleted(Boolean(prof.account_completed));
+        if (prof.completion_percentage !== undefined) {
+          setCompletionPercentage(prof.completion_percentage);
+        }
         setZoomConnected(Boolean(prof.zoom_connected));
       }
 
@@ -1147,13 +1237,10 @@ export default function AdminDashboardPage() {
   const selectedBatch = batches.find((b) => b.id === selectedBatchId) || batches[0];
 
   return (
-    <div className="dashboard-shell bg-[#FAF7F2] text-[#212121] font-sans">
+    <div className="dashboard-shell bg-[#FAF7F2] text-[#212121] font-sans" data-dashboard-theme={dashboardTheme}>
 
       {/* Nature Dark Emerald Sidebar */}
       <ResponsiveSidebar><aside
-        style={{
-          background: "linear-gradient(180deg, #0C2417 0%, #133623 50%, #0D291A 100%)",
-        }}
         className="w-72 flex-shrink-0 flex flex-col justify-between p-5 text-white shadow-2xl z-20 nature-sidebar"
       >
         <div className="space-y-6">
@@ -1171,14 +1258,6 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            <Link
-              href="/sahil-yoga-studio"
-              target="_blank"
-              title="Return to Public Website"
-              className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 border border-[#81A882]/30 flex items-center justify-center p-1.5 transition"
-            >
-              <BrandLogo size={16} variant="white" />
-            </Link>
           </div>
 
           {/* Navigation Items */}
@@ -1219,25 +1298,21 @@ export default function AdminDashboardPage() {
                   Studio Operations Menu
                 </p>
 
-                {/* 0. Studio Account Completion Wizard Tab */}
-                <button
-                  onClick={() => setActiveTab("account-completion")}
-                  className={`nav-item relative ${activeTab === "account-completion" ? "active" : ""}`}
-                >
-                  <span className="nav-icon">✨</span>
-                  <div className="flex-1 text-left flex items-center justify-between">
-                    <span>Account Completion</span>
-                    {!isAccountCompleted ? (
-                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 animate-pulse">
-                        Setup Req.
+                {/* 0. Studio Account Completion Wizard Tab - FIRST ITEM when setup is incomplete */}
+                {!isAccountCompleted && (
+                  <button
+                    onClick={() => setActiveTab("account-completion")}
+                    className={`nav-item relative ${activeTab === "account-completion" ? "active" : ""}`}
+                  >
+                    <span className="nav-icon">✨</span>
+                    <div className="flex-1 text-left flex items-center justify-between gap-1">
+                      <span className="truncate">Account Completion</span>
+                      <span className="ml-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40 shrink-0 animate-pulse">
+                        {displayPercentage}% Completed
                       </span>
-                    ) : (
-                      <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        ✓ Done
-                      </span>
-                    )}
-                  </div>
-                </button>
+                    </div>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setActiveTab("studio-teachers")}
@@ -1295,13 +1370,47 @@ export default function AdminDashboardPage() {
                   <span>Studio Analytics</span>
                 </button>
 
+                {/* Account Completion - SECOND LAST ITEM when setup is 100% completed */}
+                {isAccountCompleted && (
+                  <button
+                    onClick={() => setActiveTab("account-completion")}
+                    className={`nav-item relative ${activeTab === "account-completion" ? "active" : ""}`}
+                  >
+                    <span className="nav-icon">✨</span>
+                    <div className="flex-1 text-left flex items-center justify-between gap-1">
+                      <span className="truncate">Account Completion</span>
+                      <span className="ml-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0 flex items-center gap-1">
+                        <Check className="w-2.5 h-2.5" /> Complete
+                      </span>
+                    </div>
+                  </button>
+                )}
+
                 <button
                   onClick={() => setActiveTab("settings")}
                   className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
                 >
                   <span className="nav-icon">⚙️</span>
-                  <span>Settings & Profiler</span>
+                  <span>Settings</span>
                 </button>
+                {activeTab === "settings" && (
+                  <div className="settings-submenu" aria-label="Settings sections">
+                    <button
+                      type="button"
+                      className={settingsSection === "profile" ? "active" : ""}
+                      onClick={() => setSettingsSection("profile")}
+                    >
+                      Profile Settings
+                    </button>
+                    <button
+                      type="button"
+                      className={settingsSection === "dashboard" ? "active" : ""}
+                      onClick={() => setSettingsSection("dashboard")}
+                    >
+                      Dashboard Settings
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </nav>
@@ -1648,16 +1757,16 @@ export default function AdminDashboardPage() {
                   <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Account Completion</h1>
                   {!isAccountCompleted ? (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                      Step {completionStep} of 5 • Setup Required
+                      Step {completionStep} of 6 • {displayPercentage}% Completed
                     </span>
                   ) : (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Setup Completed
+                      <CheckCircle2 className="w-3.5 h-3.5" /> 100% Completed • Sanctuary Active
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-[#40514E] mt-1">
-                  Complete these essential studio setup steps: mobile phone, location & teaching mode, GST registration, bank payouts, and Zoom live video authentication.
+                  Complete all 6 essential studio setup steps: mobile & WhatsApp, location & teaching mode, GST registration, bank payouts, Zoom live video, and final launch.
                 </p>
               </div>
 
@@ -1673,37 +1782,54 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Step Stepper Navigation Bar */}
-            <div className="bg-white p-4 rounded-3xl border border-[#CEDECF] shadow-sm">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {/* Step Stepper Navigation Bar with Icons & Complete/Incomplete Indicators */}
+            <div className="account-stepper bg-white p-3 sm:p-4 rounded-3xl border border-[#CEDECF] shadow-sm">
+              <div className="account-stepper-track" aria-label="Account completion progress">
                 {[
-                  { step: 1, label: "Studio & Phone", icon: "📱" },
-                  { step: 2, label: "Location & GST", icon: "📍" },
-                  { step: 3, label: "Bank & Payouts", icon: "🏦" },
-                  { step: 4, label: "Zoom Auth", icon: "🎥" },
-                  { step: 5, label: "Review & Launch", icon: "🚀" }
+                  { step: 1, label: "Studio & Phone", icon: Building2, desc: "Name & WhatsApp" },
+                  { step: 2, label: "Location & Mode", icon: MapPin, desc: "Teaching address" },
+                  { step: 3, label: "GST & Legal", icon: FileText, desc: "Tax & business identity" },
+                  { step: 4, label: "Bank & Payouts", icon: Landmark, desc: "Payout settlement" },
+                  { step: 5, label: "Zoom Live Video", icon: Video, desc: "Virtual classroom" },
+                  { step: 6, label: "Review & Launch", icon: ShieldCheck, desc: "Verification & launch" }
                 ].map((s) => {
                   const isActive = completionStep === s.step;
-                  const isDone = completionStep > s.step || isAccountCompleted;
+                  const isDone = checkStepCompleted(s.step);
+                  const IconComp = s.icon;
+                  const statusClass = isActive ? "active" : isDone ? "complete" : "incomplete";
+
                   return (
                     <button
                       key={s.step}
                       type="button"
                       onClick={() => setCompletionStep(s.step)}
-                      className={`p-3 rounded-2xl text-left border transition flex items-center gap-2.5 ${
-                        isActive
-                          ? "bg-[#133623] text-white border-[#0C2417] shadow-md ring-2 ring-[#81A882]"
-                          : isDone
-                          ? "bg-[#E8F0E9] text-[#133623] border-[#CEDECF] hover:bg-[#DCE7DD]"
-                          : "bg-[#F9FAF9] text-slate-500 border-slate-200 hover:bg-white"
-                      }`}
+                      aria-current={isActive ? "step" : undefined}
+                      aria-label={`Step ${s.step}: ${s.label}. ${isActive ? "In Progress" : isDone ? "Complete" : "Incomplete"}`}
+                      className={`account-step ${statusClass}`}
                     >
-                      <span className="text-base">{s.icon}</span>
-                      <div className="truncate">
-                        <p className="text-[10px] font-bold uppercase tracking-wider opacity-70 leading-none">
-                          Step {s.step}
-                        </p>
-                        <p className="text-xs font-bold truncate mt-0.5">{s.label}</p>
+                      <div className="account-step-icon-wrap shrink-0">
+                        <IconComp className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono font-bold text-slate-400">0{s.step}</span>
+                          <p className="text-xs font-bold truncate text-[#0C2417]">{s.label}</p>
+                        </div>
+                        <div className="account-step-status">
+                          {isDone && !isActive ? (
+                            <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                              <Check className="w-3 h-3 text-emerald-600" /> Complete
+                            </span>
+                          ) : isActive ? (
+                            <span className="flex items-center gap-1 text-[#2D7A58] font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#2D7A58] animate-ping" /> In Progress
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-amber-700 font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Incomplete
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </button>
                   );
@@ -1716,7 +1842,7 @@ export default function AdminDashboardPage() {
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
                 <div className="border-b border-[#E1E9E2] pb-4">
                   <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 1: Studio Contact & Identity</h3>
-                  <p className="text-xs text-slate-500">Provide your studio name, contact phone number, and teaching disciplines.</p>
+                  <p className="text-xs text-slate-500">Provide your studio name, primary phone, WhatsApp number, and teaching disciplines.</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1736,7 +1862,7 @@ export default function AdminDashboardPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                      Mobile Phone (with WhatsApp) *
+                      Primary Mobile Phone *
                     </label>
                     <div className="relative">
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1745,15 +1871,35 @@ export default function AdminDashboardPage() {
                         required
                         placeholder="+91 98765 43210"
                         value={setupPhone}
-                        onChange={(e) => setSetupPhone(e.target.value)}
+                        onChange={(e) => {
+                          setSetupPhone(e.target.value);
+                          if (!setupWhatsappNumber) setSetupWhatsappNumber(e.target.value);
+                        }}
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1">Used for student booking confirmations & SMS/WhatsApp session reminders.</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Direct studio owner mobile phone for SMS alerts and account login.</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                      WhatsApp Contact Number
+                    </label>
+                    <div className="relative">
+                      <Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="tel"
+                        placeholder="+91 98765 43210"
+                        value={setupWhatsappNumber}
+                        onChange={(e) => setSetupWhatsappNumber(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">Used for student booking confirmations & WhatsApp class reminders.</p>
+                  </div>
+
                   <div>
                     <label htmlFor="dashboard-page-field-2" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                       Studio Support / Business Email *
@@ -1770,19 +1916,19 @@ export default function AdminDashboardPage() {
                       />
                     </div>
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                      Studio Tagline / Headline
-                    </label>
-                    <input id="dashboard-page-field-2"
-                      type="text"
-                      placeholder="e.g. Traditional Hatha, Aerial Movement & Pranayama Sanctuary"
-                      value={setupStudioTagline}
-                      onChange={(e) => setSetupStudioTagline(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
+                    Studio Tagline / Headline
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Traditional Hatha, Aerial Movement & Pranayama Sanctuary"
+                    value={setupStudioTagline}
+                    onChange={(e) => setSetupStudioTagline(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
+                  />
                 </div>
 
                 {/* Disciplines Selection */}
@@ -1829,26 +1975,26 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {/* Footer Controls */}
-                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500">Step 1 of 5</span>
+                <div className="pt-4 border-t border-[#E1E9E2] flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-[11px] text-slate-500 font-medium">Step 1 of 6</span>
                   <button
                     type="button"
                     onClick={() => handleSaveStep(2)}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
                   >
-                    <span>Save & Continue: Location & GST</span>
+                    <span>Save & Continue: Location & Mode</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* STEP 2: STUDIO LOCATION & GST DETAILS */}
+            {/* STEP 2: STUDIO LOCATION & TEACHING MODE */}
             {completionStep === 2 && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
                 <div className="border-b border-[#E1E9E2] pb-4">
-                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 2: Studio Location & GST Registration</h3>
-                  <p className="text-xs text-slate-500">Specify your physical or virtual teaching location and tax identity.</p>
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 2: Studio Location & Teaching Mode</h3>
+                  <p className="text-xs text-slate-500">Specify your physical shala address or virtual teaching setup.</p>
                 </div>
 
                 {/* Teaching Mode Selector */}
@@ -1978,6 +2124,35 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
 
+                {/* Footer Controls */}
+                <div className="pt-4 border-t border-[#E1E9E2] flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCompletionStep(1)}
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    ← Back to Step 1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveStep(3)}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
+                  >
+                    <span>Save & Continue: GST & Legal Identity</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: GST & LEGAL BUSINESS IDENTITY */}
+            {completionStep === 3 && (
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
+                <div className="border-b border-[#E1E9E2] pb-4">
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 3: GST & Legal Business Identity</h3>
+                  <p className="text-xs text-slate-500">Specify your business entity name, Goods & Services Tax (GSTIN), and PAN details for billing.</p>
+                </div>
+
                 {/* GST & Tax Registration Section */}
                 <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#CEDECF] space-y-3">
                   <div className="flex items-center justify-between">
@@ -2040,25 +2215,40 @@ export default function AdminDashboardPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-2.5 rounded-xl bg-slate-100 text-slate-600 text-[11px] flex items-center gap-2">
-                      <span>ℹ️</span>
-                      <span>No GST? You can operate as an unregistered sole educator/guide and provide tax details later.</span>
+                    <div className="space-y-3 pt-2">
+                      <div className="p-2.5 rounded-xl bg-slate-100 text-slate-600 text-[11px] flex items-center gap-2">
+                        <span>ℹ️</span>
+                        <span>No GST registered yet? You can operate as an individual educator/instructor and add your PAN card.</span>
+                      </div>
+                      <div className="max-w-xs">
+                        <label className="block text-[11px] font-bold text-[#1b4332] uppercase mb-1">
+                          Personal / Sole Proprietor PAN
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. AABCU9603R"
+                          maxLength={10}
+                          value={setupPanNumber}
+                          onChange={(e) => setSetupPanNumber(e.target.value.toUpperCase())}
+                          className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono uppercase"
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* Footer Controls */}
-                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between">
+                <div className="pt-4 border-t border-[#E1E9E2] flex flex-wrap items-center justify-between gap-3">
                   <button
                     type="button"
-                    onClick={() => setCompletionStep(1)}
+                    onClick={() => setCompletionStep(2)}
                     className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                   >
-                    ← Back to Step 1
+                    ← Back to Step 2
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleSaveStep(3)}
+                    onClick={() => handleSaveStep(4)}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
                   >
                     <span>Save & Continue: Bank & Payouts</span>
@@ -2068,17 +2258,17 @@ export default function AdminDashboardPage() {
               </div>
             )}
 
-            {/* STEP 3: BANK & PAYOUT DETAILS */}
-            {completionStep === 3 && (
+            {/* STEP 4: BANK & PAYOUT DETAILS */}
+            {completionStep === 4 && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
                 <div className="border-b border-[#E1E9E2] pb-4">
-                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 3: Bank Account & Fee Settlements</h3>
-                  <p className="text-xs text-slate-500">Provide bank details to receive student subscription payouts and membership settlements.</p>
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 4: Bank Account & Fee Settlements</h3>
+                  <p className="text-xs text-slate-500">Provide verified bank settlement details to receive student fees and pass payouts ("The Thanks Perspective").</p>
                 </div>
 
                 <div className="p-3 rounded-2xl bg-[#E8F0E9] border border-[#CEDECF] text-[#1b4332] text-xs flex items-center gap-2.5">
                   <Landmark className="w-4 h-4 text-emerald-800 shrink-0" />
-                  <span>Your account details are securely encrypted and used solely for direct student fee transfers.</span>
+                  <span>Your settlement account is encrypted and used solely for direct student fee transfers and membership payouts.</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -2204,32 +2394,32 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {/* Footer Controls */}
-                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between">
+                <div className="pt-4 border-t border-[#E1E9E2] flex flex-wrap items-center justify-between gap-3">
                   <button
                     type="button"
-                    onClick={() => setCompletionStep(2)}
+                    onClick={() => setCompletionStep(3)}
                     className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                   >
-                    ← Back to Step 2
+                    ← Back to Step 3
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleSaveStep(4)}
+                    onClick={() => handleSaveStep(5)}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
                   >
-                    <span>Save & Continue: Zoom Authentication</span>
+                    <span>Save & Continue: Zoom Live Video</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* STEP 4: ZOOM AUTHENTICATION & LIVE CLASSROOM INTEGRATION */}
-            {completionStep === 4 && (
+            {/* STEP 5: ZOOM AUTHENTICATION & LIVE CLASSROOM INTEGRATION */}
+            {completionStep === 5 && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
                 <div className="border-b border-[#E1E9E2] pb-4 flex items-center justify-between">
                   <div>
-                    <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 4: Zoom Live Video Authentication</h3>
+                    <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 5: Zoom Live Video Authentication</h3>
                     <p className="text-xs text-slate-500">
                       When authenticated, newly created class batches will directly generate Zoom meeting rooms automatically.
                     </p>
@@ -2456,99 +2646,177 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {/* Footer Controls */}
-                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between">
+                <div className="pt-4 border-t border-[#E1E9E2] flex flex-wrap items-center justify-between gap-3">
                   <button
                     type="button"
-                    onClick={() => setCompletionStep(3)}
+                    onClick={() => setCompletionStep(4)}
                     className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                   >
-                    ← Back to Step 3
+                    ← Back to Step 4
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleSaveStep(5)}
+                    onClick={() => handleSaveStep(6)}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
                   >
-                    <span>Save & Review Final Setup</span>
+                    <span>Save & Continue: Review & Launch</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* STEP 5: REVIEW & COMPLETE LAUNCH */}
-            {completionStep === 5 && (
+            {/* STEP 6: REVIEW & COMPLETE LAUNCH */}
+            {completionStep === 6 && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
                 <div className="border-b border-[#E1E9E2] pb-4">
-                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 5: Review & Complete Studio Launch</h3>
+                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 6: Review, Verification Checklist & Final Sanctuary Launch</h3>
                   <p className="text-xs text-slate-500">
-                    Verify your configured values. Once completed, all saved details will be permanently viewable and editable under your Studio Profiler.
+                    Verify all 5 configured steps. Once confirmed, your sanctuary is marked 100% complete, navigation placement updates, and all values are permanently saved to your Studio Profiler.
                   </p>
                 </div>
 
-                {/* 4 Cards Summary */}
+                {/* 5 Cards Summary */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   {/* Card 1: Studio & Contact */}
                   <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                      <span className="font-bold text-[#0C2417]">📱 Studio Identity & Phone</span>
+                      <span className="font-bold text-[#0C2417] flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-[#133623]" />
+                        <span>Step 1: Studio Identity & Phone</span>
+                      </span>
                       <button onClick={() => setCompletionStep(1)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
                         Edit
                       </button>
                     </div>
                     <p><strong>Studio:</strong> {setupStudioName || "Not Provided"}</p>
                     <p><strong>Phone:</strong> {setupPhone || "Not Provided"}</p>
+                    <p><strong>WhatsApp:</strong> {setupWhatsappNumber || setupPhone || "Not Provided"}</p>
                     <p><strong>Email:</strong> {setupSupportEmail || "Not Provided"}</p>
                     <p><strong>Tagline:</strong> {setupStudioTagline || "None"}</p>
                     <p><strong>Disciplines:</strong> {setupDisciplines.join(", ") || "None"}</p>
                   </div>
 
-                  {/* Card 2: Location & GST */}
+                  {/* Card 2: Location & Mode */}
                   <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                      <span className="font-bold text-[#0C2417]">📍 Location & GST Identity</span>
+                      <span className="font-bold text-[#0C2417] flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#133623]" />
+                        <span>Step 2: Location & Mode</span>
+                      </span>
                       <button onClick={() => setCompletionStep(2)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
                         Edit
                       </button>
                     </div>
                     <p><strong>Mode:</strong> {setupTeachingMode}</p>
                     <p><strong>Address:</strong> {setupAddressLine1 ? `${setupAddressLine1}, ${setupCity}, ${setupState} ${setupPincode}` : "Not set"}</p>
-                    <p><strong>GST Registered:</strong> {setupHasGst ? `Yes (${setupGstNumber || "GSTIN Entered"})` : "No (Individual Educator)"}</p>
-                    {setupLegalBusinessName && <p><strong>Legal Name:</strong> {setupLegalBusinessName}</p>}
+                    <p><strong>Country:</strong> {setupCountry}</p>
                   </div>
 
-                  {/* Card 3: Bank & Payouts */}
+                  {/* Card 3: GST & Legal Business */}
                   <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                      <span className="font-bold text-[#0C2417]">🏦 Bank Payout Accounts</span>
+                      <span className="font-bold text-[#0C2417] flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-[#133623]" />
+                        <span>Step 3: GST & Tax Identity</span>
+                      </span>
                       <button onClick={() => setCompletionStep(3)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
                         Edit
                       </button>
                     </div>
-                    <p><strong>Account Holder:</strong> {setupAccountHolderName || "Not Provided"}</p>
-                    <p><strong>Bank:</strong> {setupBankName || "Not Provided"}</p>
-                    <p><strong>Account No:</strong> {setupAccountNumber ? `••••••••${setupAccountNumber.slice(-4)}` : "Not Provided"}</p>
-                    <p><strong>IFSC:</strong> {setupIfscCode || "Not Provided"}</p>
-                    <p><strong>UPI:</strong> {setupUpiId || "None"}</p>
+                    <p><strong>GST Registered:</strong> {setupHasGst ? `Yes (${setupGstNumber || "GSTIN Entered"})` : "No (Sole Educator)"}</p>
+                    {setupLegalBusinessName && <p><strong>Legal Name:</strong> {setupLegalBusinessName}</p>}
+                    {setupPanNumber && <p><strong>PAN:</strong> {setupPanNumber}</p>}
                   </div>
 
-                  {/* Card 4: Zoom Integration */}
+                  {/* Card 4: Bank & Payouts */}
                   <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-                      <span className="font-bold text-[#0C2417]">🎥 Zoom Video Integration</span>
+                      <span className="font-bold text-[#0C2417] flex items-center gap-1.5">
+                        <Landmark className="w-3.5 h-3.5 text-[#133623]" />
+                        <span>Step 4: Bank Payout Accounts</span>
+                      </span>
                       <button onClick={() => setCompletionStep(4)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
                         Edit
                       </button>
                     </div>
-                    <p>
-                      <strong>Status:</strong>{" "}
-                      <span className={zoomConnected ? "text-emerald-700 font-bold" : "text-amber-700 font-bold"}>
-                        {zoomConnected ? "Authenticated 🟢" : "Pending ⚠️"}
+                    <p><strong>Holder:</strong> {setupAccountHolderName || "Not Provided"}</p>
+                    <p><strong>Bank:</strong> {setupBankName || "Not Provided"}</p>
+                    <p><strong>Account No:</strong> {setupAccountNumber ? `••••••••${setupAccountNumber.slice(-4)}` : (studioProfile?.account_number_masked || "Not Provided")}</p>
+                    <p><strong>IFSC:</strong> {setupIfscCode || "Not Provided"}</p>
+                    <p><strong>UPI ID:</strong> {setupUpiId || "None"}</p>
+                    <p><strong>Settlement:</strong> {setupSettlementCycle}</p>
+                  </div>
+
+                  {/* Card 5: Zoom Integration */}
+                  <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2 sm:col-span-2">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+                      <span className="font-bold text-[#0C2417] flex items-center gap-1.5">
+                        <Video className="w-3.5 h-3.5 text-[#133623]" />
+                        <span>Step 5: Zoom Video Integration</span>
                       </span>
-                    </p>
-                    <p><strong>Zoom Email:</strong> {zoomAccountEmail || "owner.zoom@yogastudio.test"}</p>
-                    <p><strong>Auto Meeting Links:</strong> {zoomAutoMeetingEnabled ? "Enabled (Active)" : "Disabled"}</p>
-                    <p><strong>Waiting Room:</strong> {zoomWaitingRoom ? "Enabled" : "Disabled"}</p>
+                      <button onClick={() => setCompletionStep(5)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
+                        Edit
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <p>
+                        <strong>Status:</strong>{" "}
+                        <span className={zoomConnected ? "text-emerald-700 font-bold" : "text-amber-700 font-bold"}>
+                          {zoomConnected ? "Authenticated 🟢" : "Pending ⚠️"}
+                        </span>
+                      </p>
+                      <p><strong>Zoom Email:</strong> {zoomAccountEmail || "owner.zoom@yogastudio.test"}</p>
+                      <p><strong>Auto Meeting Links:</strong> {zoomAutoMeetingEnabled ? "Enabled (Active)" : "Disabled"}</p>
+                      <p><strong>Waiting Room:</strong> {zoomWaitingRoom ? "Enabled" : "Disabled"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Verification Checklist */}
+                <div className="p-4 rounded-2xl bg-[#F4F7F4] border border-[#CEDECF] space-y-2.5">
+                  <h4 className="text-xs font-bold text-[#0C2417] uppercase tracking-wider">Sanctuary Verification Checklist</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={isStep1Complete ? "text-emerald-600 font-bold" : "text-amber-600"}>
+                        {isStep1Complete ? "✓" : "○"}
+                      </span>
+                      <span className={isStep1Complete ? "text-[#0C2417] font-medium" : "text-slate-500"}>
+                        Studio Profile & WhatsApp Mobile
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={isStep2Complete ? "text-emerald-600 font-bold" : "text-amber-600"}>
+                        {isStep2Complete ? "✓" : "○"}
+                      </span>
+                      <span className={isStep2Complete ? "text-[#0C2417] font-medium" : "text-slate-500"}>
+                        Location & Teaching Mode Address
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={isStep3Complete ? "text-emerald-600 font-bold" : "text-amber-600"}>
+                        {isStep3Complete ? "✓" : "○"}
+                      </span>
+                      <span className={isStep3Complete ? "text-[#0C2417] font-medium" : "text-slate-500"}>
+                        GSTIN & Legal Business Tax ID
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={isStep4Complete ? "text-emerald-600 font-bold" : "text-amber-600"}>
+                        {isStep4Complete ? "✓" : "○"}
+                      </span>
+                      <span className={isStep4Complete ? "text-[#0C2417] font-medium" : "text-slate-500"}>
+                        Bank Payout Account & IFSC
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <span className={isStep5Complete ? "text-emerald-600 font-bold" : "text-amber-600"}>
+                        {isStep5Complete ? "✓" : "○"}
+                      </span>
+                      <span className={isStep5Complete ? "text-[#0C2417] font-medium" : "text-slate-500"}>
+                        Zoom Video Live Classroom Integration
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -2557,7 +2825,7 @@ export default function AdminDashboardPage() {
                   <div>
                     <h4 className="font-serif font-bold text-lg">Ready to Launch Sanctuary Dashboard</h4>
                     <p className="text-xs text-[#E8F0E9] mt-0.5">
-                      Your account will be verified and marked as 100% complete. You can create class batches with automated Zoom meetings.
+                      Your account will be verified and marked as 100% complete. The sidebar will update to show completion and your sanctuary is fully operational.
                     </p>
                   </div>
 
@@ -2575,12 +2843,12 @@ export default function AdminDashboardPage() {
                 <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
                   <button
                     type="button"
-                    onClick={() => setCompletionStep(4)}
+                    onClick={() => setCompletionStep(5)}
                     className="hover:underline"
                   >
                     ← Back to Zoom Authentication
                   </button>
-                  <span>Step 5 of 5</span>
+                  <span className="font-medium">Step 6 of 6</span>
                 </div>
               </div>
             )}
@@ -3374,11 +3642,34 @@ export default function AdminDashboardPage() {
         {/* TAB 7: STUDIO PROFILER & SETTINGS */}
         {activeTab === "settings" && (
           <div className="space-y-6 max-w-5xl">
+            <div className="settings-section-tabs" role="tablist" aria-label="Settings sections">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={settingsSection === "profile"}
+                onClick={() => setSettingsSection("profile")}
+                className={settingsSection === "profile" ? "active" : ""}
+              >
+                <UserRound className="h-4 w-4" /> Profile Settings
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={settingsSection === "dashboard"}
+                onClick={() => setSettingsSection("dashboard")}
+                className={settingsSection === "dashboard" ? "active" : ""}
+              >
+                <MonitorCog className="h-4 w-4" /> Dashboard Settings
+              </button>
+            </div>
+
+            {settingsSection === "profile" ? (
+              <>
             {/* Header with Title & Quick Actions */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Profiler & Settings</h1>
+                  <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Profile Settings</h1>
                   {isAccountCompleted ? (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-[#133623] border border-emerald-300 inline-flex items-center gap-1">
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Sanctuary Active
@@ -3496,10 +3787,10 @@ export default function AdminDashboardPage() {
                     <div className="p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2]">
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                          <Phone className="h-3 w-3 text-emerald-600" /> Mobile Phone
+                          <Phone className="h-3 w-3 text-emerald-600" /> Primary Mobile
                         </label>
                         <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
-                          WhatsApp
+                          Login Phone
                         </span>
                       </div>
                       <p className="font-bold text-[#0C2417] text-xs mt-1">
@@ -3508,6 +3799,20 @@ export default function AdminDashboardPage() {
                     </div>
 
                     <div className="p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2]">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                          <Smartphone className="h-3 w-3 text-emerald-600" /> WhatsApp Contact
+                        </label>
+                        <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                          Active
+                        </span>
+                      </div>
+                      <p className="font-bold text-[#0C2417] text-xs mt-1">
+                        {setupWhatsappNumber || studioProfile?.whatsapp_number || setupPhone || "+91 98765 43210"}
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] sm:col-span-2">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
                         <Mail className="h-3 w-3 text-emerald-600" /> Support Email
                       </label>
@@ -3621,7 +3926,7 @@ export default function AdminDashboardPage() {
                   <button
                     onClick={() => {
                       setActiveTab("account-completion");
-                      setCompletionStep(2);
+                      setCompletionStep(3);
                     }}
                     className="text-xs text-[#133623] hover:underline font-bold"
                   >
@@ -3689,7 +3994,7 @@ export default function AdminDashboardPage() {
                   <button
                     onClick={() => {
                       setActiveTab("account-completion");
-                      setCompletionStep(3);
+                      setCompletionStep(4);
                     }}
                     className="text-xs text-[#133623] hover:underline font-bold"
                   >
@@ -3830,7 +4135,7 @@ export default function AdminDashboardPage() {
                   <button
                     onClick={() => {
                       setActiveTab("account-completion");
-                      setCompletionStep(4);
+                      setCompletionStep(5);
                     }}
                     className="text-xs text-[#133623] hover:underline font-bold self-end sm:self-auto"
                   >
@@ -3865,6 +4170,67 @@ export default function AdminDashboardPage() {
                 )}
               </div>
             </div>
+              </>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Dashboard Settings</h1>
+                  <p className="text-xs text-[#40514E] mt-1">Personalize your workspace typography and color theme. Changes are saved on this device.</p>
+                </div>
+
+                <section className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4" aria-labelledby="dashboard-font-heading">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h2 id="dashboard-font-heading" className="font-bold text-base text-[#0C2417]">Typography</h2>
+                      <p className="text-xs text-slate-500 mt-1">Choose the font pairing used across your dashboard and public studio pages.</p>
+                    </div>
+                    <FontSelector variant="full" />
+                  </div>
+                </section>
+
+                <section className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4" aria-labelledby="dashboard-theme-heading">
+                  <div>
+                    <h2 id="dashboard-theme-heading" className="font-bold text-base text-[#0C2417]">Dashboard theme</h2>
+                    <p className="text-xs text-slate-500 mt-1">Select a comfortable color treatment for your workspace.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {([
+                      { id: "forest", name: "Deep Forest", colors: ["#0C2417", "#2D7A58", "#FAF7F2"] },
+                      { id: "sage", name: "Soft Sage", colors: ["#29483A", "#6F9277", "#F3F7F2"] },
+                      { id: "sand", name: "Warm Sand", colors: ["#43362B", "#A26B47", "#FBF5EC"] }
+                    ] as const).map((theme) => (
+                      <button
+                        key={theme.id}
+                        type="button"
+                        aria-pressed={dashboardTheme === theme.id}
+                        onClick={() => applyDashboardTheme(theme.id)}
+                        className={`theme-choice ${dashboardTheme === theme.id ? "active" : ""}`}
+                      >
+                        <span className="theme-swatches" aria-hidden="true">
+                          {theme.colors.map((color) => <span key={color} style={{ backgroundColor: color }} />)}
+                        </span>
+                        <span>
+                          <strong>{theme.name}</strong>
+                          <small>{dashboardTheme === theme.id ? "Selected" : "Select theme"}</small>
+                        </span>
+                        {dashboardTheme === theme.id && <Check className="h-4 w-4" />}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E1E9E2] shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className="p-2.5 rounded-2xl bg-[#E8F0E9] text-[#133623]"><Palette className="h-5 w-5" /></span>
+                    <div>
+                      <h2 className="font-bold text-base text-[#0C2417]">Public website theme & branding</h2>
+                      <p className="text-xs text-slate-500 mt-1">Change the website template, headline and primary brand color.</p>
+                    </div>
+                  </div>
+                  <Link href="/dashboard/website" className="btn-forest px-4 py-2.5 text-xs text-center shrink-0">Customize Website</Link>
+                </section>
+              </div>
+            )}
           </div>
         )}
       </main>
