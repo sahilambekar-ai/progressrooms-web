@@ -204,6 +204,174 @@ h1, h2, h3, h4, h5, h6 {
 .account-step.incomplete .account-step-number { background: #FEF3C7; color: #B45309; }
 .account-step.incomplete .account-step-status { color: #B45309; }
 
+/* REFERENCE-INSPIRED STEPPER DESIGN SYSTEM (VERTICAL & HORIZONTAL) */
+.stepper-v-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+.stepper-v-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+}
+.stepper-v-node {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: all 200ms ease;
+  z-index: 2;
+}
+.stepper-v-node.complete {
+  background: #2D7A58;
+  color: #FFFFFF;
+  border: 2px solid #2D7A58;
+  box-shadow: 0 2px 8px rgba(45, 122, 88, 0.25);
+}
+.stepper-v-node.active {
+  background: #0C2417;
+  color: #FFFFFF;
+  border: 2px solid #2D7A58;
+  box-shadow: 0 0 0 4px rgba(45, 122, 88, 0.2);
+}
+.stepper-v-node.incomplete {
+  background: #F8FAF8;
+  color: #819183;
+  border: 1.5px solid #CEDECF;
+}
+.stepper-v-line {
+  width: 2px;
+  flex: 1;
+  min-height: 2.2rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+  transition: background-color 200ms ease;
+}
+.stepper-v-line.complete {
+  background: #2D7A58;
+}
+.stepper-v-line.incomplete {
+  background: #E1E9E2;
+}
+
+/* Horizontal Timeline Stepper */
+.stepper-h-track {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  width: 100%;
+}
+.stepper-h-segment {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  position: relative;
+}
+.stepper-h-node {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 200ms ease;
+  flex-shrink: 0;
+  z-index: 2;
+}
+.stepper-h-node.complete {
+  background: #2D7A58;
+  color: #FFFFFF;
+  border: 2px solid #2D7A58;
+}
+.stepper-h-node.active {
+  background: #0C2417;
+  color: #FFFFFF;
+  border: 2px solid #2D7A58;
+  box-shadow: 0 0 0 4px rgba(45, 122, 88, 0.2);
+}
+.stepper-h-node.incomplete {
+  background: #FFFFFF;
+  color: #94A3B8;
+  border: 1.5px solid #CBD5E1;
+}
+.stepper-h-line {
+  height: 2px;
+  flex: 1;
+  transition: background-color 200ms ease;
+}
+.stepper-h-line.complete {
+  background: #2D7A58;
+}
+.stepper-h-line.incomplete {
+  background: #E2E8F0;
+}
+
+/* Status Chips matching Reference Design */
+.stepper-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: capitalize;
+  letter-spacing: 0.01em;
+}
+.stepper-chip.complete {
+  background: #E8F5E9;
+  color: #166534;
+  border: 1px solid #BBF7D0;
+}
+.stepper-chip.active {
+  background: #EDF2ED;
+  color: #0C2417;
+  border: 1px solid #CEDECF;
+}
+.stepper-chip.incomplete {
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #FDE68A;
+}
+
+/* Card Header Embedded Linear Progress Bar */
+.card-linear-progress {
+  height: 4px;
+  width: 100%;
+  background: #E8EFE8;
+  border-radius: 9999px;
+  overflow: hidden;
+  position: relative;
+}
+.card-linear-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2D7A58 0%, #3D9970 100%);
+  border-radius: 9999px;
+  transition: width 350ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Assistance / Help Widget */
+.stepper-help-box {
+  background: #FAFCFA;
+  border: 1px solid #CEDECF;
+  border-radius: 18px;
+  padding: 0.9rem;
+  transition: all 180ms ease;
+}
+.stepper-help-box:hover {
+  background: #F4F8F4;
+  border-color: #81A882;
+}
+
 .settings-section-tabs {
   display: inline-flex;
   max-width: 100%;

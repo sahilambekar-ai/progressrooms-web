@@ -47,7 +47,8 @@ import {
   Smartphone,
   Palette,
   UserRound,
-  MonitorCog
+  MonitorCog,
+  HelpCircle
 } from "lucide-react";
 import { AttendanceCalendar, CalendarSessionEvent } from "@/components/AttendanceCalendar";
 import { BrandLogo } from "@/components/BrandLogo";
@@ -1749,18 +1750,19 @@ export default function AdminDashboardPage() {
 
         {/* STUDIO ONBOARDING TAB: ACCOUNT COMPLETION WIZARD */}
         {activeTab === "account-completion" && (
-          <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-300">
+          <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in duration-300">
             {/* Header with Title & One-Click Sample Pre-fill */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Account Completion</h1>
                   {!isAccountCompleted ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                    <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                       Step {completionStep} of 6 • {displayPercentage}% Completed
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                    <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5" /> 100% Completed • Sanctuary Active
                     </span>
                   )}
@@ -1782,68 +1784,285 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Step Stepper Navigation Bar with Icons & Complete/Incomplete Indicators */}
-            <div className="account-stepper bg-white p-3 sm:p-4 rounded-3xl border border-[#CEDECF] shadow-sm">
-              <div className="account-stepper-track" aria-label="Account completion progress">
+            {/* MOBILE TOP PROGRESS BANNER & HORIZONTAL SCROLLABLE STEP PILLS (Visible on mobile/tablet < lg) */}
+            <div className="block lg:hidden space-y-3">
+              {/* Mobile Step Header Card */}
+              <div className="bg-white p-4 rounded-2xl border border-[#CEDECF] shadow-sm space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#0C2417] text-white flex items-center justify-center shrink-0 shadow-sm">
+                      {(() => {
+                        const IconComp = [Building2, MapPin, FileText, Landmark, Video, ShieldCheck][completionStep - 1] || Building2;
+                        return <IconComp className="w-4 h-4 text-emerald-400" />;
+                      })()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Step {completionStep} of 6</p>
+                      <h2 className="text-xs font-bold text-[#0C2417] truncate">
+                        {["Studio Contact & Phone", "Location & Mode", "GST & Tax Identity", "Bank Payout Accounts", "Zoom Video Classroom", "Review & Sanctuary Launch"][completionStep - 1]}
+                      </h2>
+                    </div>
+                  </div>
+                  <span className={`stepper-chip shrink-0 ${checkStepCompleted(completionStep) ? "complete" : "active"}`}>
+                    {checkStepCompleted(completionStep) ? "Completed" : "In Progress"}
+                  </span>
+                </div>
+
+                {/* Mobile Card-level Linear Progress Bar */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-bold">
+                    <span className="text-slate-500">Overall Progress</span>
+                    <span className="text-[#2D7A58]">{displayPercentage}%</span>
+                  </div>
+                  <div className="card-linear-progress">
+                    <div className="card-linear-progress-fill" style={{ width: `${displayPercentage}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Swipeable / Scrollable Quick Step Pills Rail */}
+              <div className="overflow-x-auto pb-1 -mx-1 px-1 flex items-center gap-2">
                 {[
-                  { step: 1, label: "Studio & Phone", icon: Building2, desc: "Name & WhatsApp" },
-                  { step: 2, label: "Location & Mode", icon: MapPin, desc: "Teaching address" },
-                  { step: 3, label: "GST & Legal", icon: FileText, desc: "Tax & business identity" },
-                  { step: 4, label: "Bank & Payouts", icon: Landmark, desc: "Payout settlement" },
-                  { step: 5, label: "Zoom Live Video", icon: Video, desc: "Virtual classroom" },
-                  { step: 6, label: "Review & Launch", icon: ShieldCheck, desc: "Verification & launch" }
+                  { step: 1, label: "01 Contact", icon: Building2 },
+                  { step: 2, label: "02 Location", icon: MapPin },
+                  { step: 3, label: "03 GST", icon: FileText },
+                  { step: 4, label: "04 Bank", icon: Landmark },
+                  { step: 5, label: "05 Zoom", icon: Video },
+                  { step: 6, label: "06 Launch", icon: ShieldCheck }
                 ].map((s) => {
                   const isActive = completionStep === s.step;
                   const isDone = checkStepCompleted(s.step);
                   const IconComp = s.icon;
-                  const statusClass = isActive ? "active" : isDone ? "complete" : "incomplete";
-
                   return (
                     <button
                       key={s.step}
                       type="button"
                       onClick={() => setCompletionStep(s.step)}
-                      aria-current={isActive ? "step" : undefined}
-                      aria-label={`Step ${s.step}: ${s.label}. ${isActive ? "In Progress" : isDone ? "Complete" : "Incomplete"}`}
-                      className={`account-step ${statusClass}`}
+                      className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                        isActive
+                          ? "bg-[#0C2417] text-white shadow-sm ring-2 ring-[#2D7A58]"
+                          : isDone
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-white text-slate-600 border border-[#CEDECF] hover:bg-slate-50"
+                      }`}
                     >
-                      <div className="account-step-icon-wrap shrink-0">
-                        <IconComp className="w-4 h-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] font-mono font-bold text-slate-400">0{s.step}</span>
-                          <p className="text-xs font-bold truncate text-[#0C2417]">{s.label}</p>
-                        </div>
-                        <div className="account-step-status">
-                          {isDone && !isActive ? (
-                            <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                              <Check className="w-3 h-3 text-emerald-600" /> Complete
-                            </span>
-                          ) : isActive ? (
-                            <span className="flex items-center gap-1 text-[#2D7A58] font-bold">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#2D7A58] animate-ping" /> In Progress
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-amber-700 font-medium">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Incomplete
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      <IconComp className="w-3.5 h-3.5" />
+                      <span>{s.label}</span>
+                      {isDone && !isActive && <Check className="w-3 h-3 text-emerald-600" />}
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* STEP 1: STUDIO & MOBILE CONTACT */}
-            {completionStep === 1 && (
-              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
-                <div className="border-b border-[#E1E9E2] pb-4">
-                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 1: Studio Contact & Identity</h3>
-                  <p className="text-xs text-slate-500">Provide your studio name, primary phone, WhatsApp number, and teaching disciplines.</p>
+            {/* MAIN DESKTOP 2-COLUMN LAYOUT */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* LEFT COLUMN: VERTICAL STEPPER CARD (Matching reference image left card) */}
+              <div className="hidden lg:block lg:col-span-4 xl:col-span-4 space-y-4 sticky top-6">
+                <div className="bg-white rounded-3xl border border-[#CEDECF] p-6 shadow-sm">
+                  {/* Top Brand / Sanctuary Mark */}
+                  <div className="flex items-center justify-between pb-5 border-b border-[#E1E9E2]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-[#0C2417] text-white flex items-center justify-center shadow-md">
+                        <Sparkles className="w-5 h-5 text-emerald-300" />
+                      </div>
+                      <div>
+                        <h2 className="font-serif font-bold text-sm text-[#0C2417]">Studio Setup</h2>
+                        <p className="text-[11px] text-slate-500 font-medium">Sanctuary Onboarding</p>
+                      </div>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      isAccountCompleted
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                        : "bg-amber-100 text-amber-800 border border-amber-300"
+                    }`}>
+                      {displayPercentage}% Done
+                    </span>
+                  </div>
+
+                  {/* Vertical Timeline Items (6 Steps) */}
+                  <div className="py-4 space-y-0.5" aria-label="Step navigation timeline">
+                    {[
+                      { step: 1, label: "Studio Contact", icon: Building2 },
+                      { step: 2, label: "Location & Mode", icon: MapPin },
+                      { step: 3, label: "GST & Legal", icon: FileText },
+                      { step: 4, label: "Bank & Payouts", icon: Landmark },
+                      { step: 5, label: "Zoom Live Video", icon: Video },
+                      { step: 6, label: "Review & Launch", icon: ShieldCheck }
+                    ].map((s, idx, arr) => {
+                      const isActive = completionStep === s.step;
+                      const isDone = checkStepCompleted(s.step);
+                      const isLast = idx === arr.length - 1;
+                      const IconComp = s.icon;
+                      const nodeState = isDone && !isActive ? "complete" : isActive ? "active" : "incomplete";
+                      const lineState = isDone ? "complete" : "incomplete";
+
+                      return (
+                        <button
+                          key={s.step}
+                          type="button"
+                          onClick={() => setCompletionStep(s.step)}
+                          className={`w-full text-left stepper-v-item rounded-2xl p-2.5 transition ${
+                            isActive ? "bg-[#F4F8F4]" : "hover:bg-[#FAFCFA]"
+                          }`}
+                        >
+                          <div className="stepper-v-rail">
+                            <div className={`stepper-v-node ${nodeState}`}>
+                              {isDone && !isActive ? (
+                                <Check className="w-4 h-4 text-white" />
+                              ) : (
+                                <IconComp className="w-4 h-4" />
+                              )}
+                            </div>
+                            {!isLast && <div className={`stepper-v-line ${lineState}`} />}
+                          </div>
+                          <div className="min-w-0 flex-1 pt-0.5">
+                            <p className={`text-[10px] font-mono font-bold tracking-wider uppercase ${
+                              isActive ? "text-[#2D7A58]" : "text-slate-400"
+                            }`}>
+                              Step 0{s.step}
+                            </p>
+                            <p className={`text-xs font-bold truncate ${isActive ? "text-[#0C2417]" : "text-slate-700"}`}>
+                              {s.label}
+                            </p>
+                            <div className="mt-1">
+                              {isDone && !isActive ? (
+                                <span className="stepper-chip complete">
+                                  <Check className="w-2.5 h-2.5" /> Completed
+                                </span>
+                              ) : isActive ? (
+                                <span className="stepper-chip active">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#2D7A58] animate-ping" /> In Progress
+                                </span>
+                              ) : (
+                                <span className="stepper-chip incomplete">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Incomplete
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Bottom Assistance Box (Matching reference image) */}
+                  <div className="stepper-help-box mt-2 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-white border border-[#CEDECF] flex items-center justify-center shrink-0 text-[#2D7A58] shadow-sm">
+                      <HelpCircle className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-slate-500 font-medium">Having troubles?</p>
+                      <p className="text-xs font-bold text-[#0C2417]">Contact Concierge</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        showToast("🌿 Sanctuary Concierge: concierge@progressrooms.com • +91 800-SANCTUARY");
+                      }}
+                      className="text-[11px] font-bold text-[#2D7A58] hover:underline shrink-0"
+                    >
+                      Get Help →
+                    </button>
+                  </div>
                 </div>
+              </div>
+
+              {/* RIGHT COLUMN: HORIZONTAL STEPPER + FORM CARDS (Matching reference image right panels) */}
+              <div className="lg:col-span-8 xl:col-span-8 space-y-6">
+                {/* Top Horizontal Stepper Track (Panoramic navigation for desktop) */}
+                <div className="hidden lg:block bg-white p-4 rounded-3xl border border-[#CEDECF] shadow-sm">
+                  <div className="stepper-h-track" aria-label="Account completion progress">
+                    {[
+                      { step: 1, display: "Studio & Phone", icon: Building2 },
+                      { step: 2, display: "Location & Mode", icon: MapPin },
+                      { step: 3, display: "GST & Tax", icon: FileText },
+                      { step: 4, display: "Bank Details", icon: Landmark },
+                      { step: 5, display: "Live Video", icon: Video },
+                      { step: 6, display: "Review & Launch", icon: ShieldCheck }
+                    ].map((s, idx, arr) => {
+                      const isActive = completionStep === s.step;
+                      const isDone = checkStepCompleted(s.step);
+                      const isLast = idx === arr.length - 1;
+                      const IconComp = s.icon;
+                      const nodeState = isDone && !isActive ? "complete" : isActive ? "active" : "incomplete";
+                      const lineState = isDone ? "complete" : "incomplete";
+
+                      return (
+                        <div key={s.step} className="stepper-h-segment">
+                          <button
+                            type="button"
+                            onClick={() => setCompletionStep(s.step)}
+                            className="flex flex-col items-center text-center group cursor-pointer w-full"
+                          >
+                            <div className={`stepper-h-node ${nodeState}`}>
+                              {isDone && !isActive ? (
+                                <Check className="w-4 h-4 text-white" />
+                              ) : (
+                                <IconComp className="w-3.5 h-3.5" />
+                              )}
+                            </div>
+                            <div className="mt-1.5 w-full">
+                              <span className="text-[9px] font-mono font-bold text-slate-400 block uppercase">
+                                Step 0{s.step}
+                              </span>
+                              <p className={`text-[11px] font-bold truncate px-1 ${
+                                isActive ? "text-[#0C2417]" : "text-slate-600"
+                              }`}>
+                                {s.display}
+                              </p>
+                              <div className="mt-0.5 flex justify-center">
+                                {isDone && !isActive ? (
+                                  <span className="stepper-chip complete text-[9px] px-1.5 py-0.5">Done</span>
+                                ) : isActive ? (
+                                  <span className="stepper-chip active text-[9px] px-1.5 py-0.5">Active</span>
+                                ) : (
+                                  <span className="stepper-chip incomplete text-[9px] px-1.5 py-0.5">Pending</span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                          {!isLast && <div className={`stepper-h-line ${lineState}`} />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* STEP 1: STUDIO & MOBILE CONTACT */}
+                {completionStep === 1 && (
+                  <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
+                    {/* Reference Card Header */}
+                    <div className="flex items-start gap-3.5 pb-2">
+                      <div className="w-12 h-12 rounded-2xl bg-[#0C2417] text-white flex items-center justify-center shrink-0 shadow-sm border border-[#CEDECF]">
+                        <Building2 className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
+                            STEP 1 / 6
+                          </span>
+                          <span className={`stepper-chip ${checkStepCompleted(1) ? "complete" : "active"}`}>
+                            {checkStepCompleted(1) ? "Completed" : "In Progress"}
+                          </span>
+                        </div>
+                        <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
+                          Studio Contact & Primary Identity
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Provide your studio name, primary phone, WhatsApp number, and teaching disciplines.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card-level Linear Progress Bar */}
+                    <div className="card-linear-progress my-2">
+                      <div className="card-linear-progress-fill" style={{ width: "17%" }} />
+                    </div>
+
+                    <div className="border-b border-[#E1E9E2] pb-2">
+                      <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Studio Identity & Contact</p>
+                    </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -1989,13 +2208,40 @@ export default function AdminDashboardPage() {
               </div>
             )}
 
-            {/* STEP 2: STUDIO LOCATION & TEACHING MODE */}
-            {completionStep === 2 && (
-              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
-                <div className="border-b border-[#E1E9E2] pb-4">
-                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 2: Studio Location & Teaching Mode</h3>
-                  <p className="text-xs text-slate-500">Specify your physical shala address or virtual teaching setup.</p>
-                </div>
+                {/* STEP 2: STUDIO LOCATION & TEACHING MODE */}
+                {completionStep === 2 && (
+                  <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
+                    {/* Reference Card Header */}
+                    <div className="flex items-start gap-3.5 pb-2">
+                      <div className="w-12 h-12 rounded-2xl bg-[#0C2417] text-white flex items-center justify-center shrink-0 shadow-sm border border-[#CEDECF]">
+                        <MapPin className="w-6 h-6 text-emerald-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
+                            STEP 2 / 6
+                          </span>
+                          <span className={`stepper-chip ${checkStepCompleted(2) ? "complete" : "active"}`}>
+                            {checkStepCompleted(2) ? "Completed" : "In Progress"}
+                          </span>
+                        </div>
+                        <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
+                          Teaching Location & Delivery Mode
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Specify your physical shala address, teaching space, or 100% online setup.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Card-level Linear Progress Bar */}
+                    <div className="card-linear-progress my-2">
+                      <div className="card-linear-progress-fill" style={{ width: "33%" }} />
+                    </div>
+
+                    <div className="border-b border-[#E1E9E2] pb-2">
+                      <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Teaching Space & Address</p>
+                    </div>
 
                 {/* Teaching Mode Selector */}
                 <div>
@@ -2129,16 +2375,17 @@ export default function AdminDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setCompletionStep(1)}
-                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
                   >
-                    ← Back to Step 1
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Previous Step</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSaveStep(3)}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
                   >
-                    <span>Save & Continue: GST & Legal Identity</span>
+                    <span>Save & Continue: GST & Legal</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -2148,9 +2395,36 @@ export default function AdminDashboardPage() {
             {/* STEP 3: GST & LEGAL BUSINESS IDENTITY */}
             {completionStep === 3 && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
-                <div className="border-b border-[#E1E9E2] pb-4">
-                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 3: GST & Legal Business Identity</h3>
-                  <p className="text-xs text-slate-500">Specify your business entity name, Goods & Services Tax (GSTIN), and PAN details for billing.</p>
+                {/* Reference Card Header */}
+                <div className="flex items-start gap-3.5 pb-2">
+                  <div className="w-12 h-12 rounded-2xl bg-[#0C2417] text-white flex items-center justify-center shrink-0 shadow-sm border border-[#CEDECF]">
+                    <FileText className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
+                        STEP 3 / 6
+                      </span>
+                      <span className={`stepper-chip ${checkStepCompleted(3) ? "complete" : "active"}`}>
+                        {checkStepCompleted(3) ? "Completed" : "In Progress"}
+                      </span>
+                    </div>
+                    <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
+                      GST Registration & Legal Business Identity
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Specify your business entity name, Goods & Services Tax (GSTIN), and PAN details for compliance.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card-level Linear Progress Bar */}
+                <div className="card-linear-progress my-2">
+                  <div className="card-linear-progress-fill" style={{ width: "50%" }} />
+                </div>
+
+                <div className="border-b border-[#E1E9E2] pb-2">
+                  <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Taxation & Entity Details</p>
                 </div>
 
                 {/* GST & Tax Registration Section */}
@@ -2242,16 +2516,17 @@ export default function AdminDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setCompletionStep(2)}
-                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
                   >
-                    ← Back to Step 2
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Previous Step</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleSaveStep(4)}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
                   >
-                    <span>Save & Continue: Bank & Payouts</span>
+                    <span>Save & Continue: Bank Payouts</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -2261,9 +2536,36 @@ export default function AdminDashboardPage() {
             {/* STEP 4: BANK & PAYOUT DETAILS */}
             {completionStep === 4 && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
-                <div className="border-b border-[#E1E9E2] pb-4">
-                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 4: Bank Account & Fee Settlements</h3>
-                  <p className="text-xs text-slate-500">Provide verified bank settlement details to receive student fees and pass payouts ("The Thanks Perspective").</p>
+                {/* Reference Card Header */}
+                <div className="flex items-start gap-3.5 pb-2">
+                  <div className="w-12 h-12 rounded-2xl bg-[#0C2417] text-white flex items-center justify-center shrink-0 shadow-sm border border-[#CEDECF]">
+                    <Landmark className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
+                        STEP 4 / 6
+                      </span>
+                      <span className={`stepper-chip ${checkStepCompleted(4) ? "complete" : "active"}`}>
+                        {checkStepCompleted(4) ? "Completed" : "In Progress"}
+                      </span>
+                    </div>
+                    <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
+                      Bank Account & Settlement Payouts
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Provide verified bank payout specifications to receive student membership fees ("The Thanks Perspective").
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card-level Linear Progress Bar */}
+                <div className="card-linear-progress my-2">
+                  <div className="card-linear-progress-fill" style={{ width: "67%" }} />
+                </div>
+
+                <div className="border-b border-[#E1E9E2] pb-2">
+                  <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Settlement Account Details</p>
                 </div>
 
                 <div className="p-3 rounded-2xl bg-[#E8F0E9] border border-[#CEDECF] text-[#1b4332] text-xs flex items-center gap-2.5">
@@ -2398,9 +2700,10 @@ export default function AdminDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setCompletionStep(3)}
-                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
                   >
-                    ← Back to Step 3
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Previous Step</span>
                   </button>
                   <button
                     type="button"
@@ -2417,16 +2720,36 @@ export default function AdminDashboardPage() {
             {/* STEP 5: ZOOM AUTHENTICATION & LIVE CLASSROOM INTEGRATION */}
             {completionStep === 5 && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
-                <div className="border-b border-[#E1E9E2] pb-4 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 5: Zoom Live Video Authentication</h3>
-                    <p className="text-xs text-slate-500">
-                      When authenticated, newly created class batches will directly generate Zoom meeting rooms automatically.
+                {/* Reference Card Header */}
+                <div className="flex items-start gap-3.5 pb-2">
+                  <div className="w-12 h-12 rounded-2xl bg-[#0C2417] text-white flex items-center justify-center shrink-0 shadow-sm border border-[#CEDECF]">
+                    <Video className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
+                        STEP 5 / 6
+                      </span>
+                      <span className={`stepper-chip ${checkStepCompleted(5) ? "complete" : "active"}`}>
+                        {checkStepCompleted(5) ? "Completed" : "In Progress"}
+                      </span>
+                    </div>
+                    <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
+                      Zoom Live Classroom Video Authentication
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      When authenticated, newly created class batches will automatically generate live Zoom meeting rooms.
                     </p>
                   </div>
-                  <div className="h-10 w-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 font-bold">
-                    <Video className="w-5 h-5" />
-                  </div>
+                </div>
+
+                {/* Card-level Linear Progress Bar */}
+                <div className="card-linear-progress my-2">
+                  <div className="card-linear-progress-fill" style={{ width: "83%" }} />
+                </div>
+
+                <div className="border-b border-[#E1E9E2] pb-2">
+                  <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Virtual Classroom Integration</p>
                 </div>
 
                 {/* Live Status Banner */}
@@ -2650,9 +2973,10 @@ export default function AdminDashboardPage() {
                   <button
                     type="button"
                     onClick={() => setCompletionStep(4)}
-                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
                   >
-                    ← Back to Step 4
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Previous Step</span>
                   </button>
                   <button
                     type="button"
@@ -2669,11 +2993,36 @@ export default function AdminDashboardPage() {
             {/* STEP 6: REVIEW & COMPLETE LAUNCH */}
             {completionStep === 6 && (
               <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
-                <div className="border-b border-[#E1E9E2] pb-4">
-                  <h3 className="font-serif font-bold text-lg text-[#0C2417]">Step 6: Review, Verification Checklist & Final Sanctuary Launch</h3>
-                  <p className="text-xs text-slate-500">
-                    Verify all 5 configured steps. Once confirmed, your sanctuary is marked 100% complete, navigation placement updates, and all values are permanently saved to your Studio Profiler.
-                  </p>
+                {/* Reference Card Header */}
+                <div className="flex items-start gap-3.5 pb-2">
+                  <div className="w-12 h-12 rounded-2xl bg-[#0C2417] text-white flex items-center justify-center shrink-0 shadow-sm border border-[#CEDECF]">
+                    <ShieldCheck className="w-6 h-6 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
+                        STEP 6 / 6
+                      </span>
+                      <span className={`stepper-chip ${isAccountCompleted ? "complete" : "active"}`}>
+                        {isAccountCompleted ? "Completed" : "In Progress"}
+                      </span>
+                    </div>
+                    <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
+                      Review, Verification Checklist & Sanctuary Launch
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Verify all configured steps. Once confirmed, your sanctuary is marked 100% complete and saved to your Profiler.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Card-level Linear Progress Bar */}
+                <div className="card-linear-progress my-2">
+                  <div className="card-linear-progress-fill" style={{ width: "100%" }} />
+                </div>
+
+                <div className="border-b border-[#E1E9E2] pb-2">
+                  <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Sanctuary Configuration Summary</p>
                 </div>
 
                 {/* 5 Cards Summary */}
@@ -2840,20 +3189,47 @@ export default function AdminDashboardPage() {
                   </button>
                 </div>
 
-                <div className="pt-2 flex items-center justify-between text-xs text-slate-500">
+                <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-between text-xs text-slate-500">
                   <button
                     type="button"
                     onClick={() => setCompletionStep(5)}
-                    className="hover:underline"
+                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
                   >
-                    ← Back to Zoom Authentication
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Previous: Zoom Setup</span>
                   </button>
-                  <span className="font-medium">Step 6 of 6</span>
+                  <span className="font-bold text-[#2D7A58]">Step 6 of 6 • 100% Ready</span>
                 </div>
               </div>
             )}
           </div>
-        )}
+          {/* Close Right Column */}
+        </div>
+        {/* Close Desktop 2-Column Grid */}
+
+        {/* MOBILE ASSISTANCE CARD (Visible only on mobile/tablet < lg) */}
+        <div className="block lg:hidden bg-white p-4 rounded-2xl border border-[#CEDECF] shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#FAF7F2] border border-[#CEDECF] flex items-center justify-center shrink-0 text-[#2D7A58]">
+              <HelpCircle className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] text-slate-500 font-medium">Having troubles?</p>
+              <p className="text-xs font-bold text-[#0C2417]">Contact Sanctuary Concierge</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                showToast("🌿 Sanctuary Concierge: concierge@progressrooms.com • +91 800-SANCTUARY");
+              }}
+              className="text-xs font-bold text-[#2D7A58] hover:underline"
+            >
+              Get Help →
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
         {/* STUDIO TAB 1: MANAGE TEACHERS (LIVE API CONNECTED) */}
         {activeTab === "studio-teachers" && (
