@@ -1,20 +1,14 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
+import { Lora } from "next/font/google";
 import "./globals.css";
 import { FeedbackProvider } from "@/components/FeedbackProvider";
-import { FontInitializer } from "@/components/FontSelector";
+import { FontInitializer } from "@/components/FontInitializer";
+import { DeveloperModeProvider } from "@/components/DeveloperModeProvider";
 
-const cormorant = Cormorant_Garamond({
+const lora = Lora({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-cormorant",
-  display: "swap",
-});
-
-const manrope = Manrope({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  variable: "--font-manrope",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-lora",
   display: "swap",
 });
 
@@ -36,11 +30,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${cormorant.variable} ${manrope.variable}`}>
+    <html lang="en" className={lora.variable}>
       <body className="min-h-screen antialiased flex flex-col font-sans bg-[#FAF7F2] text-[#212121]">
         <FontInitializer />
         <a href="#main-content" className="skip-link">Skip to content</a>
-        <FeedbackProvider>{children}</FeedbackProvider>
+        <DeveloperModeProvider>
+          <FeedbackProvider>{children}</FeedbackProvider>
+        </DeveloperModeProvider>
       </body>
     </html>
   );

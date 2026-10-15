@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/a
 export async function fetchPublicOrganization(orgSlug: string): Promise<PublicWebsitePayload | null> {
   try {
     const res = await fetch(`${API_BASE_URL}/public/organizations/${orgSlug}`, {
-      next: { revalidate: 60 } // Next.js ISR/SSR
+      cache: 'no-store' // Published websites are visible immediately
     });
     if (!res.ok) return null;
     return await res.json();
@@ -17,8 +17,8 @@ export async function fetchPublicOrganization(orgSlug: string): Promise<PublicWe
 
 export async function fetchPublicSession(orgSlug: string, sessionSlug: string): Promise<PublicSessionDetailPayload | null> {
   try {
-    const res = await fetch(`${API_BASE_URL}/public/organizations/${orgSlug}/sessions/${sessionSlug}`, {
-      next: { revalidate: 60 }
+    const res = await fetch(`${API_BASE_URL}/public/organizations/${orgSlug}/classes/${sessionSlug}`, {
+      cache: 'no-store'
     });
     if (!res.ok) return null;
     return await res.json();

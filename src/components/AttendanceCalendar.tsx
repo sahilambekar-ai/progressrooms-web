@@ -1,479 +1,725 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock, Calendar as CalendarIcon, X, Plus } from 'lucide-react';
-import { Modal } from './Modal';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, ChevronDown, Calendar, X, Pencil, Loader2, CalendarDays, Clock } from 'lucide-react';
 
-export type CalendarAttendanceStatus = 'PRESENT' | 'ABSENT' | 'CANCELLED';
-
+export type CalendarAttendanceStatus = 'PRESENT' | 'ABSENT' | 'CANCELLED' | 'UNMARKED' | 'SCHEDULED' | 'EXCUSED';
 export interface CalendarSessionEvent {
   id: string;
-  date: string; // YYYY-MM-DD
+  occurrenceId?: string;
+  enrollmentId?: string;
+  date: string;
   time?: string;
   sessionTitle: string;
   studentName?: string;
   studentEmail?: string;
+  teacherName?: string;
+  organizationId?: string;
+  organizationName?: string;
+  organizationSlug?: string;
   status: CalendarAttendanceStatus;
   remarks?: string;
 }
-
 interface AttendanceCalendarProps {
   events: CalendarSessionEvent[];
-  onUpdateEvents: (updatedEvents: CalendarSessionEvent[]) => void;
-  onToast: (msg: string) => void;
+  onUpdateEvents?: (events: CalendarSessionEvent[]) => void;
+  onSaveEvent?: (event: CalendarSessionEvent) => Promise<void>;
+  onToast: (message: string) => void;
+  readOnly?: boolean;
+  personLabel?: string;
+  view?: 'month' | 'day';
+  selectedDate?: string;
+  onSelectDate?: (date: string) => void;
+  onMonthChange?: (month: string) => void;
+  loading?: boolean;
+  onEditClass?: (event: CalendarSessionEvent) => void;
 }
+const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+const statusLabel = (status: CalendarAttendanceStatus) => ({
+  PRESENT: 'Present',
+  ABSENT: 'Absent',
+  CANCELLED: 'Cancelled',
+  EXCUSED: 'Excused',
+  UNMARKED: 'Completed, Not Marked',
+  SCHEDULED: 'Scheduled / Upcoming',
+})[status] || status;
 
-export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
-  events,
-  onUpdateEvents,
-  onToast,
-}) => {
-  const [currentYear, setCurrentYear] = useState(() => new Date().getFullYear());
-  const [currentMonth, setCurrentMonth] = useState(() => new Date().getMonth());
-  const [selectedDay, setSelectedDay] = useState(() => new Date().getDate());
+const statusColor = (status: CalendarAttendanceStatus) => {
+  switch (status) {
+    case 'PRESENT':
+      return '#15803d'; // Green
+    case 'ABSENT':
+      return '#dc2626'; // Red
+    case 'SCHEDULED':
+      return '#2563eb'; // Blue - Upcoming / Scheduled
+    case 'EXCUSED':
+      return '#64748b'; // Slate Gray - Excused
+    case 'CANCELLED':
+      return '#991b1b'; // Dark Red
+    case 'UNMARKED':
+    default:
+      return '#d97706'; // Amber - Unmarked / Pending Review
+  }
+};
 
-  // Edit / Add Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<CalendarSessionEvent | null>(null);
-  const [editDate, setEditDate] = useState('');
-  const [editSessionTitle, setEditSessionTitle] = useState('');
-  const [editSessionTime, setEditSessionTime] = useState('07:00 AM');
-  const [editStudentName, setEditStudentName] = useState('Aarav Patel');
-  const [editStatus, setEditStatus] = useState<CalendarAttendanceStatus>('PRESENT');
-  const [editRemarks, setEditRemarks] = useState('');
+export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToast, readOnly = false, personLabel = 'Attendance', view = 'month', selectedDate, onSelectDate, onMonthChange, loading, onEditClass }: AttendanceCalendarProps) {
+  const [date, setDate] = useState(selectedDate || dateKey(new Date()));
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [dayPickerOpen, setDayPickerOpen] = useState(false);
+  const chosen = selectedDate || date;
+  const month = chosen.slice(0,7);
+  const [pickerMonth, setPickerMonth] = useState(month);
+  const dayPickerRef = useRef<HTMLDivElement>(null);
+  const selectedDaySectionRef = useRef<HTMLElement>(null);
+  const [year, monthNumber] = month.split('-').map(Number);
 
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
+  useEffect(() => { onMonthChange?.(month); }, [month, onMonthChange]);
 
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
-  const totalDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-
-  const handlePrevMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear((prev) => prev - 1);
-    } else {
-      setCurrentMonth((prev) => prev - 1);
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dayPickerRef.current && !dayPickerRef.current.contains(e.target as Node)) {
+        setDayPickerOpen(false);
+      }
     }
-  };
-
-  const handleNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear((prev) => prev + 1);
-    } else {
-      setCurrentMonth((prev) => prev + 1);
+    if (dayPickerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
     }
+  }, [dayPickerOpen]);
+
+  const selectDate = (next: string) => {
+    setDate(next);
+    onSelectDate?.(next);
+    setTimeout(() => {
+      selectedDaySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
+  const moveMonth = (offset: number) => selectDate(dateKey(new Date(year, monthNumber-1+offset,1)));
+  const moveDay = (offset: number) => {
+    const current = new Date(chosen + 'T12:00:00');
+    current.setDate(current.getDate() + offset);
+    selectDate(dateKey(current));
   };
 
-  const formatDateString = (day: number) => {
-    const m = (currentMonth + 1).toString().padStart(2, '0');
-    const d = day.toString().padStart(2, '0');
-    return `${currentYear}-${m}-${d}`;
-  };
-
-  const getEventsForDay = (day: number) => {
-    const dateStr = formatDateString(day);
-    return events.filter((e) => e.date === dateStr);
-  };
-
-  const handleOpenAddModal = (day: number) => {
-    const dateStr = formatDateString(day);
-    setEditingEvent({
-      id: `att-cal-${Date.now()}`,
-      date: dateStr,
-      time: '07:00 AM',
-      sessionTitle: 'Morning Hatha Flow',
-      studentName: 'Aarav Patel',
-      status: 'PRESENT',
-      remarks: 'Verified by Instructor',
-    });
-    setEditDate(dateStr);
-    setEditSessionTitle('Morning Hatha Flow');
-    setEditSessionTime('07:00 AM');
-    setEditStudentName('Aarav Patel');
-    setEditStatus('PRESENT');
-    setEditRemarks('');
-    setIsModalOpen(true);
-  };
-
-  const handleOpenEditModal = (evt: CalendarSessionEvent, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setEditingEvent(evt);
-    setEditDate(evt.date);
-    setEditSessionTitle(evt.sessionTitle);
-    setEditSessionTime(evt.time || '07:00 AM');
-    setEditStudentName(evt.studentName || 'Aarav Patel');
-    setEditStatus(evt.status);
-    setEditRemarks(evt.remarks || '');
-    setIsModalOpen(true);
-  };
-
-  const handleSaveEvent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingEvent) return;
-
-    const updated: CalendarSessionEvent = {
-      ...editingEvent,
-      date: editDate,
-      time: editSessionTime,
-      sessionTitle: editSessionTitle,
-      studentName: editStudentName,
-      status: editStatus,
-      remarks: editRemarks,
-    };
-
-    const exists = events.some((evt) => evt.id === updated.id);
-    let nextEvents: CalendarSessionEvent[];
-    if (exists) {
-      nextEvents = events.map((evt) => (evt.id === updated.id ? updated : evt));
-    } else {
-      nextEvents = [...events, updated];
+  const toggleDayPicker = () => {
+    if (!dayPickerOpen) {
+      setPickerMonth(chosen.slice(0, 7));
     }
+    setDayPickerOpen((prev) => !prev);
+  };
 
+  const [pYear, pMonthNum] = (pickerMonth || month).split('-').map(Number);
+  const pDays = new Date(pYear, pMonthNum, 0).getDate();
+  const pOffset = new Date(pYear, pMonthNum - 1, 1).getDay();
+  const pMonthName = new Date(pYear, pMonthNum - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const movePickerMonth = (delta: number) => {
+    const next = new Date(pYear, pMonthNum - 1 + delta, 1);
+    setPickerMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`);
+  };
+
+  const chosenDateObj = new Date(chosen + 'T12:00:00');
+  const dayOfWeek = chosenDateObj.getDay();
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(chosenDateObj);
+  monday.setDate(chosenDateObj.getDate() + diffToMonday);
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+
+  const dayEvents = events.filter(event => event.date === chosen);
+  const monthName = new Date(year,monthNumber-1,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  const days = new Date(year,monthNumber,0).getDate();
+  const offset = new Date(year,monthNumber-1,1).getDay();
+
+  async function quickUpdateStatus(entry: CalendarSessionEvent, newStatus: CalendarAttendanceStatus) {
+    if (readOnly || updatingId || entry.status === newStatus) return;
+    setUpdatingId(entry.id);
     try {
-      onUpdateEvents(nextEvents);
+      const updated = { ...entry, status: newStatus };
+      if (onSaveEvent) await onSaveEvent(updated);
+      onUpdateEvents?.(events.map((item) => (item.id === updated.id ? updated : item)));
+      onToast(`Attendance marked ${statusLabel(newStatus)}.`);
     } catch (err) {
-      onToast('Error saving attendance. Your changes are still here; please try again.');
-      return;
+      onToast(err instanceof Error ? err.message : 'Could not save attendance.');
+    } finally {
+      setUpdatingId(null);
     }
-    onToast(`Attendance ${exists ? 'updated' : 'saved'}: ${updated.studentName} marked ${updated.status}`);
-    setIsModalOpen(false);
-  };
-
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const visibleDay = Math.min(selectedDay, totalDaysInMonth);
+  }
 
   return (
-    <div className="card-nature p-3 sm:p-6 space-y-4 sm:space-y-6">
-      {/* Calendar Header with Month Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-[#E1E9E2]">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-[#E8F0E9] text-[#1b4332] flex items-center justify-center font-bold text-lg shadow-sm">
-            🗓️
+    <section className="card-nature p-3 sm:p-6 space-y-5" aria-label={`${personLabel} attendance calendar`}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E1E9E2] pb-4">
+        <div>
+          <h2 className="text-xl font-bold font-serif text-[#0C2417]">{view === 'month' ? monthName : 'Daily attendance'}</h2>
+          <p className="text-xs text-slate-500 mt-1">
+            {view === 'month' ? 'Select a day to review all attendances below.' : 'Navigate through days or use the week strip below.'}
+            {!readOnly && ' Click any attendance entry or button to edit.'}
+          </p>
+        </div>
+        {view === 'month' ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label="Previous month"
+              onClick={() => moveMonth(-1)}
+              className="h-9 w-9 rounded-xl border border-[#CEDECF] bg-white flex items-center justify-center hover:bg-[#F4F7F4] text-[#0C2417] transition"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => selectDate(dateKey(new Date()))}
+              className="rounded-xl border border-[#CEDECF] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-[#F4F7F4] text-[#0C2417] transition"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              aria-label="Next month"
+              onClick={() => moveMonth(1)}
+              className="h-9 w-9 rounded-xl border border-[#CEDECF] bg-white flex items-center justify-center hover:bg-[#F4F7F4] text-[#0C2417] transition"
+            >
+              <ChevronRight size={16} />
+            </button>
           </div>
-          <div>
-            <h2 className="text-2xl font-serif font-bold text-[#0C2417] leading-tight">
-              {monthNames[currentMonth]} {currentYear}
-            </h2>
-            <span className="text-xs text-[#7E7970]">
-              Select a day for details. Tap an entry to update attendance.
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-end sm:self-auto">
-          <button
-            type="button"
-            onClick={handlePrevMonth}
-            className="h-9 w-9 rounded-xl border border-[#CEDECF] bg-white hover:bg-[#FAF7F2] text-slate-700 flex items-center justify-center shadow-sm transition"
-            title="Previous Month"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const now = new Date();
-              setCurrentMonth(now.getMonth());
-              setCurrentYear(now.getFullYear());
-              setSelectedDay(now.getDate());
-            }}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#E8F0E9] hover:bg-[#CEDECF] text-[#0C2417] transition"
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={handleNextMonth}
-            className="h-9 w-9 rounded-xl border border-[#CEDECF] bg-white hover:bg-[#FAF7F2] text-slate-700 flex items-center justify-center shadow-sm transition"
-            title="Next Month"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Calendar Grid Table */}
-      <div className="border border-[#E1E9E2] rounded-2xl overflow-hidden bg-white shadow-sm">
-        {/* Day of Week Headers */}
-        <div className="calendar-grid grid grid-cols-7 bg-[#E8F0E9]/60 border-b border-[#E1E9E2] text-center">
-          {daysOfWeek.map((day) => (
-            <div key={day} className="py-2.5 text-xs font-bold uppercase tracking-wider text-[#1b4332]">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Days Grid Cells */}
-        <div className="calendar-grid grid grid-cols-7 divide-x divide-y divide-[#E1E9E2]">
-          {/* Empty offset padding cells */}
-          {Array.from({ length: firstDayIndex }).map((_, i) => (
-            <div key={`empty-${i}`} aria-hidden="true" className="calendar-day bg-[#FAF7F2]/40 p-2 text-slate-300" />
-          ))}
-
-          {/* Actual day cells */}
-          {Array.from({ length: totalDaysInMonth }).map((_, i) => {
-            const dayNum = i + 1;
-            const dateStr = formatDateString(dayNum);
-            const isToday = dateStr === todayStr;
-            const dayEvents = getEventsForDay(dayNum);
-
-            return (
-              <div
-                key={`day-${dayNum}`}
-                className={`calendar-day min-w-0 p-2 hover:bg-[#FAF7F2] transition flex flex-col group relative ${
-                  isToday ? 'bg-[#E8F0E9]/30' : 'bg-white'
+        ) : (
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              aria-label="Previous day"
+              onClick={() => moveDay(-1)}
+              className="h-9 w-9 rounded-xl border border-[#CEDECF] bg-white flex items-center justify-center hover:bg-[#F4F7F4] text-[#0C2417] transition"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => selectDate(dateKey(new Date()))}
+              className="rounded-xl border border-[#CEDECF] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-[#F4F7F4] text-[#0C2417] transition"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              aria-label="Next day"
+              onClick={() => moveDay(1)}
+              className="h-9 w-9 rounded-xl border border-[#CEDECF] bg-white flex items-center justify-center hover:bg-[#F4F7F4] text-[#0C2417] transition"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <div className="relative" ref={dayPickerRef}>
+              <button
+                type="button"
+                aria-label="Choose attendance date"
+                aria-expanded={dayPickerOpen}
+                onClick={toggleDayPicker}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition shadow-xs ${
+                  dayPickerOpen
+                    ? 'border-[#133623] bg-[#E8F0E9] text-[#133623] ring-2 ring-[#133623]'
+                    : 'border-[#CEDECF] bg-white text-[#0C2417] hover:bg-[#F4F7F4] hover:border-[#133623]'
                 }`}
               >
-                <div className="flex items-center justify-between mb-1.5">
-                  <button type="button" onClick={() => setSelectedDay(dayNum)}
-                    aria-label={`${monthNames[currentMonth]} ${dayNum}, ${dayEvents.length} attendance entries`}
-                    aria-pressed={visibleDay === dayNum} aria-current={isToday ? 'date' : undefined}
-                    className={`inline-flex items-center justify-center h-6 w-6 text-xs font-bold rounded-full ${
-                      isToday
-                        ? 'bg-[#133623] text-white shadow-sm'
-                        : visibleDay === dayNum ? 'bg-[#CEDECF] text-[#0C2417]' : 'text-slate-700 group-hover:text-[#0C2417]'
+                <CalendarDays size={14} className="text-[#2D7A58]" />
+                <span>
+                  {new Date(chosen + 'T12:00:00').toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  })}
+                </span>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${dayPickerOpen ? 'rotate-180 text-[#133623]' : ''}`} />
+              </button>
+
+              {dayPickerOpen && (
+                <div
+                  className="absolute right-0 top-full mt-2 z-50 w-72 rounded-2xl border border-[#CEDECF] bg-white p-3.5 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
+                  role="dialog"
+                  aria-label="Date picker calendar"
+                >
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-[#E1E9E2]">
+                    <span className="text-xs font-bold font-serif text-[#0C2417]">
+                      {pMonthName}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        aria-label="Previous month in picker"
+                        onClick={() => movePickerMonth(-1)}
+                        className="h-7 w-7 rounded-lg border border-[#CEDECF] hover:bg-[#F4F7F4] flex items-center justify-center text-slate-700 transition"
+                      >
+                        <ChevronLeft size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Next month in picker"
+                        onClick={() => movePickerMonth(1)}
+                        className="h-7 w-7 rounded-lg border border-[#CEDECF] hover:bg-[#F4F7F4] flex items-center justify-center text-slate-700 transition"
+                      >
+                        <ChevronRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-7 text-center text-[10px] font-bold uppercase text-slate-400 mb-1">
+                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                      <div key={d} className="py-1">
+                        {d}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1">
+                    {Array.from({ length: pOffset }, (_, i) => (
+                      <div key={`p-blank-${i}`} className="h-8" />
+                    ))}
+                    {Array.from({ length: pDays }, (_, i) => {
+                      const dayKey = `${pickerMonth}-${String(i + 1).padStart(2, '0')}`;
+                      const isSel = dayKey === chosen;
+                      const dayEvs = events.filter((e) => e.date === dayKey);
+                      const hasEvs = dayEvs.length > 0;
+                      return (
+                        <button
+                          key={dayKey}
+                          type="button"
+                          onClick={() => {
+                            selectDate(dayKey);
+                            setDayPickerOpen(false);
+                          }}
+                          className={`h-8 rounded-lg text-xs font-semibold flex flex-col items-center justify-center relative transition ${
+                            isSel
+                              ? 'bg-[#133623] text-white font-bold shadow-xs'
+                              : hasEvs
+                              ? 'bg-[#F4F7F4] text-[#0C2417] hover:bg-[#E8F0E9] font-medium'
+                              : 'text-slate-600 hover:bg-[#F4F7F4]'
+                          }`}
+                        >
+                          <span>{i + 1}</span>
+                          {hasEvs && (
+                            <span
+                              className={`h-1 w-1 rounded-full ${
+                                isSel ? 'bg-white' : 'bg-[#2D7A58]'
+                              }`}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 mt-2 border-t border-[#E1E9E2]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectDate(dateKey(new Date()));
+                        setDayPickerOpen(false);
+                      }}
+                      className="text-[11px] font-bold text-[#2D7A58] hover:text-[#133623] hover:underline"
+                    >
+                      Jump to Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDayPickerOpen(false)}
+                      className="text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {loading && (
+        <p role="status" className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="animate-spin h-4 w-4 text-[#2D7A58]" />
+          Loading attendance…
+        </p>
+      )}
+
+      {view === 'month' && (
+        <div className="rounded-2xl border border-[#E1E9E2] overflow-hidden bg-white shadow-sm">
+          <div className="calendar-grid grid grid-cols-7 bg-[#E8F0E9] text-center text-[#0C2417]">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+              <div key={day} className="py-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider">
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="calendar-grid grid grid-cols-7">
+            {Array.from({ length: offset }, (_, i) => (
+              <div key={`blank-${i}`} className="calendar-day bg-[#FAF7F2]/50 border-t border-r border-[#E1E9E2]" aria-hidden="true" />
+            ))}
+            {Array.from({ length: days }, (_, index) => {
+              const key = `${month}-${String(index + 1).padStart(2, '0')}`;
+              const entries = events.filter((event) => event.date === key);
+              const isSelected = chosen === key;
+
+              // Group counts for mobile view legend icons
+              const presentCount = entries.filter((e) => e.status === 'PRESENT').length;
+              const absentCount = entries.filter((e) => e.status === 'ABSENT').length;
+              const yellowCount = entries.filter((e) => e.status === 'CANCELLED' || e.status === 'UNMARKED').length;
+              const scheduledCount = entries.filter((e) => e.status === 'SCHEDULED').length;
+
+              const mobileDots = [
+                { key: 'present', count: presentCount, color: '#15803d', label: 'Present' },
+                { key: 'absent', count: absentCount, color: '#dc2626', label: 'Absent' },
+                { key: 'yellow', count: yellowCount, color: '#ca8a04', label: 'Excused / Unmarked' },
+                { key: 'scheduled', count: scheduledCount, color: '#2563eb', label: 'Scheduled / Upcoming' },
+              ].filter((item) => item.count > 0);
+
+              // Desktop view: show up to 2 entries, then "+N more"
+              const MAX_DESKTOP_ENTRIES = 2;
+              const visibleDesktopEntries = entries.slice(0, MAX_DESKTOP_ENTRIES);
+              const desktopOverflow = entries.length - MAX_DESKTOP_ENTRIES;
+              const todayKey = dateKey(new Date());
+              const isToday = key === todayKey;
+              return (
+                <div
+                  key={key}
+                  onClick={() => selectDate(key)}
+                  className={`calendar-day cursor-pointer min-w-0 min-h-[58px] sm:min-h-[110px] border-t border-r border-[#E1E9E2] p-1 sm:p-2 transition ${
+                    isToday
+                      ? 'bg-[#F0FDF4] ring-2 ring-inset ring-[#2D7A58]'
+                      : isSelected
+                      ? 'bg-[#E8F0E9] ring-2 ring-inset ring-[#2D7A58]/60'
+                      : 'bg-white hover:bg-[#F9FAF9]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selectDate(key);
+                        }}
+                        aria-pressed={isSelected}
+                        aria-label={`${key}, ${entries.length} attendance entries`}
+                        className={`h-6 w-6 sm:h-7 sm:w-7 rounded-full text-[11px] sm:text-xs font-bold flex items-center justify-center transition ${
+                          isToday
+                            ? 'bg-[#133623] text-white font-black ring-2 ring-[#2D7A58] shadow-sm'
+                            : isSelected
+                            ? 'bg-[#2D7A58] text-white shadow-sm'
+                            : 'text-slate-700 hover:bg-[#E8F0E9]'
+                        }`}
+                      >
+                        {index + 1}
+                      </button>
+                      {isToday && (
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-[#15803d] hidden sm:inline-block bg-[#E8F0E9] px-1.5 py-0.5 rounded-md border border-[#2D7A58]/20">
+                          Today
+                        </span>
+                      )}
+                    </div>
+                    {entries.length > 0 && (
+                      <span className="hidden sm:inline-block text-[10px] font-bold text-slate-400">
+                        {entries.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Mobile view: ONLY colored badges with count inside, no loose dots */}
+                  <div className="flex sm:hidden flex-wrap items-center justify-center gap-1 mt-1 px-0.5">
+                    {mobileDots.map((dot) => (
+                      <span
+                        key={dot.key}
+                        className="inline-flex items-center justify-center min-w-[18px] h-4.5 px-1 rounded-full text-[10px] font-black text-white shadow-xs"
+                        style={{ backgroundColor: dot.color }}
+                        title={`${dot.count} ${dot.label}`}
+                        aria-label={`${dot.count} ${dot.label}`}
+                      >
+                        {dot.count}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Desktop view: attendance entry pills on calendar itself */}
+                  <div className="calendar-events space-y-1 mt-1.5 hidden sm:block">
+                    {visibleDesktopEntries.map((entry) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        aria-label={`${entry.sessionTitle}, ${entry.time || ''}, ${statusLabel(entry.status)}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selectDate(key);
+                        }}
+                        className="calendar-event group w-full rounded-lg border px-1.5 py-1 text-left text-[11px] flex items-center justify-between gap-1 min-w-0 transition hover:shadow-xs hover:border-[#133623]"
+                        style={{
+                          borderColor: `${statusColor(entry.status)}40`,
+                          backgroundColor: `${statusColor(entry.status)}12`,
+                          color: statusColor(entry.status),
+                        }}
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0 truncate">
+                          <span
+                            className="calendar-event-dot inline-block h-2 w-2 rounded-full shrink-0 shadow-xs"
+                            style={{ backgroundColor: statusColor(entry.status) }}
+                            aria-hidden="true"
+                          />
+                          <span className="calendar-event-label truncate font-semibold">
+                            {entry.time ? `${entry.time} · ` : ''}{entry.sessionTitle}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                    {desktopOverflow > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selectDate(key);
+                        }}
+                        className="w-full text-left text-[10px] font-bold text-[#2D7A58] hover:text-[#133623] hover:underline px-1 py-0.5 rounded transition"
+                        aria-label={`+${desktopOverflow} more entries on ${key}`}
+                      >
+                        +{desktopOverflow} more
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {view === 'day' && (
+        <div className="space-y-4">
+          {/* Weekday strip selector */}
+          <div className="rounded-2xl border border-[#E1E9E2] bg-white p-3 sm:p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#1b4332]">Interactive Week Strip</span>
+              <span className="text-[11px] text-slate-500">Tap a day to jump directly</span>
+            </div>
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center">
+              {weekDays.map((d) => {
+                const dayStr = dateKey(d);
+                const daySelected = chosen === dayStr;
+                const dEntries = events.filter((e) => e.date === dayStr);
+                const hasPresent = dEntries.some((e) => e.status === 'PRESENT');
+                const hasAbsent = dEntries.some((e) => e.status === 'ABSENT');
+                const hasYellow = dEntries.some((e) => e.status === 'CANCELLED' || e.status === 'UNMARKED');
+                const hasScheduled = dEntries.some((e) => e.status === 'SCHEDULED');
+                return (
+                  <button
+                    key={dayStr}
+                    type="button"
+                    onClick={() => selectDate(dayStr)}
+                    className={`p-2 rounded-xl border transition flex flex-col items-center justify-between min-h-[64px] ${
+                      daySelected
+                        ? 'bg-[#133623] border-[#133623] text-white shadow-md'
+                        : 'bg-[#FAF7F2]/60 hover:bg-[#E8F0E9] border-[#E1E9E2] text-slate-700'
                     }`}
                   >
-                    {dayNum}
+                    <span className="text-[10px] font-bold uppercase">
+                      {d.toLocaleDateString(undefined, { weekday: 'short' })}
+                    </span>
+                    <span className={`text-sm font-extrabold my-0.5 ${daySelected ? 'text-white' : 'text-[#0C2417]'}`}>
+                      {d.getDate()}
+                    </span>
+                    <div className="flex items-center justify-center gap-0.5 h-2">
+                      {hasPresent && <span className="h-1.5 w-1.5 rounded-full bg-[#15803d]" />}
+                      {hasAbsent && <span className="h-1.5 w-1.5 rounded-full bg-[#dc2626]" />}
+                      {hasYellow && <span className="h-1.5 w-1.5 rounded-full bg-[#ca8a04]" />}
+                      {hasScheduled && <span className="h-1.5 w-1.5 rounded-full bg-[#2563eb]" />}
+                    </div>
                   </button>
-                  <button type="button" aria-label={`Log attendance for ${monthNames[currentMonth]} ${dayNum}`} onClick={() => handleOpenAddModal(dayNum)} className="calendar-add-label text-[10px] text-[#2D7A58] font-bold transition">
-                    + Log
-                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Daily overview statistics pills */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="rounded-xl border border-[#15803d]/30 bg-[#15803d]/10 p-3 text-center">
+              <span className="block text-lg font-extrabold text-[#15803d]">
+                {dayEvents.filter((e) => e.status === 'PRESENT').length}
+              </span>
+              <span className="text-xs font-semibold text-[#15803d]">Present (Green)</span>
+            </div>
+            <div className="rounded-xl border border-[#dc2626]/30 bg-[#dc2626]/10 p-3 text-center">
+              <span className="block text-lg font-extrabold text-[#dc2626]">
+                {dayEvents.filter((e) => e.status === 'ABSENT').length}
+              </span>
+              <span className="text-xs font-semibold text-[#dc2626]">Absent (Red)</span>
+            </div>
+            <div className="rounded-xl border border-[#ca8a04]/30 bg-[#ca8a04]/10 p-3 text-center">
+              <span className="block text-lg font-extrabold text-[#ca8a04]">
+                {dayEvents.filter((e) => e.status === 'CANCELLED' || e.status === 'UNMARKED').length}
+              </span>
+              <span className="text-xs font-semibold text-[#ca8a04]">Excused/Unmarked (Yellow)</span>
+            </div>
+            <div className="rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/10 p-3 text-center">
+              <span className="block text-lg font-extrabold text-[#2563eb]">
+                {dayEvents.filter((e) => e.status === 'SCHEDULED').length}
+              </span>
+              <span className="text-xs font-semibold text-[#2563eb]">Scheduled (Blue)</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 bg-[#F4F7F4] p-3 rounded-xl border border-[#CEDECF]" aria-label="Attendance legend">
+        <span className="font-bold text-[#0C2417] text-xs uppercase tracking-wider">Legend:</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#15803d]" />
+          <span>Present (Green)</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#dc2626]" />
+          <span>Absent (Red)</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#ca8a04]" />
+          <span>Excused / Unmarked (Yellow)</span>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#2563eb]" />
+          <span>Scheduled / Upcoming (Blue)</span>
+        </span>
+      </div>
+
+      {/* Selected day attendance section */}
+      <section
+        ref={selectedDaySectionRef}
+        tabIndex={-1}
+        aria-label="Selected day attendance"
+        className="space-y-3 pt-2 scroll-mt-6 focus:outline-none"
+        aria-live="polite"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E1E9E2] pt-4">
+          <div>
+            <h3 className="font-bold text-base font-serif text-[#0C2417]">
+              {new Date(chosen + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+            </h3>
+            <p className="text-xs text-slate-500">
+              {dayEvents.length} {dayEvents.length === 1 ? 'attendance entry' : 'attendance entries'} on this date
+            </p>
+          </div>
+          {!readOnly && dayEvents.length > 0 && (
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              Studio owners can mark attendance or edit classes directly below.
+            </span>
+          )}
+        </div>
+
+        {!loading && !dayEvents.length && (
+          <div className="rounded-2xl border border-dashed border-[#CEDECF] bg-[#F4F7F4] p-6 text-center text-sm text-slate-500">
+            No attendance entries for this day.
+          </div>
+        )}
+
+        <div className="space-y-2.5">
+          {dayEvents.map((entry) => {
+            const isUpdatingThis = updatingId === entry.id;
+            return (
+              <article
+                key={entry.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-[#E1E9E2] bg-white p-3.5 sm:p-4 hover:border-[#CEDECF] transition shadow-xs"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: statusColor(entry.status) }}
+                    />
+                    <h4 className="font-bold text-sm text-[#0C2417]">{entry.sessionTitle}</h4>
+                    <span
+                      className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
+                      style={{
+                        backgroundColor: `${statusColor(entry.status)}18`,
+                        color: statusColor(entry.status),
+                      }}
+                    >
+                      {statusLabel(entry.status)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 pl-4.5">
+                    {entry.time || 'Scheduled session'}
+                    {entry.organizationName ? ` · Studio: ${entry.organizationName}` : ''}
+                    {entry.teacherName ? ` · Teacher: ${entry.teacherName}` : ''}
+                    {entry.studentName ? ` · Student: ${entry.studentName}` : ''}
+                  </p>
+                  {entry.remarks && (
+                    <p className="text-xs text-slate-600 mt-1 pl-4.5 italic bg-[#F4F7F4] p-1.5 rounded-lg inline-block">
+                      Note: &ldquo;{entry.remarks}&rdquo;
+                    </p>
+                  )}
                 </div>
 
-                {/* Day events badges */}
-                <div className="calendar-events">
-                  {dayEvents.map((evt) => {
-                    const isPresent = evt.status === 'PRESENT';
-                    const isAbsent = evt.status === 'ABSENT';
-
-                    return (
-                      <button type="button"
-                        key={evt.id}
-                        aria-label={`${evt.sessionTitle}, ${evt.studentName || 'Yogi'}, ${evt.time || ''}, ${evt.status}. Edit attendance`}
-                        onClick={(e) => handleOpenEditModal(evt, e)}
-                        className={`calendar-event p-1 rounded-md text-[10px] font-semibold border truncate cursor-pointer transition ${
-                          isPresent
-                            ? 'bg-[#E8F0E9] text-[#1b4332] border-[#CEDECF]'
-                            : isAbsent
-                            ? 'bg-red-50 text-red-700 border-red-200'
-                            : 'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}
-                        title={`${evt.sessionTitle} • ${evt.studentName || 'Yogi'} (${evt.status})`}
+                {/* Direct inline actions for studio owner */}
+                {!readOnly && (
+                  <div className="flex items-center gap-2 sm:self-center shrink-0 flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-[#E1E9E2]">
+                    {entry.status === 'SCHEDULED' ? (
+                      <button
+                        type="button"
+                        aria-label={`Edit ${entry.sessionTitle}`}
+                        onClick={() => onEditClass?.(entry)}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#2563eb] bg-[#2563eb]/10 px-3.5 py-1.5 text-xs font-bold text-[#1d4ed8] hover:bg-[#2563eb] hover:text-white transition shadow-xs"
                       >
-                        <span className="calendar-event-dot" aria-hidden="true" />
-                        <span className="calendar-event-label"><span className="font-bold">{evt.time || '07:00'}</span> {evt.studentName ? evt.studentName.split(' ')[0] : 'Class'}: <span className="font-bold">{evt.status}</span></span>
+                        <Pencil size={13} />
+                        <span>Edit Class</span>
                       </button>
-                    );
-                  })}
-                </div>
-              </div>
+                    ) : (
+                      <div className="flex items-center rounded-xl border border-[#CEDECF] bg-[#F4F7F4] p-0.5 text-xs">
+                        <button
+                          type="button"
+                          title="Mark Present"
+                          disabled={Boolean(isUpdatingThis)}
+                          onClick={() => quickUpdateStatus(entry, 'PRESENT')}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                            entry.status === 'PRESENT'
+                              ? 'bg-[#15803d] text-white shadow-xs'
+                              : 'text-slate-600 hover:text-[#15803d] hover:bg-white'
+                          }`}
+                        >
+                          {isUpdatingThis && entry.status !== 'PRESENT' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                          <span>Present</span>
+                        </button>
+                        <button
+                          type="button"
+                          title="Mark Absent"
+                          disabled={Boolean(isUpdatingThis)}
+                          onClick={() => quickUpdateStatus(entry, 'ABSENT')}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                            entry.status === 'ABSENT'
+                              ? 'bg-[#dc2626] text-white shadow-xs'
+                              : 'text-slate-600 hover:text-[#dc2626] hover:bg-white'
+                          }`}
+                        >
+                          {isUpdatingThis && entry.status !== 'ABSENT' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                          <span>Absent</span>
+                        </button>
+                        <button
+                          type="button"
+                          title="Mark Cancelled / Excused"
+                          disabled={Boolean(isUpdatingThis)}
+                          onClick={() => quickUpdateStatus(entry, 'CANCELLED')}
+                          className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
+                            entry.status === 'CANCELLED'
+                              ? 'bg-[#ca8a04] text-white shadow-xs'
+                              : 'text-slate-600 hover:text-[#ca8a04] hover:bg-white'
+                          }`}
+                        >
+                          {isUpdatingThis && entry.status !== 'CANCELLED' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                          <span>Excused</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
             );
           })}
         </div>
-      </div>
-
-      <section aria-label="Selected day attendance" className="rounded-2xl border border-[#CEDECF] bg-[#F4F7F4] p-3 sm:p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-bold text-lg">{monthNames[currentMonth]} {visibleDay}, {currentYear}</h3>
-          <button type="button" onClick={() => handleOpenAddModal(visibleDay)} className="btn-forest inline-flex items-center gap-2 px-3 py-2 text-xs"><Plus size={16} /> Log attendance</button>
-        </div>
-        <div className="mt-3 space-y-2" aria-live="polite">
-          {getEventsForDay(visibleDay).length === 0 && <p className="text-sm text-slate-600">No attendance entries for this day.</p>}
-          {getEventsForDay(visibleDay).map((event) => <button key={event.id} type="button" onClick={() => handleOpenEditModal(event)} className="flex w-full flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E1E9E2] bg-white p-3 text-left text-sm">
-            <span><strong className="block">{event.sessionTitle}</strong><span className="text-xs text-slate-600">{event.time} · {event.studentName || 'Class'}</span></span>
-            <span className={`rounded-full px-2 py-1 text-xs font-semibold ${event.status === 'PRESENT' ? 'bg-emerald-50 text-emerald-800' : event.status === 'ABSENT' ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'}`}>{event.status}</span>
-          </button>)}
-        </div>
       </section>
-
-      {/* Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-2 text-xs text-slate-600">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-[#2D7A58]" />
-            <span>Present / Attended</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-red-500" />
-            <span>Absent</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-amber-500" />
-            <span>Cancelled</span>
-          </div>
-        </div>
-        <p className="text-[11px] text-[#7E7970]">
-          Total {events.length} sessions logged in calendar history.
-        </p>
-      </div>
-
-      {/* ATTENDANCE ENTRY / EDIT MODAL */}
-      {isModalOpen && (
-        <Modal title="Attendance entry" onClose={() => setIsModalOpen(false)} confirmDiscard>
-          <div className="bg-white rounded-3xl border border-[#CEDECF] shadow-2xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-[#E1E9E2]">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">✍️</span>
-                <h3 className="font-serif font-bold text-lg text-[#0C2417]">
-                  {events.some((event) => event.id === editingEvent?.id) ? 'Edit Attendance Entry' : 'Log Attendance Entry'}
-                </h3>
-              </div>
-              <button
-                aria-label="Close attendance entry"
-                onClick={() => setIsModalOpen(false)}
-                className="h-8 w-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveEvent} className="space-y-4">
-              <div>
-                <label htmlFor="components-AttendanceCalendar-field-1" className="block text-xs font-bold text-[#1b4332] uppercase mb-1">
-                  Practitioner Name
-                </label>
-                <select id="components-AttendanceCalendar-field-1"
-                  value={editStudentName}
-                  onChange={(e) => setEditStudentName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white"
-                >
-                  <option value="Aarav Patel">Aarav Patel (aarav@progressrooms.com)</option>
-                  <option value="Pooja Sharma">Pooja Sharma (pooja@progressrooms.com)</option>
-                  <option value="Rohan Verma">Rohan Verma (rohan@progressrooms.com)</option>
-                  <option value="Meera Nair">Meera Nair (meera@progressrooms.com)</option>
-                  <option value="Vikram Iyer">Vikram Iyer (vikram@progressrooms.com)</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="components-AttendanceCalendar-field-2" className="block text-xs font-bold text-[#1b4332] uppercase mb-1">
-                    Date
-                  </label>
-                  <input id="components-AttendanceCalendar-field-2"
-                    type="date"
-                    required
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#FAF7F2]"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="components-AttendanceCalendar-field-3" className="block text-xs font-bold text-[#1b4332] uppercase mb-1">
-                    Time
-                  </label>
-                  <input id="components-AttendanceCalendar-field-3"
-                    type="text"
-                    required
-                    value={editSessionTime}
-                    onChange={(e) => setEditSessionTime(e.target.value)}
-                    placeholder="07:00 AM"
-                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#FAF7F2]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="components-AttendanceCalendar-field-4" className="block text-xs font-bold text-[#1b4332] uppercase mb-1">
-                  Session Batch
-                </label>
-                <select id="components-AttendanceCalendar-field-4"
-                  value={editSessionTitle}
-                  onChange={(e) => setEditSessionTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white"
-                >
-                  <option value="Morning Hatha Flow">Morning Hatha Flow (07:00 AM)</option>
-                  <option value="Aerial Yoga Conditioning">Aerial Yoga Conditioning (06:00 PM)</option>
-                  <option value="Sunset Vinyasa Flow">Sunset Vinyasa Flow (05:30 PM)</option>
-                  <option value="Meditation & Pranayama">Meditation & Pranayama (08:30 AM)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#1b4332] uppercase mb-1.5">
-                  Attendance Status
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditStatus('PRESENT')}
-                    aria-pressed={editStatus === 'PRESENT'}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
-                      editStatus === 'PRESENT'
-                        ? 'bg-[#133623] text-white border-[#133623] shadow-sm'
-                        : 'bg-white border-[#CEDECF] text-slate-700 hover:bg-[#FAF7F2]'
-                    }`}
-                  >
-                    ✓ Present
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditStatus('ABSENT')}
-                    aria-pressed={editStatus === 'ABSENT'}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
-                      editStatus === 'ABSENT'
-                        ? 'bg-red-700 text-white border-red-700 shadow-sm'
-                        : 'bg-white border-[#CEDECF] text-slate-700 hover:bg-[#FAF7F2]'
-                    }`}
-                  >
-                    ✕ Absent
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditStatus('CANCELLED')}
-                    aria-pressed={editStatus === 'CANCELLED'}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold border transition ${
-                      editStatus === 'CANCELLED'
-                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                        : 'bg-white border-[#CEDECF] text-slate-700 hover:bg-[#FAF7F2]'
-                    }`}
-                  >
-                    ⊘ Cancelled
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="components-AttendanceCalendar-field-5" className="block text-xs font-bold text-[#1b4332] uppercase mb-1">
-                  Teacher Notes / Remarks
-                </label>
-                <input id="components-AttendanceCalendar-field-5"
-                  type="text"
-                  placeholder="e.g. Completed Surya Namaskar B, good alignment"
-                  value={editRemarks}
-                  onChange={(e) => setEditRemarks(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#FAF7F2]"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-[#E1E9E2] flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition"
-                >
-                  Save Attendance
-                </button>
-              </div>
-            </form>
-          </div>
-        </Modal>
-      )}
-    </div>
+    </section>
   );
-};
+}

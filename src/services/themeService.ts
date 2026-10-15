@@ -10,7 +10,18 @@ export interface DashboardFont {
   googleFontQuery: string;
 }
 
+export const DEFAULT_FONT_ID = 'lora-opensans';
+
 export const PROFESSIONAL_FONTS: DashboardFont[] = [
+  {
+    id: 'lora-opensans',
+    name: 'Lora',
+    headingFamily: "'Lora', Georgia, serif",
+    bodyFamily: "'Lora', Georgia, serif",
+    category: 'Editorial',
+    description: 'Consistent Lora typography for headings, labels, controls, and dashboard content.',
+    googleFontQuery: 'Lora:wght@400;500;600;700',
+  },
   {
     id: 'cormorant-manrope',
     name: 'Cormorant Garamond + Manrope',
@@ -47,15 +58,7 @@ export const PROFESSIONAL_FONTS: DashboardFont[] = [
     description: 'Approachable, warm geometric curves with high clarity for timetables.',
     googleFontQuery: 'Outfit:wght@400;500;600;700&family=DM+Sans:wght@400;500;700',
   },
-  {
-    id: 'lora-opensans',
-    name: 'Lora + Open Sans',
-    headingFamily: "'Lora', Georgia, serif",
-    bodyFamily: "'Open Sans', sans-serif",
-    category: 'Editorial',
-    description: 'Balanced calligraphic elegance with friendly open curves for mindful reading.',
-    googleFontQuery: 'Lora:wght@400;500;600;700&family=Open+Sans:wght@300;400;500;600;700',
-  },
+
   {
     id: 'cinzel-montserrat',
     name: 'Cinzel + Montserrat',
@@ -71,8 +74,12 @@ const FONT_STORAGE_KEY = 'progressrooms_active_font';
 
 class ThemeService {
   public getActiveFontId(): string {
-    if (typeof window === 'undefined') return 'cormorant-manrope';
-    return localStorage.getItem(FONT_STORAGE_KEY) || 'cormorant-manrope';
+    if (typeof window === 'undefined') return DEFAULT_FONT_ID;
+    try {
+      return localStorage.getItem(FONT_STORAGE_KEY) || DEFAULT_FONT_ID;
+    } catch {
+      return DEFAULT_FONT_ID;
+    }
   }
 
   public getActiveFont(): DashboardFont {
@@ -83,23 +90,35 @@ class ThemeService {
   public applyFont(fontId: string): DashboardFont {
     const font = PROFESSIONAL_FONTS.find((f) => f.id === fontId) || PROFESSIONAL_FONTS[0];
     if (typeof window !== 'undefined') {
-      localStorage.setItem(FONT_STORAGE_KEY, font.id);
-
-      // Dynamically load Google Font link
-      let linkElement = document.getElementById('dynamic-progressrooms-font') as HTMLLinkElement;
-      if (!linkElement) {
-        linkElement = document.createElement('link');
-        linkElement.id = 'dynamic-progressrooms-font';
-        linkElement.rel = 'stylesheet';
-        document.head.appendChild(linkElement);
+      try {
+        localStorage.setItem(FONT_STORAGE_KEY, font.id);
+      } catch (e) {
+        console.warn('Unable to persist font to localStorage:', e);
       }
-      linkElement.href = `https://fonts.googleapis.com/css2?family=${font.googleFontQuery}&display=swap`;
 
-      // Apply CSS font variables to root
+      const isDefault = font.id === DEFAULT_FONT_ID;
+      const isCormorant = font.id === 'cormorant-manrope';
+      let linkElement = document.getElementById('dynamic-progressrooms-font') as HTMLLinkElement | null;
+      if (isDefault || isCormorant) {
+        // The root layout already self-hosts these families with next/font.
+        linkElement?.remove();
+      } else {
+        if (!linkElement) {
+          linkElement = document.createElement('link');
+          linkElement.id = 'dynamic-progressrooms-font';
+          linkElement.rel = 'stylesheet';
+          document.head.appendChild(linkElement);
+        }
+        const href = `https://fonts.googleapis.com/css2?family=${font.googleFontQuery}&display=swap`;
+        if (linkElement.getAttribute('href') !== href) linkElement.href = href;
+      }
+
       const root = document.documentElement;
-      root.style.setProperty('--font-serif', font.headingFamily);
-      root.style.setProperty('--font-sans', font.bodyFamily);
-      root.style.fontFamily = font.bodyFamily;
+      const headingFamily = isDefault ? `var(--font-lora), ${font.headingFamily}` : isCormorant ? `var(--font-cormorant), ${font.headingFamily}` : font.headingFamily;
+      const bodyFamily = isDefault ? `var(--font-lora), ${font.bodyFamily}` : isCormorant ? `var(--font-manrope), ${font.bodyFamily}` : font.bodyFamily;
+      root.style.setProperty('--font-serif', headingFamily);
+      root.style.setProperty('--font-sans', bodyFamily);
+      root.style.fontFamily = bodyFamily;
 
       // Dispatch custom event for real-time reactivity across components
       window.dispatchEvent(new CustomEvent('progressrooms_font_changed', { detail: font }));
@@ -109,6 +128,15 @@ class ThemeService {
 
   public initFont() {
     if (typeof window === 'undefined') return;
+    try {
+      // Replace the previously auto-saved default once; keep explicit alternatives.
+      if (!localStorage.getItem('progressrooms_lora_default_applied')) {
+        if (localStorage.getItem(FONT_STORAGE_KEY) === 'cormorant-manrope') {
+          localStorage.removeItem(FONT_STORAGE_KEY);
+        }
+        localStorage.setItem('progressrooms_lora_default_applied', '1');
+      }
+    } catch { /* The default also works without browser storage. */ }
     this.applyFont(this.getActiveFontId());
   }
 }

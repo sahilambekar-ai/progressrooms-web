@@ -8,13 +8,8 @@ interface FontSelectorProps {
   variant?: 'compact' | 'full';
 }
 
-export const FontInitializer = () => {
-  useEffect(() => { themeService.initFont(); }, []);
-  return null;
-};
-
 export const FontSelector: React.FC<FontSelectorProps> = ({ variant = 'compact' }) => {
-  const [activeFont, setActiveFont] = useState<DashboardFont>(() => themeService.getActiveFont());
+  const [activeFont, setActiveFont] = useState<DashboardFont>(PROFESSIONAL_FONTS[0]);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 

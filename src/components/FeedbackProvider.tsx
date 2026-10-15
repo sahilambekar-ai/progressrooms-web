@@ -4,10 +4,12 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { Modal } from "./Modal";
 
+const GLOBAL_TOAST_AUTO_CLOSE_DELAY_MS = 3000;
+
 type Tone = "success" | "error" | "info";
 type Confirmation = { title: string; description: string; confirmLabel?: string; destructive?: boolean };
 type Toast = { id: number; message: string; tone: Tone };
-type Feedback = { notify: (message: string, tone?: Tone) => void; confirm: (options: Confirmation) => Promise<boolean> };
+type Feedback = { notify: (message: string, tone?: Tone, delay?: number) => void; confirm: (options: Confirmation) => Promise<boolean> };
 const Context = createContext<Feedback | null>(null);
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
@@ -22,11 +24,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     timers.current.delete(id);
     setToasts((items) => items.filter((item) => item.id !== id));
   }, []);
-  const notify = useCallback((message: string, tone: Tone = "info") => {
+  const notify = useCallback((message: string, tone: Tone = "info", delay: number = GLOBAL_TOAST_AUTO_CLOSE_DELAY_MS) => {
     const id = ++sequence.current;
     setToasts((items) => [...items.slice(-3), { id, message, tone }]);
-    // Errors remain available until dismissed, so slower readers don't miss them.
-    if (tone !== "error") timers.current.set(id, setTimeout(() => dismiss(id), 7000));
+    // Global auto-close delay of 3 seconds for all toasts on every page
+    timers.current.set(id, setTimeout(() => dismiss(id), delay));
   }, [dismiss]);
   const confirm = useCallback((options: Confirmation) => new Promise<boolean>((resolve) => {
     // Prevent rapid double clicks from scheduling the same destructive action twice.
@@ -63,14 +65,13 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         </div>;
       })}
     </div>
-    {confirmation && <Modal title={confirmation.title} onClose={() => answer(false)}>
-      <div className="w-full max-w-md rounded-3xl bg-white p-5 sm:p-7">
-        <div className={`mb-4 inline-flex rounded-2xl p-3 ${confirmation.destructive ? "bg-red-50 text-red-700" : "bg-[#E8F0E9] text-[#1b4332]"}`}><AlertCircle size={24} /></div>
-        <h3 className="text-2xl font-bold">{confirmation.title}</h3>
-        <p className="mt-3 text-sm leading-relaxed text-slate-600">{confirmation.description}</p>
-        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button autoFocus type="button" className="btn-sage px-5 py-3" onClick={() => answer(false)}>Cancel</button>
-          <button type="button" className={`rounded-xl px-5 py-3 font-semibold text-white ${confirmation.destructive ? "bg-red-700 hover:bg-red-800" : "bg-[#133623] hover:bg-[#0C2417]"}`} onClick={() => answer(true)}>{confirmation.confirmLabel || "Confirm"}</button>
+    {confirmation && <Modal title="" isConfirmation onClose={() => answer(false)} maxWidth="max-w-md">
+      <div className="w-full p-6 sm:p-7">
+        <h3 className="font-serif text-2xl sm:text-[26px] font-bold text-[#0C2417] leading-snug">{confirmation.title}</h3>
+        <p className="mt-2 text-sm leading-relaxed text-slate-600">{confirmation.description}</p>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end confirmation-actions">
+          <button autoFocus type="button" className="btn-sage px-3.5 py-2 text-xs font-semibold rounded-lg !min-h-0 inline-flex items-center justify-center transition" onClick={() => answer(false)}>Cancel</button>
+          <button type="button" className={`rounded-lg px-4 py-2 text-xs font-semibold text-white !min-h-0 inline-flex items-center justify-center transition ${confirmation.destructive ? "bg-red-700 hover:bg-red-800" : "bg-[#133623] hover:bg-[#0C2417]"}`} onClick={() => answer(true)}>{confirmation.confirmLabel || "Confirm"}</button>
         </div>
       </div>
     </Modal>}
