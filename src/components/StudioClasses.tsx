@@ -1,28 +1,15 @@
 "use client";
 
+import { ScheduleInput } from "@/components/ScheduleInput";
+
 import { useEffect, useState } from "react";
 import { staffApi } from "@/lib/staff-api";
 import { Modal } from "@/components/Modal";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { CatalogHistoryTabs } from "@/components/CatalogHistoryTabs";
 import { LiveStatusToggle } from "@/components/LiveStatusToggle";
-import {
-  Video,
-  Calendar,
-  Clock,
-  Plus,
-  RefreshCw,
-  CheckCircle2,
-  Pencil,
-  Trash2,
-  X,
-  Users,
-  IndianRupee,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Filter,
-} from "lucide-react";
+import { WhatsAppNotificationHint } from "@/components/WhatsAppNotificationHint";
+import { Video, Calendar, Clock, Plus, RefreshCw, CheckCircle2, Pencil, Trash2, X, Users, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
 
 type ClassItem = {
   id: string;
@@ -468,7 +455,7 @@ export function StudioClasses({
     new Date(value).toLocaleTimeString([], { timeZone: agendaZone, hour: "2-digit", minute: "2-digit" });
 
   return (
-    <section className="space-y-6">
+    <section className="relative space-y-6">
       {/* HEADER SECTION WITH TOP-RIGHT ACTION BUTTON */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -544,7 +531,7 @@ export function StudioClasses({
               .map((item) => (
                 <article
                   key={item.id}
-                  className={`p-6 bg-white rounded-2xl border transition shadow-sm ${
+                  className={`relative p-6 bg-white rounded-2xl border transition shadow-sm ${
                     item.is_current ? "border-emerald-600 ring-2 ring-emerald-500/20" : "border-[#CEDECF]"
                   }`}
                 >
@@ -556,6 +543,7 @@ export function StudioClasses({
                         </span>
                       )}
                       <h3 className="text-lg font-bold text-[#0C2417]">{item.name}</h3>
+                      {item.status !== "COMPLETED" && item.status !== "CANCELLED" && new Date(item.end_at) > new Date() && <WhatsAppNotificationHint kind="reminder" />}
                       <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                         <Clock className="h-3.5 w-3.5 text-[#81A882]" />
                         {time(item.start_at)} – {time(item.end_at)}
@@ -778,7 +766,7 @@ export function StudioClasses({
                   return (
                     <article
                       key={c.id}
-                      className="px-5 py-4 border border-[#CEDECF] rounded-2xl bg-white shadow-sm hover:shadow-md transition space-y-3 flex flex-col justify-between"
+                      className="relative px-5 py-4 border border-[#CEDECF] rounded-2xl bg-white shadow-sm hover:shadow-md transition space-y-3 flex flex-col justify-between"
                     >
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
@@ -795,6 +783,7 @@ export function StudioClasses({
                               )}
                             </div>
                             <h3 className="font-bold text-base text-[#0C2417] leading-tight">{c.name}</h3>
+                            {!showHistory && isLive && <WhatsAppNotificationHint kind="changes" />}
                           </div>
 
                           <div className="flex flex-col items-end gap-2">
@@ -995,7 +984,7 @@ export function StudioClasses({
           confirmDiscard
         >
           <div className="p-6 space-y-5">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="relative space-y-4">
               <div className="space-y-1">
                 <p className="text-xs font-semibold">Class status</p>
                 <LiveStatusToggle live={isActive} onChange={setIsActive} name="Class status" />
@@ -1032,33 +1021,33 @@ export function StudioClasses({
 
                 <label className="font-semibold text-slate-700">
                   Start Time *
-                  <input
+                  <ScheduleInput
                     required
                     type="time"
                     value={start}
-                    onChange={(e) => setStart(e.target.value)}
+                    onValueChange={setStart}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
 
                 <label className="font-semibold text-slate-700">
                   End Time *
-                  <input
+                  <ScheduleInput
                     required
                     type="time"
                     value={end}
-                    onChange={(e) => setEnd(e.target.value)}
+                    onValueChange={setEnd}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
 
                 <label className="font-semibold text-slate-700">
                   First Session Date *
-                  <input
+                  <ScheduleInput
                     required
                     type="date"
                     value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    onValueChange={setDate}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
@@ -1091,9 +1080,9 @@ export function StudioClasses({
 
               <fieldset className="space-y-1">
                 <legend className="text-xs font-semibold text-slate-700 mb-1">Teaching Days *</legend>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2">
                   {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, i) => (
-                    <label key={day} className="flex items-center gap-1.5 text-xs text-slate-700 font-medium cursor-pointer">
+                    <label key={day} className="teaching-day-choice">
                       <input
                         type="checkbox"
                         checked={days.includes(i)}
@@ -1241,6 +1230,7 @@ export function StudioClasses({
                 >
                   {busy ? "Saving…" : editingClass ? "Update Class Batch" : "Save Class Batch"}
                 </button>
+                <WhatsAppNotificationHint kind={editingClass ? "changes" : "reminder"} />
               </div>
             </form>
           </div>
@@ -1258,7 +1248,7 @@ export function StudioClasses({
           confirmDiscard
         >
           <div className="p-6 space-y-5">
-            <form onSubmit={handleOneOnOneSubmit} className="space-y-4">
+            <form onSubmit={handleOneOnOneSubmit} className="relative space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700">
                   Class Title *
@@ -1311,33 +1301,33 @@ export function StudioClasses({
 
                 <label className="font-semibold text-slate-700 sm:col-span-2">
                   Session Date *
-                  <input
+                  <ScheduleInput
                     required
                     type="date"
                     value={oneOnOneDate}
-                    onChange={(e) => setOneOnOneDate(e.target.value)}
+                    onValueChange={setOneOnOneDate}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
 
                 <label className="font-semibold text-slate-700">
                   Start Time *
-                  <input
+                  <ScheduleInput
                     required
                     type="time"
                     value={oneOnOneStart}
-                    onChange={(e) => setOneOnOneStart(e.target.value)}
+                    onValueChange={setOneOnOneStart}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
 
                 <label className="font-semibold text-slate-700">
                   End Time *
-                  <input
+                  <ScheduleInput
                     required
                     type="time"
                     value={oneOnOneEnd}
-                    onChange={(e) => setOneOnOneEnd(e.target.value)}
+                    onValueChange={setOneOnOneEnd}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
@@ -1382,6 +1372,7 @@ export function StudioClasses({
                 >
                   {busy ? "Scheduling…" : "Create 1-on-1 Class"}
                 </button>
+                <WhatsAppNotificationHint kind="reminder" />
               </div>
             </form>
           </div>

@@ -1,35 +1,20 @@
 "use client";
 import { useCallback, useEffect, useState } from 'react';
+import dynamic from "next/dynamic";
+import { PanelLoading } from "@/components/PanelLoading";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  Video,
-  CalendarDays,
-  ArrowRight,
-  MessageSquare,
-  Plus,
-  Search,
-  Filter,
-  AlertCircle,
-  Loader2,
-  CheckCircle2,
-  Copy,
-  Share2,
-  User,
-  Clock,
-  MapPin,
-  X,
-  Check,
-  RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import { Video, CalendarDays, ArrowRight, MessageSquare, Plus, Search, AlertCircle, Loader2, CheckCircle2, Copy, Share2, User, Clock, MapPin, Check, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
-import { StudioExplore } from '@/components/StudioExplore';
-import { AttendanceCalendar, CalendarSessionEvent } from '@/components/AttendanceCalendar';
+import type { CalendarSessionEvent } from '@/components/AttendanceCalendar';
 import { Modal } from '@/components/Modal';
-import { StoreCheckout, Purchase } from '@/components/StoreCheckout';
+import type { Purchase } from '@/components/StoreCheckout';
 import { PublicWebsitePayload } from '@/types';
+import { WhatsAppNotificationHint } from '@/components/WhatsAppNotificationHint';
+
+const StudioExplore = dynamic(() => import('@/components/StudioExplore').then(module => module.StudioExplore), { loading: PanelLoading });
+const AttendanceCalendar = dynamic(() => import('@/components/AttendanceCalendar').then(module => module.AttendanceCalendar), { loading: PanelLoading });
+const StoreCheckout = dynamic(() => import('@/components/StoreCheckout').then(module => module.StoreCheckout), { loading: PanelLoading });
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -1126,12 +1111,13 @@ export default function StudentPortalPage() {
           /* Next Class Hero for Returning Students */
           <section
             aria-label="Your next class"
-            className="bg-gradient-to-br from-[#0C2417] to-[#1b4332] text-white p-6 sm:p-8 rounded-3xl shadow-lg border border-[#2D7A58]"
+            className="relative bg-gradient-to-br from-[#0C2417] to-[#1b4332] text-white p-6 sm:p-8 rounded-3xl shadow-lg border border-[#2D7A58]"
           >
             <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm text-[#b7e4c7]">
               <Video size={16} />
               {nextClass && new Date(nextClass.start_at).getTime() <= now ? 'Live now' : 'Your next class'}
             </span>
+            {nextClass && <WhatsAppNotificationHint kind="reminder" />}
             <h1 className="text-white font-serif text-3xl sm:text-4xl mt-4">
               {loading ? 'Finding your next class…' : nextClass?.session_name || 'Welcome to your learning space'}
             </h1>
@@ -1245,9 +1231,10 @@ export default function StudentPortalPage() {
               </h2>
               <div className="bg-white rounded-3xl border border-[#CEDECF] divide-y divide-[#E1E9E2] shadow-xs">
                 {scheduled.map((c) => (
-                  <article key={c.id} className="p-5 flex flex-wrap items-center justify-between gap-4">
+                  <article key={c.id} className="relative p-5 flex flex-wrap items-center justify-between gap-4">
                     <div>
                       <h3 className="font-semibold text-lg text-[#0C2417]">{c.session_name}</h3>
+                      <WhatsAppNotificationHint kind="reminder" />
                       <p className="text-sm text-slate-500 mt-1">
                         {c.organization_name} · Teacher: {c.instructor_name}
                       </p>

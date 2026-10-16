@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { Modal } from './Modal';
+import { WhatsAppNotificationHint } from './WhatsAppNotificationHint';
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 export interface Purchase { id: string; kind: 'class' | 'pass'; name: string; price: number; offer_price?: number | null; currency: string; total_classes?: number; validity_days?: number }
 export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClose: () => void }) {
@@ -63,7 +64,7 @@ export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClo
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not start checkout.'); setBusy(false); }
   }
   return <Modal title={success ? 'Purchase complete' : 'Review your purchase'} subtitle={success ? 'You’re ready to begin.' : offering.name} onClose={onClose}>
-    <div className="p-6 max-w-lg space-y-5">
+    <div className="relative p-6 max-w-lg space-y-5">
       {success ? <><p>Your purchase is active. Your classes and session allowance are available in your dashboard.</p><a className="block rounded-xl bg-[#133623] text-white text-center p-4" href="/student">Go to my dashboard</a></> : <>
         {offering.offer_price != null && offering.offer_price < offering.price && (
           <p className="text-sm text-slate-500">
@@ -124,6 +125,7 @@ export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClo
           {busy ? 'Please wait…' : pending ? 'Retry payment confirmation' : amountDue === 0 ? 'Confirm free enrollment' : `Pay ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: offering.currency }).format(amountDue)}`}
         </button>
       </>}
+      <WhatsAppNotificationHint description="ProgressRooms Admin: payment confirmation after verified payment. ProgressRooms Classes: reminders 2 hours and 15 minutes before class, with the latest details and access link. Join 5 minutes early." />
     </div>
   </Modal>;
 }

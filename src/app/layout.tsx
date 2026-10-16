@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Lora } from "next/font/google";
 import "./globals.css";
 import { FeedbackProvider } from "@/components/FeedbackProvider";
-import { FontInitializer } from "@/components/FontInitializer";
 import { DeveloperModeProvider } from "@/components/DeveloperModeProvider";
+import { CommunicationChannelsControl } from "@/components/CommunicationChannelsControl";
 
 const lora = Lora({
   subsets: ["latin"],
@@ -32,10 +32,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={lora.variable}>
       <body className="min-h-screen antialiased flex flex-col font-sans bg-[#FAF7F2] text-[#212121]">
-        <FontInitializer />
         <a href="#main-content" className="skip-link">Skip to content</a>
         <DeveloperModeProvider>
           <FeedbackProvider>{children}</FeedbackProvider>
+          <CommunicationChannelsControl />
         </DeveloperModeProvider>
       </body>
     </html>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Calendar, Clock, Users, Shield, ArrowLeft, CheckCircle2, AlertCircle, MapPin, Video, ShieldCheck } from "lucide-react";
+import { Calendar, ArrowLeft, CheckCircle2, AlertCircle, MapPin, Video } from "lucide-react";
 import { PublicSessionDetailPayload } from "@/types";
 import { EnrollmentModal } from "@/components/EnrollmentModal";
 import { BrandLogo } from "@/components/BrandLogo";

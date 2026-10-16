@@ -6,21 +6,7 @@ import { Modal } from "@/components/Modal";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { CatalogHistoryTabs } from "@/components/CatalogHistoryTabs";
 import { LiveStatusToggle } from "@/components/LiveStatusToggle";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  Layers,
-  CheckCircle2,
-  Calendar,
-  Sparkles,
-  Search,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  ChevronDown,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, Search, ChevronLeft, ChevronRight, ChevronDown } from "lucide-react";
 
 interface MembershipTier {
   id: string;

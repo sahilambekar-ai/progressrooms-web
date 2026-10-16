@@ -1,21 +1,5 @@
 import Link from "next/link";
-import {
-  Calendar,
-  Users,
-  Video,
-  CreditCard,
-  Globe,
-  Sparkles,
-  ArrowRight,
-  Check,
-  ShieldCheck,
-  Zap,
-  Lock,
-  MessageSquare,
-  Clock,
-  ChevronRight,
-  X as XIcon
-} from "lucide-react";
+import { Sparkles, ArrowRight, Check, Lock, ChevronRight, X as XIcon } from "lucide-react";
 import { DeveloperOnly } from "@/components/DeveloperModeProvider";
 import { BrandLogo } from "@/components/BrandLogo";
 

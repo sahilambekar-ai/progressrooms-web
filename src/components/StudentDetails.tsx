@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { staffApi } from "@/lib/staff-api";
+import { WhatsAppNotificationHint } from "@/components/WhatsAppNotificationHint";
 
 export interface StudentProfile {
   id: string; student_record_id?: string; name: string; email: string;
@@ -70,7 +71,7 @@ export function StudentDetails({ student, onClose, onSaved }: { student: Student
         <fieldset disabled={busy || !student.student_record_id} className="grid gap-4 sm:grid-cols-2">
           <label className="text-xs font-semibold text-[#1b4332]">Full name *<input className={inputClass} required maxLength={255} value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} /></label>
           <label className="text-xs font-semibold text-[#1b4332]">Phone number *<input className={inputClass} type="tel" autoComplete="tel" required maxLength={50} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
-          <label className="text-xs font-semibold text-[#1b4332]">WhatsApp number (optional)<input className={inputClass} type="tel" maxLength={50} value={form.whatsapp_number} onChange={e => setForm({ ...form, whatsapp_number: e.target.value })} /></label>
+          <div className="relative"><div className="mb-1 flex items-center gap-2"><label htmlFor="student-whatsapp-number" className="text-xs font-semibold text-[#1b4332]">WhatsApp number (optional)</label><WhatsAppNotificationHint kind="contact" /></div><input id="student-whatsapp-number" aria-label="WhatsApp number (optional)" className={inputClass} type="tel" maxLength={50} value={form.whatsapp_number} onChange={e => setForm({ ...form, whatsapp_number: e.target.value })} /></div>
           <label className="text-xs font-semibold text-[#1b4332]">Location<input className={inputClass} maxLength={255} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} /></label>
           <label className="text-xs font-semibold text-[#1b4332]">Student status<select className={inputClass} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as typeof form.status })}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option><option value="SUSPENDED">Suspended</option></select></label>
           <label className="text-xs font-semibold text-[#1b4332] sm:col-span-2">Address<textarea className={inputClass} maxLength={1000} rows={2} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></label>

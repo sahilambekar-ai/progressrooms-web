@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, Calendar, X, Pencil, Loader2, CalendarDays, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Loader2, CalendarDays } from 'lucide-react';
+import { WhatsAppNotificationHint } from '@/components/WhatsAppNotificationHint';
 
 export type CalendarAttendanceStatus = 'PRESENT' | 'ABSENT' | 'CANCELLED' | 'UNMARKED' | 'SCHEDULED' | 'EXCUSED';
 export interface CalendarSessionEvent {
@@ -622,7 +623,7 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
             return (
               <article
                 key={entry.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-[#E1E9E2] bg-white p-3.5 sm:p-4 hover:border-[#CEDECF] transition shadow-xs"
+                className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-[#E1E9E2] bg-white p-3.5 sm:p-4 hover:border-[#CEDECF] transition shadow-xs"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -631,6 +632,7 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
                       style={{ backgroundColor: statusColor(entry.status) }}
                     />
                     <h4 className="font-bold text-sm text-[#0C2417]">{entry.sessionTitle}</h4>
+                    {entry.status === 'SCHEDULED' && <WhatsAppNotificationHint kind="reminder" />}
                     <span
                       className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
                       style={{

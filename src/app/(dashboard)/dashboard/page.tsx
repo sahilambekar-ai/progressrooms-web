@@ -1,70 +1,34 @@
 "use client";
 
+import { ScheduleInput } from "@/components/ScheduleInput";
+
+import { WhatsAppNotificationHint } from "@/components/WhatsAppNotificationHint";
+
 import { DeveloperOnly } from "@/components/DeveloperModeProvider";
 import { StudentDetails } from "@/components/StudentDetails";
 
+import dynamic from "next/dynamic";
+import { PanelLoading } from "@/components/PanelLoading";
+import type { CalendarSessionEvent } from "@/components/AttendanceCalendar";
+
 import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
-import { StudioClasses } from "@/components/StudioClasses";
-import { StudioMemberships } from "@/components/StudioMemberships";
 import { staffApi } from "@/lib/staff-api";
 import { useRouter } from "next/navigation";
-import {
-  Users,
-  Calendar,
-  CreditCard,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Video,
-  BarChart3,
-  Settings,
-  Globe,
-  Plus,
-  Search,
-  MessageSquare,
-  Sparkles,
-  ArrowRight,
-  ExternalLink,
-  ShieldCheck,
-  ChevronRight,
-  AlertTriangle,
-  AlertCircle,
-  X,
-  ChevronLeft,
-  Loader2,
-  Building2,
-  UserCheck,
-  UserX,
-  Activity,
-  Shield,
-  Edit2,
-  Trash2,
-  Mail,
-  Phone,
-  UserPlus,
-  MapPin,
-  Landmark,
-  Check,
-  Copy,
-  RefreshCw,
-  Key,
-  Zap,
-  FileText,
-  Smartphone,
-  Palette,
-  UserRound,
-  MonitorCog,
-  HelpCircle,
-  Share2
-} from "lucide-react";
-import { AttendanceCalendar, CalendarSessionEvent } from "@/components/AttendanceCalendar";
+import { Users, CheckCircle2, Clock, Video, Search, ArrowRight, ExternalLink, ChevronRight, AlertTriangle, AlertCircle, X, ChevronLeft, Loader2, Mail, Phone, UserPlus, MapPin, Landmark, Check, Copy, RefreshCw, Smartphone, UserRound, HelpCircle, Share2 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { Modal } from "@/components/Modal";
 import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
 import { useFeedback } from "@/components/FeedbackProvider";
 import WebsiteEditor from "@/components/website/WebsiteEditor";
-import { BillingCenter } from "@/components/BillingCenter";
+
+
+const CommunicationChannelsPanel = dynamic(() => import("@/components/CommunicationChannelsPanel").then(module => module.CommunicationChannelsPanel), { loading: PanelLoading });
+const StudioClasses = dynamic(() => import("@/components/StudioClasses").then(module => module.StudioClasses), { loading: PanelLoading });
+const StudioMemberships = dynamic(() => import("@/components/StudioMemberships").then(module => module.StudioMemberships), { loading: PanelLoading });
+const AttendanceCalendar = dynamic(() => import("@/components/AttendanceCalendar").then(module => module.AttendanceCalendar), { loading: PanelLoading });
+const BillingCenter = dynamic(() => import("@/components/BillingCenter").then(module => module.BillingCenter), { loading: PanelLoading });
+const StudioAnalytics = dynamic(() => import("@/components/StudioAnalytics").then(module => module.StudioAnalytics), { loading: PanelLoading });
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -254,30 +218,6 @@ const DEFAULT_BATCHES: ClassBatch[] = [
   }
 ];
 
-const INITIAL_STUDENTS: Student[] = [
-  { id: "student-1", name: "Aarav Patel", email: "aarav.patel@gmail.com", phone: "+91 98765 43210", plan: "Morning Hatha Flow (Monthly)", attended: 8, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-2", name: "Pooja Sharma", email: "pooja.sharma@outlook.com", phone: "+91 98765 43211", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-3", name: "Rohan Verma", email: "rohan.verma@yahoo.com", phone: "+91 98765 43212", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON", is_verified: false, verification_status: "NOT VERIFIED" },
-  { id: "student-4", name: "Meera Nair", email: "meera.nair@gmail.com", phone: "+91 98765 43213", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-5", name: "Vikram Iyer", email: "vikram.iyer@gmail.com", phone: "+91 98765 43214", plan: "Meditation & Breathwork", attended: 3, total: 4, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-6", name: "Ananya Desai", email: "ananya.desai@gmail.com", phone: "+91 98765 43215", plan: "Morning Hatha Flow (Monthly)", attended: 10, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-7", name: "Kabir Mehta", email: "kabir.mehta@hotmail.com", phone: "+91 98765 43216", plan: "Aerial Yoga Conditioning", attended: 7, total: 8, status: "EXPIRING_SOON", is_verified: false, verification_status: "NOT VERIFIED" },
-  { id: "student-8", name: "Isha Kapoor", email: "isha.kapoor@gmail.com", phone: "+91 98765 43217", plan: "Meditation & Breathwork", attended: 4, total: 4, status: "EXPIRING_SOON", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-9", name: "Siddharth Rao", email: "siddharth.rao@gmail.com", phone: "+91 98765 43218", plan: "Morning Hatha Flow (Monthly)", attended: 5, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-10", name: "Tara Sundaram", email: "tara.sundaram@gmail.com", phone: "+91 98765 43219", plan: "Aerial Yoga Conditioning", attended: 2, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-11", name: "Aditya Joshi", email: "aditya.joshi@gmail.com", phone: "+91 98765 43220", plan: "Morning Hatha Flow (Monthly)", attended: 9, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-12", name: "Kavya Menon", email: "kavya.menon@outlook.com", phone: "+91 98765 43221", plan: "Aerial Yoga Conditioning", attended: 5, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-13", name: "Nikhil Chawla", email: "nikhil.chawla@gmail.com", phone: "+91 98765 43222", plan: "Meditation & Breathwork", attended: 2, total: 4, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-14", name: "Divya Nambiar", email: "divya.nambiar@gmail.com", phone: "+91 98765 43223", plan: "Morning Hatha Flow (Monthly)", attended: 12, total: 12, status: "EXPIRING_SOON", is_verified: false, verification_status: "NOT VERIFIED" },
-  { id: "student-15", name: "Arjun Reddy", email: "arjun.reddy@gmail.com", phone: "+91 98765 43224", plan: "Aerial Yoga Conditioning", attended: 3, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-16", name: "Sneha Mukherjee", email: "sneha.mukherjee@gmail.com", phone: "+91 98765 43225", plan: "Morning Hatha Flow (Monthly)", attended: 7, total: 12, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-17", name: "Rishi Saxena", email: "rishi.saxena@gmail.com", phone: "+91 98765 43226", plan: "Meditation & Breathwork", attended: 1, total: 4, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-18", name: "Prerna Roy", email: "prerna.roy@gmail.com", phone: "+91 98765 43227", plan: "Aerial Yoga Conditioning", attended: 6, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" },
-  { id: "student-19", name: "Manish Agarwal", email: "manish.agarwal@gmail.com", phone: "+91 98765 43228", plan: "Morning Hatha Flow (Monthly)", attended: 11, total: 12, status: "EXPIRING_SOON", is_verified: false, verification_status: "NOT VERIFIED" },
-  { id: "student-20", name: "Zoya Khan", email: "zoya.khan@gmail.com", phone: "+91 98765 43229", plan: "Aerial Yoga Conditioning", attended: 4, total: 8, status: "ACTIVE", is_verified: true, verification_status: "VERIFIED" }
-];
-
-
 
 export default function DashboardAccess() {
   const router = useRouter();
@@ -385,7 +325,6 @@ function AdminDashboardPage() {
   const [isSavingTeacherProfile, setIsSavingTeacherProfile] = useState(false);
 
 
-
   // Live Class Attendance state (for Attendance Tracker live occurrence marking)
   const [liveAttendanceDate, setLiveAttendanceDate] = useState(() => new Date().toLocaleDateString("en-CA"));
   const [liveAttendanceClasses, setLiveAttendanceClasses] = useState<any[]>([]);
@@ -398,7 +337,6 @@ function AdminDashboardPage() {
   const [studioProfile, setStudioProfile] = useState<StudioProfile | null>(null);
   const [isAccountCompleted, setIsAccountCompleted] = useState<boolean>(false);
   const [completionStep, setCompletionStep] = useState<number>(1);
-  const [completionPercentage, setCompletionPercentage] = useState<number>(0);
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
   const [isConnectingZoom, setIsConnectingZoom] = useState<boolean>(false);
 
@@ -708,14 +646,6 @@ function AdminDashboardPage() {
   const [rosterFilter, setRosterFilter] = useState<"ALL" | "ATTENDED" | "ABSENT" | "EXCUSED" | "UNMARKED">("ALL");
   const [markingEnrollmentId, setMarkingEnrollmentId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [selectedBatchId, setSelectedBatchId] = useState("batch-1");
-  const [attendanceRecords, setAttendanceRecords] = useState<Record<string, "ATTENDED" | "ABSENT">>({
-    "student-1": "ATTENDED",
-    "student-2": "ATTENDED",
-    "student-3": "ABSENT",
-    "student-4": "ATTENDED",
-    "student-5": "ATTENDED",
-  });
 
   const openAttendanceFor = (type: "teacher" | "student", person?: StudioTeacher | Student) => {
     const isTeacherUser = currentUser?.role === "TEACHER" || currentUser?.role === "INSTRUCTOR";
@@ -905,33 +835,6 @@ function AdminDashboardPage() {
       console.warn("Could not load support tickets", e);
     } finally {
       setQueriesLoading(false);
-    }
-  };
-
-  // Reconciled Studio Analytics State
-  const [studioAnalytics, setStudioAnalytics] = useState<{
-    active_enrolled_students: number;
-    active_recurring_batches: number;
-    total_support_queries: number;
-    projected_subscription_value: number;
-    collected_revenue: number;
-    billed_revenue: number;
-    currency: string;
-    explanation: string;
-  } | null>(null);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-
-  const fetchStudioAnalytics = async () => {
-    const orgId = currentUser?.organization_id;
-    if (!orgId) return;
-    setAnalyticsLoading(true);
-    try {
-      const res = await staffApi(`/organizations/${orgId}/analytics`);
-      setStudioAnalytics(res);
-    } catch (e) {
-      console.warn("Could not load studio analytics", e);
-    } finally {
-      setAnalyticsLoading(false);
     }
   };
 
@@ -1271,7 +1174,6 @@ function AdminDashboardPage() {
         if (data.name) setSetupStudioName(data.name);
         if (data.phone) setSetupPhone(data.phone);
         if (data.whatsapp_number) setSetupWhatsappNumber(data.whatsapp_number);
-        if (data.completion_percentage !== undefined) setCompletionPercentage(data.completion_percentage);
         if (data.support_email) setSetupSupportEmail(data.support_email);
         if (data.studio_tagline) setSetupStudioTagline(data.studio_tagline);
         if (data.disciplines) {
@@ -1397,8 +1299,7 @@ function AdminDashboardPage() {
       });
 
       if (res.ok) {
-        const resData = await res.json();
-        if (resData.completion_percentage !== undefined) setCompletionPercentage(resData.completion_percentage);
+        await res.json();
         if (nextStep) setCompletionStep(nextStep);
         showToast("🌿 Studio setup progress saved!");
         fetchStudioProfile(orgId);
@@ -1584,7 +1485,6 @@ function AdminDashboardPage() {
 
       setIsAccountCompleted(true);
       setCompletionStep(6);
-      setCompletionPercentage(100);
       if (currentUser) {
         const updated = {
           ...currentUser,
@@ -1603,7 +1503,6 @@ function AdminDashboardPage() {
     } catch (e) {
       setIsAccountCompleted(true);
       setCompletionStep(6);
-      setCompletionPercentage(100);
       showToast("🎉 Studio Account Completed! Values saved to Studio Profiler.");
       setActiveTab("settings");
     } finally {
@@ -1618,9 +1517,6 @@ function AdminDashboardPage() {
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
         setCurrentUser(parsed);
-        if (parsed.completion_percentage !== undefined) {
-          setCompletionPercentage(parsed.completion_percentage);
-        }
         if (parsed.full_name) setTeacherProfileName(parsed.full_name);
         if (parsed.phone) setTeacherProfilePhone(parsed.phone);
         if (parsed.address) setTeacherProfileAddress(parsed.address);
@@ -1664,9 +1560,6 @@ function AdminDashboardPage() {
         const prof = JSON.parse(storedProfile);
         setStudioProfile(prof);
         setIsAccountCompleted(Boolean(prof.account_completed));
-        if (prof.completion_percentage !== undefined) {
-          setCompletionPercentage(prof.completion_percentage);
-        }
         setZoomConnected(Boolean(prof.zoom_connected));
       }
 
@@ -1674,14 +1567,8 @@ function AdminDashboardPage() {
       if (storedBatches) {
         setBatches(JSON.parse(storedBatches));
       }
-      const storedAttendance = localStorage.getItem("pr_attendance_records");
-      if (storedAttendance) {
-        setAttendanceRecords(JSON.parse(storedAttendance));
-      }
 
-      // Initialize students and support queries count for analytics overview
-      fetchStudents();
-      fetchQueries();
+
     } catch (e) {
       // Ignore localStorage errors
     }
@@ -1695,20 +1582,17 @@ function AdminDashboardPage() {
     }
   }, [activeTab, teacherSearch, teacherPage, teacherPageSize, teacherSortBy, teacherSortOrder, isTeacher]);
 
-  // Trigger Students API query when browsing students or analytics tab
+  // Load management tables only while their tab is visible.
   useEffect(() => {
-    if (activeTab === "students" || activeTab === "analytics") {
+    if (activeTab === "students") {
       fetchStudents();
     }
   }, [activeTab, currentPage, pageSize, studentSearch, studentStatusFilter, studentSortBy, studentSortOrder, currentUser?.organization_id]);
 
-  // Trigger Support Queries API when browsing queries or analytics tab
+  // Analytics has its own aggregate request in the deferred panel.
   useEffect(() => {
-    if (activeTab === "queries-manager" || activeTab === "analytics") {
+    if (activeTab === "queries-manager") {
       fetchQueries();
-    }
-    if (activeTab === "analytics" && !isTeacher) {
-      fetchStudioAnalytics();
     }
   }, [activeTab, ticketStatusFilter, currentUser?.organization_id, isTeacher]);
 
@@ -1867,57 +1751,6 @@ function AdminDashboardPage() {
     );
   };
 
-  const toggleAttendance = (studentId: string) => {
-    const current = attendanceRecords[studentId] || "ABSENT";
-    const next: "ATTENDED" | "ABSENT" = current === "ATTENDED" ? "ABSENT" : "ATTENDED";
-    const updated: Record<string, "ATTENDED" | "ABSENT"> = { ...attendanceRecords, [studentId]: next };
-    setAttendanceRecords(updated);
-
-    // Update student attended count reactively
-    const updatedStudents = students.map((s) => {
-      if (s.id === studentId) {
-        const diff = next === "ATTENDED" ? 1 : -1;
-        return { ...s, attended: Math.max(0, s.attended + diff) };
-      }
-      return s;
-    });
-    setStudents(updatedStudents);
-
-    try {
-      localStorage.setItem("pr_attendance_records", JSON.stringify(updated));
-      localStorage.setItem("pr_students_list", JSON.stringify(updatedStudents));
-    } catch (err) {}
-
-    showToast(`Attendance updated: ${next}`);
-  };
-
-  const handleMarkAll = async (status: "ATTENDED" | "ABSENT") => {
-    if (!await confirmAction({ title: status === "ATTENDED" ? "Mark roster present?" : "Clear roster attendance?", description: `This updates ${students.length} students in the loaded roster for ${selectedDate}. Review the roster before continuing.`, confirmLabel: status === "ATTENDED" ? "Mark present" : "Clear roster", destructive: status === "ABSENT" })) return;
-    const updated: Record<string, "ATTENDED" | "ABSENT"> = { ...attendanceRecords };
-    students.forEach((s) => {
-      updated[s.id] = status;
-    });
-    setAttendanceRecords(updated);
-
-    const updatedStudents = students.map((s) => ({
-      ...s,
-      attended: Math.max(0, Math.min(s.total, s.attended + (status === "ATTENDED" ? 1 : 0) - (attendanceRecords[s.id] === "ATTENDED" ? 1 : 0)))
-    }));
-    setStudents(updatedStudents);
-
-    try {
-      localStorage.setItem("pr_attendance_records", JSON.stringify(updated));
-      localStorage.setItem("pr_students_list", JSON.stringify(updatedStudents));
-    } catch (err) {}
-
-    showToast(`All students marked as ${status}`);
-  };
-
-  const resolveQuery = (id: string) => {
-    setQueries(queries.map(q => q.id === id ? { ...q, status: "RESOLVED" } : q));
-    showToast("Query marked as resolved");
-  };
-
   const selectedAttendancePerson = attendanceType === "teacher" ? selectedAttendanceTeacher : selectedAttendanceStudent;
   const displayPersonSearch = attendanceSuggestionsOpen
     ? attendancePersonSearch
@@ -2021,7 +1854,6 @@ function AdminDashboardPage() {
   const userDisplayEmail = currentUser?.email || (isSuperAdmin ? "admin@progressrooms.com" : (isTeacher ? "teacher@yogastudio.com" : "owner@yogastudio.com"));
   const userInitials = isSuperAdmin ? "SA" : (isTeacher ? "TC" : "SO");
 
-  const selectedBatch = batches.find((b) => b.id === selectedBatchId) || batches[0];
 
   return (
     <div className="dashboard-shell bg-[#FAF7F2] text-[#212121] font-sans" data-dashboard-theme={dashboardTheme}>
@@ -2625,8 +2457,10 @@ function AdminDashboardPage() {
                   <p className="text-xs font-bold text-[#0C2417]">PostgreSQL Connection Pool</p>
                   <p className="text-[10px] text-slate-500">asyncpg max_size=20 localhost:5432</p>
                 </div>
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg">CONNECTED</span>
               </div>
+            </div>
+            <div className="max-w-2xl">
+              <CommunicationChannelsPanel isEmbedded={true} />
             </div>
           </div>
         )}
@@ -2898,10 +2732,11 @@ function AdminDashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                  <div className="relative">
                     <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                       WhatsApp Contact Number
                     </label>
+                    <WhatsAppNotificationHint kind="contact" />
                     <div className="relative">
                       <Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
@@ -2912,7 +2747,7 @@ function AdminDashboardPage() {
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1">Used for student booking confirmations & WhatsApp class reminders.</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Your studio recipient number for ProgressRooms notices. Messages to students use each student’s own number.</p>
                   </div>
 
                   <div>
@@ -4715,11 +4550,11 @@ function AdminDashboardPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <label htmlFor="live-attendance-date" className="text-xs font-bold text-slate-700">Date:</label>
-                      <input
+                      <ScheduleInput
                         id="live-attendance-date"
                         type="date"
                         value={liveAttendanceDate}
-                        onChange={(e) => setLiveAttendanceDate(e.target.value)}
+                        onValueChange={setLiveAttendanceDate}
                         className="border border-[#CEDECF] rounded-xl px-3 py-1.5 text-xs text-slate-900 font-semibold focus:ring-2 focus:ring-[#133623]"
                       />
                     </div>
@@ -5015,7 +4850,6 @@ function AdminDashboardPage() {
             })()}
 
 
-
           </div>
         )}
 
@@ -5235,99 +5069,8 @@ function AdminDashboardPage() {
         )}
 
         {/* TAB 6: ANALYTICS & REVENUE */}
-        {activeTab === "analytics" && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Studio Analytics & Reconciled Aggregates</h1>
-                <p className="text-xs text-[#40514E] mt-0.5">Aggregated metrics derived from active database records and verified enrollments.</p>
-              </div>
-              <button
-                type="button"
-                onClick={fetchStudioAnalytics}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#CEDECF] text-xs font-bold text-[#133623] hover:bg-[#FAF7F2] transition shadow-xs self-start sm:self-auto"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${analyticsLoading ? "animate-spin" : ""}`} />
-                <span>Refresh Metrics</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs text-slate-500 font-medium">Active Enrolled Students</span>
-                <h3 className="text-3xl font-black text-[#0C2417]">
-                  {studioAnalytics ? studioAnalytics.active_enrolled_students : (students.filter(s => s.status === 'ACTIVE').length || 0)}
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">Distinct students with confirmed active class enrollments</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs text-slate-500 font-medium">Active Recurring Batches</span>
-                <h3 className="text-3xl font-black text-[#0C2417]">
-                  {studioAnalytics ? studioAnalytics.active_recurring_batches : batches.length}
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">Weekly configured active class schedules</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs text-slate-500 font-medium">Total Support Queries</span>
-                <h3 className="text-3xl font-black text-[#0C2417]">
-                  {studioAnalytics ? studioAnalytics.total_support_queries : queries.length}
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">Student conversations in ticket queue</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs text-slate-500 font-medium">Projected Subscription Value</span>
-                <h3 className="text-3xl font-black text-[#0C2417]">
-                  {new Intl.NumberFormat('en-IN', { style: 'currency', currency: studioAnalytics?.currency || 'INR', maximumFractionDigits: 0 }).format(
-                    studioAnalytics?.projected_subscription_value ?? batches.reduce((sum, b) => sum + (Number(b.price?.replace(/[^0-9.-]+/g, '')) || 0), 0)
-                  )}
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">Sum of active batch subscription fees & passes</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs text-slate-500 font-medium">Collected Gateway Revenue</span>
-                <h3 className="text-3xl font-black text-emerald-800">
-                  {new Intl.NumberFormat('en-IN', { style: 'currency', currency: studioAnalytics?.currency || 'INR', maximumFractionDigits: 0 }).format(
-                    studioAnalytics?.collected_revenue ?? 0
-                  )}
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">Total captured payment transactions from payment gateways</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs text-slate-500 font-medium">Scheduled Billed Revenue</span>
-                <h3 className="text-3xl font-black text-[#0C2417]">
-                  {new Intl.NumberFormat('en-IN', { style: 'currency', currency: studioAnalytics?.currency || 'INR', maximumFractionDigits: 0 }).format(
-                    studioAnalytics?.billed_revenue ?? 0
-                  )}
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">Total subscription billing commitment from enrollments</p>
-              </div>
-            </div>
-
-            <div className="p-5 rounded-2xl bg-[#FAF7F2] border border-[#CEDECF] text-xs text-slate-600 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-base">📊</span>
-                <span className="font-bold text-[#0C2417] text-sm">Revenue Accounting & Gateway Reconciliation</span>
-              </div>
-              <p className="leading-relaxed">
-                <strong>Billed Revenue vs Collected Revenue:</strong> Billed revenue represents the total contracted subscription value calculated from enrolled student memberships. Collected revenue represents actual net funds captured via Razorpay/payment gateways. Scheduled billing reports currently exclude real-time gateway settlements until reconciled.
-              </p>
-              <div className="pt-2 border-t border-[#E1E9E2] flex items-center justify-between">
-                <span>Need itemized ledger rows or CSV accounting reports?</span>
-                <button
-                  type="button"
-                  onClick={() => navigateToTab("billing-dashboard")}
-                  className="font-bold text-[#133623] underline hover:text-[#0C2417]"
-                >
-                  Open Billing Center & Export CSV →
-                </button>
-              </div>
-            </div>
-          </div>
+        {activeTab === "analytics" && currentUser?.organization_id && (
+          <StudioAnalytics organizationId={currentUser.organization_id} onOpenBilling={() => navigateToTab("billing-dashboard")} />
         )}
 
         {activeTab === "billing-dashboard" && currentUser?.organization_id && (
@@ -5557,18 +5300,17 @@ function AdminDashboardPage() {
                       </p>
                     </div>
 
-                    <div className="p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2]">
+                    <div className="relative p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2]">
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                          <Smartphone className="h-3 w-3 text-emerald-600" /> WhatsApp Contact
+                          WhatsApp Contact
                         </label>
-                        <span className="text-[9px] font-bold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
-                          Active
-                        </span>
+
                       </div>
                       <p className="font-bold text-[#0C2417] text-xs mt-1">
                         {setupWhatsappNumber || studioProfile?.whatsapp_number || setupPhone || "+91 98765 43210"}
                       </p>
+                      <WhatsAppNotificationHint kind="contact" />
                     </div>
 
                     <div className="p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] sm:col-span-2">
@@ -6121,11 +5863,11 @@ function AdminDashboardPage() {
                   <label htmlFor="dashboard-page-field-22" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Start Time
                   </label>
-                  <input id="dashboard-page-field-22"
+                  <ScheduleInput id="dashboard-page-field-22"
                     type="time"
                     required
                     value={newBatchStart}
-                    onChange={(e) => setNewBatchStart(e.target.value)}
+                    onValueChange={setNewBatchStart}
                     className="w-full px-2.5 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
                   />
                 </div>
@@ -6134,11 +5876,11 @@ function AdminDashboardPage() {
                   <label htmlFor="dashboard-page-field-23" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     End Time
                   </label>
-                  <input id="dashboard-page-field-23"
+                  <ScheduleInput id="dashboard-page-field-23"
                     type="time"
                     required
                     value={newBatchEnd}
-                    onChange={(e) => setNewBatchEnd(e.target.value)}
+                    onValueChange={setNewBatchEnd}
                     className="w-full px-2.5 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
                   />
                 </div>
@@ -6415,7 +6157,7 @@ function AdminDashboardPage() {
           <div className="p-6 space-y-4">
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
               <div><dt className="text-xs text-slate-500">Email</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.email}</dd></div>
-              <div><dt className="text-xs text-slate-500">Phone</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.phone || "Not provided"}</dd></div>
+              <div className="relative"><dt className="text-xs text-slate-500">Phone</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.phone || "Not provided"}</dd><WhatsAppNotificationHint kind="contact" /></div>
               <div><dt className="text-xs text-slate-500">Status</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.status}</dd></div>
               <div><dt className="text-xs text-slate-500">Joined</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.joined_at}</dd></div>
             </dl>
