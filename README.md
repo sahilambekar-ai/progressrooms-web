@@ -21,3 +21,15 @@ npm install
 npm run dev
 ```
 Open `http://localhost:3000` to view the application.
+
+## Small production deployment
+
+Run `npm run build:standalone`, then deploy `.next/standalone` and start its
+`server.js` with Node (`npm run start:standalone` from this checkout). The packaging
+step includes `public` and `.next/static`; deploy the prepared directory rather
+than the full development `node_modules` or build cache. Set `PORT` and `HOSTNAME`
+for the deployment environment. Normal builds still require Google Fonts access
+for the existing `next/font` Lora configuration.
+
+`npm run typecheck` also rejects unused locals and parameters. Dashboard panels
+load when opened; the global communication button loads its panel on demand.

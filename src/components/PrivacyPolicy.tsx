@@ -1,0 +1,48 @@
+"use client";
+
+import { useState } from "react";
+import { Modal } from "@/components/Modal";
+import { privacySections, PRIVACY_POLICY_VERSION, type PrivacyAudience } from "@/lib/privacy/policy";
+
+export function PrivacyPolicyContent({ audience, includeBoth = false }: { audience: PrivacyAudience; includeBoth?: boolean }) {
+  const sections = privacySections(audience);
+  if (includeBoth) sections.splice(1, 0, privacySections(audience === "STUDIO" ? "STUDENT" : "STUDIO")[0]);
+  return <div className="space-y-5 text-sm leading-7 text-[#34473a]">
+    <p className="text-xs text-[#637466]">Last updated: {PRIVACY_POLICY_VERSION} · {audience === "STUDIO" ? "Studios and their teachers" : "Students"}</p>
+    {sections.map(section => <section key={section.title}>
+      <h3 className="font-bold text-[#133623]">{section.title}</h3>
+      <p className="mt-1">{section.text}</p>
+    </section>)}
+  </div>;
+}
+
+export function PrivacyConsent({ audience, accepted, onChange }: {
+  audience: PrivacyAudience; accepted: boolean; onChange: (value: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return <>
+    <div className="flex items-start gap-3 rounded-xl border border-[#CEDECF] bg-[#F4F7F4] p-4 text-sm leading-6">
+      <input id="registration-privacy-consent" type="checkbox" required checked={accepted}
+        onChange={e => onChange(e.target.checked)} className="mt-1 h-4 w-4 shrink-0 accent-[#133623]" />
+      <div>
+        <label htmlFor="registration-privacy-consent">I have read the Privacy Policy and consent to the account and service use of my information described in it.{audience === "STUDIO" && " I am authorized to act for this studio and accept its responsibilities for teacher and student information."}</label>{" "}
+        <a href={`/privacy?role=${audience}`} aria-haspopup="dialog"
+          onClick={e => { e.preventDefault(); setOpen(true); }}
+          className="font-semibold text-[#133623] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4">
+          Click here to read more
+        </a>
+      </div>
+    </div>
+    {open && <Modal title="ProgressRooms Privacy Policy" onClose={() => setOpen(false)}>
+      <div className="flex max-h-[calc(100dvh-3rem)] w-[min(36rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl bg-[#FAF7F2] shadow-xl">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#CEDECF] px-6 py-4">
+          <h2 className="font-serif text-2xl font-bold text-[#0C2417]">Privacy Policy</h2>
+          <button type="button" autoFocus onClick={() => setOpen(false)} className="rounded-lg border border-[#CEDECF] px-3.5 py-1.5 text-xs font-semibold hover:bg-slate-100 transition">Close</button>
+        </header>
+        <div tabIndex={0} role="region" aria-label="Scrollable privacy policy" className="min-h-0 overflow-y-auto overscroll-contain px-5 py-5">
+          <PrivacyPolicyContent audience={audience} />
+        </div>
+      </div>
+    </Modal>}
+  </>;
+}

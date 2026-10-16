@@ -9,8 +9,10 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        serif: ["var(--font-serif)", "Cormorant Garamond", "Georgia", "serif"],
-        sans: ["var(--font-sans)", "Manrope", "-apple-system", "sans-serif"],
+        serif: ["var(--font-ui)", "Lora", "Georgia", "serif"],
+        sans: ["var(--font-ui)", "Lora", "Georgia", "serif"],
+        // Keep labels, calendar data, controls, and headings on the same Lora family.
+        mono: ["var(--font-ui)", "Lora", "Georgia", "serif"],
       },
       colors: {
         cream: "#FAF7F2",

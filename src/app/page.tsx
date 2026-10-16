@@ -1,22 +1,6 @@
 import Link from "next/link";
-import {
-  Calendar,
-  Users,
-  Video,
-  CreditCard,
-  Globe,
-  Sparkles,
-  ArrowRight,
-  Check,
-  ShieldCheck,
-  Zap,
-  Lock,
-  MessageSquare,
-  Clock,
-  ChevronRight,
-  X as XIcon
-} from "lucide-react";
-import { FontSelector } from "@/components/FontSelector";
+import { Sparkles, ArrowRight, Check, Lock, ChevronRight, X as XIcon } from "lucide-react";
+import { DeveloperOnly } from "@/components/DeveloperModeProvider";
 import { BrandLogo } from "@/components/BrandLogo";
 
 export default function HomePage() {
@@ -40,8 +24,6 @@ export default function HomePage() {
           </nav>
 
           <div className="flex items-center gap-1 sm:gap-3">
-            {/* Live Typography Font Switcher */}
-            <div className="hidden lg:block"><FontSelector /></div>
 
             <Link
               href="/login"
@@ -109,9 +91,9 @@ export default function HomePage() {
           <span className="flex items-center gap-1.5">
             <Check className="h-4 w-4 text-[#2f6a45]" /> 2-Minute Setup
           </span>
-          <span className="flex items-center gap-1.5">
+          <DeveloperOnly><span className="flex items-center gap-1.5">
             <Check className="h-4 w-4 text-[#2f6a45]" /> Test Mode Preloaded
-          </span>
+          </span></DeveloperOnly>
         </div>
       </section>
 
@@ -301,7 +283,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-[#2f6a45] shrink-0" />
-                    <span>Up to 3 Active Class Sessions</span>
+                    <span>Up to 3 Active Class Classes</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-[#2f6a45] shrink-0" />
@@ -347,7 +329,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-[#2f6a45] shrink-0" />
-                    <span>Up to 10 Active Class Sessions</span>
+                    <span>Up to 10 Active Class Classes</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-[#2f6a45] shrink-0" />
@@ -401,7 +383,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-[#2f6a45] shrink-0" />
-                    <span className="font-bold">Unlimited Sessions & Students</span>
+                    <span className="font-bold">Unlimited Classes & Students</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-[#2f6a45] shrink-0" />

@@ -8,7 +8,8 @@ export interface Organization {
 }
 
 export interface WebsiteConfig {
-  template_code: 'DEFAULT' | 'TEMPLATE_A' | 'TEMPLATE_B' | 'TEMPLATE_C';
+  template_code: string;
+  is_published?: boolean;
   headline: string;
   subheadline: string;
   hero_image_url?: string;
@@ -55,6 +56,8 @@ export interface PublicSession {
   skill_level: string;
   duration_minutes: number;
   capacity: number;
+  remaining_spots?: number;
+  delivery_mode?: string;
   pricing?: Pricing;
   schedule: ScheduleRule[];
 }
@@ -65,6 +68,7 @@ export interface PublicWebsitePayload {
   instructors: Instructor[];
   class_types: ClassType[];
   sessions: PublicSession[];
+  passes: PublicPass[];
 }
 
 export interface PublicSessionDetailPayload {
@@ -89,6 +93,33 @@ export interface PublicSessionDetailPayload {
     preparation_instructions?: string;
     additional_notes?: string;
   };
+  delivery_mode?: string;
+  venue?: {
+    name: string;
+    address: string;
+    city?: string;
+    delivery_mode?: string;
+  };
+  next_occurrence?: {
+    id: string;
+    start_time: string;
+    end_time: string;
+  } | null;
+  availability?: {
+    capacity: number;
+    enrolled_count: number;
+    remaining_spots: number;
+    is_full: boolean;
+  };
+  cancellation_terms?: string;
+  meeting_readiness?: string;
+  renewal_terms?: string;
   instructors: Instructor[];
   schedule: ScheduleRule[];
+}
+
+export interface PublicPass {
+  id: string; name: string; description?: string; price: number; offer_price?: number | null; currency: string;
+  tier_type: string; validity_days: number; total_classes?: number;
+  classes: { id: string; name: string }[];
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, RefreshCw, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { useDeveloperMode } from "@/components/DeveloperModeProvider";
 
 export interface OtpVerificationCardProps {
   email: string;
@@ -23,7 +24,9 @@ export function OtpVerificationCard({
   subtitle = "Enter the 6-digit verification code sent to your email to activate and verify your sanctuary account.",
   purpose = "LOGIN_VERIFICATION",
 }: OtpVerificationCardProps) {
+  const developerMode = useDeveloperMode();
   const [otp, setOtp] = useState("");
+  const autoFilledOtp = useRef<string | null>(null);
   const [previewOtp, setPreviewOtp] = useState<string | null>(initialPreviewOtp);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -35,15 +38,21 @@ export function OtpVerificationCard({
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
-  // Pre-fill dev code for .test or .local domains
+  // Preview codes are testing helpers and only fill while developer mode is on.
   useEffect(() => {
-    if (initialPreviewOtp) {
-      setPreviewOtp(initialPreviewOtp);
-      if (email.endsWith(".test") || email.endsWith(".local")) {
-        setOtp(initialPreviewOtp);
-      }
+    setPreviewOtp(initialPreviewOtp);
+  }, [initialPreviewOtp]);
+
+  useEffect(() => {
+    if (developerMode && previewOtp) {
+      autoFilledOtp.current = previewOtp;
+      setOtp(previewOtp);
+    } else if (autoFilledOtp.current) {
+      const previous = autoFilledOtp.current;
+      setOtp((current) => current === previous ? "" : current);
+      autoFilledOtp.current = null;
     }
-  }, [initialPreviewOtp, email]);
+  }, [developerMode, previewOtp]);
 
   // Countdown timer for resending OTP
   useEffect(() => {
@@ -70,9 +79,6 @@ export function OtpVerificationCard({
         throw new Error(data.detail || "Failed to resend code.");
       }
       setPreviewOtp(data.otp_preview || null);
-      if (data.otp_preview && (email.endsWith(".test") || email.endsWith(".local"))) {
-        setOtp(data.otp_preview);
-      }
       setInfoMessage(`A fresh passcode has been sent to ${email}.`);
       setResendCooldown(30);
     } catch (err: any) {
@@ -168,10 +174,14 @@ export function OtpVerificationCard({
             autoFocus
             className="w-full text-center tracking-widest text-2xl font-mono py-3 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] bg-[#FAF7F2]"
           />
-          {previewOtp && (
-            <p className="mt-2 text-center text-xs text-[#2f6a45] bg-[#E8F0E9] py-1.5 px-2 rounded-lg font-medium">
-              💡 Test Passcode: <strong className="font-mono">{previewOtp}</strong>
-            </p>
+          {developerMode && previewOtp && (
+            <button
+              type="button"
+              onClick={() => setOtp(previewOtp)}
+              className="mt-2 w-full text-center text-xs text-[#2f6a45] bg-[#E8F0E9] hover:bg-[#d8e8dc] py-1.5 px-2 rounded-lg font-medium transition cursor-pointer"
+            >
+              💡 Test Passcode: <strong className="font-mono underline">{previewOtp}</strong> (click to fill)
+            </button>
           )}
         </div>
 
