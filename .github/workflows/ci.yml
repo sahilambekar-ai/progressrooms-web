@@ -35,3 +35,9 @@ jobs:
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: '1'
+      - name: Test Docker image build
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=https://uat.progressrooms.com/api/v1 \
+            --tag progressrooms-web:ci \
+            .
