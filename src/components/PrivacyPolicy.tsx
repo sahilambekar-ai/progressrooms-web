@@ -33,16 +33,8 @@ export function PrivacyConsent({ audience, accepted, onChange }: {
         </a>
       </div>
     </div>
-    {open && <Modal title="ProgressRooms Privacy Policy" onClose={() => setOpen(false)}>
-      <div className="flex max-h-[calc(100dvh-3rem)] w-[min(36rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl bg-[#FAF7F2] shadow-xl">
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-[#CEDECF] px-6 py-4">
-          <h2 className="font-serif text-2xl font-bold text-[#0C2417]">Privacy Policy</h2>
-          <button type="button" autoFocus onClick={() => setOpen(false)} className="rounded-lg border border-[#CEDECF] px-3.5 py-1.5 text-xs font-semibold hover:bg-slate-100 transition">Close</button>
-        </header>
-        <div tabIndex={0} role="region" aria-label="Scrollable privacy policy" className="min-h-0 overflow-y-auto overscroll-contain px-5 py-5">
-          <PrivacyPolicyContent audience={audience} />
-        </div>
-      </div>
+    {open && <Modal title="Progress Rooms Privacy Policy" onClose={() => setOpen(false)}>
+      <div className="px-5 py-5"><PrivacyPolicyContent audience={audience} /></div>
     </Modal>}
   </>;
 }

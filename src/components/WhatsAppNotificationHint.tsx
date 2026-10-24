@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type SVGProps } from "react";
 import { createPortal } from "react-dom";
+import { useCommunicationSettings } from "@/components/CommunicationSettingsProvider";
 
 export function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -12,13 +13,13 @@ export function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 const details = {
-  reminder: "ProgressRooms Classes: reminders for eligible enrolled students and assigned teachers, 2 hours and 15 minutes before class. Includes the latest time, teacher and class-access link. Join 5 minutes early.",
-  changes: "ProgressRooms Classes: routine edits before the first reminder are combined into the scheduled reminders. Important changes after a reminder require a consolidated correction; cancellations require a prompt notice.",
-  payment: "ProgressRooms Admin: payment confirmation for the purchasing student after payment is verified. Includes the studio, amount and receipt details. Retrying payment confirmation must not send duplicates.",
-  billing: "ProgressRooms Admin: studio billing contacts receive invoices, payment-due reminders, overdue notices and payment confirmations. Paid invoices must not receive further due reminders.",
-  contact: "This is a recipient number, not a sending account. ProgressRooms uses its Classes number for class notices and its Admin number for billing notices. A valid Indian number and recipient consent are required.",
-  channels: "The WhatsApp switch applies to both ProgressRooms sender numbers across all studios. Delivery also requires a configured sender, an approved template, recipient consent and an available allowance.",
-  test: "A test targets the selected ProgressRooms WhatsApp sender and recipient. The current implementation simulates WhatsApp tests; a successful simulation does not mean a message was delivered.",
+  reminder: "Progress Rooms Classes: reminders for eligible enrolled students and assigned teachers, 2 hours and 15 minutes before class. Includes the latest time, teacher and class-access link. Join 5 minutes early.",
+  changes: "Progress Rooms Classes: routine edits before the first reminder are combined into the scheduled reminders. Important changes after a reminder require a consolidated correction; cancellations require a prompt notice.",
+  payment: "Progress Rooms Admin: payment confirmation for the purchasing student after payment is verified. Includes the studio, amount and receipt details. Retrying payment confirmation must not send duplicates.",
+  billing: "Progress Rooms Admin: studio billing contacts receive invoices, payment-due reminders, overdue notices and payment confirmations. Paid invoices must not receive further due reminders.",
+  contact: "This is a recipient number, not a sending account. Progress Rooms uses its Classes number for class notices and its Admin number for billing notices. A valid Indian number and recipient consent are required.",
+  channels: "The WhatsApp switch applies to both Progress Rooms sender numbers across all studios. Delivery also requires a configured sender, an approved template, recipient consent and an available allowance.",
+  test: "A test targets the selected Progress Rooms WhatsApp sender and recipient. The current implementation simulates WhatsApp tests; a successful simulation does not mean a message was delivered.",
 } as const;
 
 export function WhatsAppNotificationHint({
@@ -30,6 +31,7 @@ export function WhatsAppNotificationHint({
   className?: string;
   description?: string;
 }) {
+  const { whatsappCompletelyDisabled } = useCommunicationSettings();
   const id = useId();
   const anchor = useRef<HTMLButtonElement>(null);
   const tooltip = useRef<HTMLDivElement>(null);
@@ -78,6 +80,10 @@ export function WhatsAppNotificationHint({
       window.removeEventListener("pointerdown", close);
     };
   }, [position]);
+
+  if (whatsappCompletelyDisabled) {
+    return null;
+  }
 
   return (
     <>

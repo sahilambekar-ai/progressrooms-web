@@ -1,16 +1,17 @@
 "use client";
+import { BOOKING_CANCELLATION_TERMS } from "@/lib/purchase-policy";
 import { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { WhatsAppNotificationHint } from './WhatsAppNotificationHint';
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-export interface Purchase { id: string; kind: 'class' | 'pass'; name: string; price: number; offer_price?: number | null; currency: string; total_classes?: number; validity_days?: number }
+export interface Purchase { package_id?: string; id: string; kind: 'class' | 'pass'; name: string; price: number; offer_price?: number | null; currency: string; total_classes?: number; validity_days?: number }
 export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClose: () => void }) {
   const amountDue = offering.offer_price ?? offering.price;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [pending, setPending] = useState<any>(null);
-  const recoveryKey = `pr_payment_recovery_${offering.kind}_${offering.id}`;
+  const recoveryKey = `pr_payment_recovery_${offering.kind}_${offering.id}_${offering.package_id || "default"}`;
   useEffect(() => {
     try {
       const saved = sessionStorage.getItem(recoveryKey);
@@ -42,7 +43,7 @@ export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClo
     }
     setBusy(true); setError('');
     try {
-      const order = await request('/commerce/orders', offering.kind === 'class' ? { session_id: offering.id } : { tier_id: offering.id });
+      const order = await request('/commerce/orders', offering.kind === 'class' ? { session_id: offering.id, package_id: offering.package_id } : { tier_id: offering.id });
       if (order.free) {
         await verify(order, { razorpay_order_id: order.razorpay_order_id, razorpay_payment_id: `free_${order.order_id.replaceAll('-', '')}`, razorpay_signature: 'free-enrollment' });
         return;
@@ -63,9 +64,15 @@ export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClo
       checkout.open();
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not start checkout.'); setBusy(false); }
   }
-  return <Modal title={success ? 'Purchase complete' : 'Review your purchase'} subtitle={success ? 'You’re ready to begin.' : offering.name} onClose={onClose}>
+  return <Modal footer={success ? <a className="block rounded-xl bg-[#133623] text-white text-center p-4" href="/student">Go to my dashboard</a> :         <button
+          disabled={busy}
+          className="w-full p-4 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold transition disabled:opacity-50 shadow-md"
+          onClick={() => pending ? void verify(pending.order, pending.payment) : void buy()}
+        >
+          {busy ? 'Please wait…' : pending ? 'Retry payment confirmation' : amountDue === 0 ? 'Confirm free enrollment' : `Pay ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: offering.currency }).format(amountDue)}`}
+        </button>} title={success ? 'Purchase complete' : 'Review your purchase'} subtitle={success ? 'You’re ready to begin.' : offering.name} onClose={onClose}>
     <div className="relative p-6 max-w-lg space-y-5">
-      {success ? <><p>Your purchase is active. Your classes and session allowance are available in your dashboard.</p><a className="block rounded-xl bg-[#133623] text-white text-center p-4" href="/student">Go to my dashboard</a></> : <>
+      {success ? <><p>Your purchase is active. Your classes and session allowance are available in your dashboard.</p></> : <>
         {offering.offer_price != null && offering.offer_price < offering.price && (
           <p className="text-sm text-slate-500">
             <span className="line-through">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: offering.currency }).format(offering.price)}</span>{" "}
@@ -112,20 +119,14 @@ export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClo
 
           <div className="flex items-start justify-between gap-2 border-t border-[#E1E9E2] pt-2">
             <span className="font-semibold text-slate-500">Cancellation:</span>
-            <span className="text-slate-700">Free cancellation up to 2 hours prior to start. Credits refunded to pass.</span>
+            <span className="text-slate-700">{BOOKING_CANCELLATION_TERMS}</span>
           </div>
         </div>
 
         {error && <p role="alert" className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs">{error}</p>}
-        <button
-          disabled={busy}
-          className="w-full p-4 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold transition disabled:opacity-50 shadow-md"
-          onClick={() => pending ? void verify(pending.order, pending.payment) : void buy()}
-        >
-          {busy ? 'Please wait…' : pending ? 'Retry payment confirmation' : amountDue === 0 ? 'Confirm free enrollment' : `Pay ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: offering.currency }).format(amountDue)}`}
-        </button>
+
       </>}
-      <WhatsAppNotificationHint description="ProgressRooms Admin: payment confirmation after verified payment. ProgressRooms Classes: reminders 2 hours and 15 minutes before class, with the latest details and access link. Join 5 minutes early." />
+      <WhatsAppNotificationHint description="Progress Rooms Admin: payment confirmation after verified payment. Progress Rooms Classes: reminders 2 hours and 15 minutes before class, with the latest details and access link. Join 5 minutes early." />
     </div>
   </Modal>;
 }

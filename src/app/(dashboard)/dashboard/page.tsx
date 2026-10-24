@@ -1,5 +1,8 @@
 "use client";
 
+import { rosterCsv } from "@/lib/roster-export";
+import { PurchasePolicyNotice } from "@/components/PurchasePolicyNotice";
+import { dashboardFonts, useDashboardTypography } from "@/components/DashboardTypographyProvider";
 import { ScheduleInput } from "@/components/ScheduleInput";
 
 import { WhatsAppNotificationHint } from "@/components/WhatsAppNotificationHint";
@@ -11,15 +14,17 @@ import dynamic from "next/dynamic";
 import { PanelLoading } from "@/components/PanelLoading";
 import type { CalendarSessionEvent } from "@/components/AttendanceCalendar";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { staffApi } from "@/lib/staff-api";
 import { useRouter } from "next/navigation";
-import { Users, CheckCircle2, Clock, Video, Search, ArrowRight, ExternalLink, ChevronRight, AlertTriangle, AlertCircle, X, ChevronLeft, Loader2, Mail, Phone, UserPlus, MapPin, Landmark, Check, Copy, RefreshCw, Smartphone, UserRound, HelpCircle, Share2 } from "lucide-react";
+import { Eye, EyeOff, Users, CheckCircle2, Clock, Video, Search, ArrowRight, ChevronRight, AlertTriangle, X, ChevronLeft, Loader2, Mail, Phone, UserPlus, MapPin, Landmark, Check, Copy, RefreshCw, Smartphone, UserRound, HelpCircle, Share2 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { AdvancedOptions } from "@/components/AdvancedOptions";
 import { Modal } from "@/components/Modal";
 import { ResponsiveSidebar } from "@/components/ResponsiveSidebar";
 import { useFeedback } from "@/components/FeedbackProvider";
+import { useCommunicationSettings } from "@/components/CommunicationSettingsProvider";
 import WebsiteEditor from "@/components/website/WebsiteEditor";
 
 
@@ -27,8 +32,17 @@ const CommunicationChannelsPanel = dynamic(() => import("@/components/Communicat
 const StudioClasses = dynamic(() => import("@/components/StudioClasses").then(module => module.StudioClasses), { loading: PanelLoading });
 const StudioMemberships = dynamic(() => import("@/components/StudioMemberships").then(module => module.StudioMemberships), { loading: PanelLoading });
 const AttendanceCalendar = dynamic(() => import("@/components/AttendanceCalendar").then(module => module.AttendanceCalendar), { loading: PanelLoading });
+const AdminStudios = dynamic(() => import("@/components/AdminStudios").then(module => module.AdminStudios), { loading: PanelLoading });
+const StudioAccessNotice = dynamic(() => import("@/components/StudioAccessNotice").then(module => module.StudioAccessNotice));
+const SaaSBilling = dynamic(() => import("@/components/SaaSBilling").then(module => module.SaaSBilling), { loading: PanelLoading });
+const ProgressRoomsBilling = dynamic(() => import("@/components/ProgressRoomsBilling").then(module => module.ProgressRoomsBilling), { loading: PanelLoading });
 const BillingCenter = dynamic(() => import("@/components/BillingCenter").then(module => module.BillingCenter), { loading: PanelLoading });
 const StudioAnalytics = dynamic(() => import("@/components/StudioAnalytics").then(module => module.StudioAnalytics), { loading: PanelLoading });
+import { TeacherZoomControl, zoomLabel } from "@/components/TeacherZoomControl";
+
+const InitialZoomSetup = dynamic(() => import("@/components/InitialZoomSetup").then(module => module.InitialZoomSetup), { loading: PanelLoading });
+
+const ZoomSettings = dynamic(() => import("@/components/ZoomSettings").then(module => module.ZoomSettings), { loading: PanelLoading });
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -44,10 +58,15 @@ type AdminTab =
   | "queries-manager"
   | "analytics"
   | "billing-dashboard"
+  | "billing-saas"
+  | "billing-progressrooms"
   | "billing-downloads"
   | "settings"
+  | "zoom-settings"
+  | "zoom-host-key"
   // Super Admin Platform Tabs
   | "superadmin-instructors"
+  | "superadmin-billing"
   | "superadmin-analytics"
   | "superadmin-settings";
 
@@ -85,6 +104,18 @@ interface StudioProfile {
   zoom_auto_meeting_enabled?: boolean;
   zoom_waiting_room?: boolean;
   zoom_host_video?: boolean;
+  zoom_enforce_basic_login?: boolean;
+  zoom_enforce_zoom_login?: boolean;
+  zoom_group_allow_self_buy_subscriptions?: boolean;
+  zoom_group_active_subscription_required?: boolean;
+  zoom_group_confirm_checkin_everytime?: boolean;
+  zoom_personal_allow_self_buy_subscriptions?: boolean;
+  zoom_personal_active_subscription_required?: boolean;
+  zoom_personal_confirm_checkin_everytime?: boolean;
+  zoom_personal_no_show_penalty?: boolean;
+  zoom_join_before_host?: boolean;
+  zoom_cloud_recording_mode?: string;
+  zoom_host_key?: string;
   account_completed?: boolean;
   completion_step?: number;
   whatsapp_number?: string;
@@ -92,7 +123,10 @@ interface StudioProfile {
 }
 
 
-interface StudioTeacher {
+interface StudioTeacher extends Partial<import("@/types").TeacherZoomState> {
+  billing_country?: string | null;
+  is_owner: boolean;
+  can_teach: boolean;
   username?: string;
   address?: string;
   location?: string;
@@ -112,22 +146,6 @@ interface StudioTeacher {
   teacher_code?: string;
 }
 
-interface PlatformInstructor {
-  id: string;
-  user_id: string;
-  instructor_name: string;
-  email: string;
-  phone: string;
-  studio_id: string;
-  studio_name: string;
-  studio_slug: string;
-  role: string;
-  title: string;
-  bio: string;
-  is_active: boolean;
-  status: "ACTIVE" | "SUSPENDED";
-  joined_at: string;
-}
 
 interface PlatformMetrics {
   total_organizations: number;
@@ -179,9 +197,9 @@ const formatStudioDate = (value?: string) => {
 const DEFAULT_BATCHES: ClassBatch[] = [
   {
     id: "batch-1",
-    name: "Morning Hatha Flow",
-    classType: "Hatha Yoga",
-    instructor: "Lead Instructor (Yoga Guide)",
+    name: "Morning Music Class",
+    classType: "Music",
+    instructor: "Lead Instructor (Teacher)",
     days: ["Mon", "Wed", "Fri"],
     startTime: "07:00",
     endTime: "08:00",
@@ -192,8 +210,8 @@ const DEFAULT_BATCHES: ClassBatch[] = [
   },
   {
     id: "batch-2",
-    name: "Aerial Yoga Conditioning",
-    classType: "Aerial Yoga",
+    name: "Dance Conditioning",
+    classType: "Dance",
     instructor: "Ananya Sen (Aerial Specialist)",
     days: ["Tue", "Thu"],
     startTime: "18:00",
@@ -205,9 +223,9 @@ const DEFAULT_BATCHES: ClassBatch[] = [
   },
   {
     id: "batch-3",
-    name: "Meditation & Breathwork",
-    classType: "Meditation",
-    instructor: "Lead Instructor (Yoga Guide)",
+    name: "Language Practice",
+    classType: "Languages",
+    instructor: "Lead Instructor (Teacher)",
     days: ["Sun"],
     startTime: "08:30",
     endTime: "09:30",
@@ -247,7 +265,9 @@ export default function DashboardAccess() {
 }
 
 function AdminDashboardPage() {
+  const { font: dashboardFont, selectFont, loading: fontLoading, saving: fontSaving, error: fontError } = useDashboardTypography();
   const router = useRouter();
+  const { whatsappCompletelyDisabled } = useCommunicationSettings();
   const [activeTab, setActiveTab] = useState<AdminTab>("account-completion");
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("profile");
   const [dashboardTheme, setDashboardTheme] = useState<DashboardTheme>("forest");
@@ -255,7 +275,7 @@ function AdminDashboardPage() {
 
   useEffect(() => {
     try {
-      const savedTheme = localStorage.getItem("progressnow_dashboard_theme");
+      const savedTheme = localStorage.getItem("progressrooms_dashboard_theme");
       if (["forest", "sage", "sand", "midnight", "obsidian", "plum"].includes(savedTheme || "")) setDashboardTheme(savedTheme as DashboardTheme);
     } catch { /* Use the default theme when storage is unavailable. */ }
 
@@ -273,9 +293,14 @@ function AdminDashboardPage() {
         "queries-manager",
         "analytics",
         "billing-dashboard",
+        "billing-saas",
+        "billing-progressrooms",
         "billing-downloads",
         "settings",
+        "zoom-settings",
+        "zoom-host-key",
         "superadmin-instructors",
+        "superadmin-billing",
         "superadmin-analytics",
         "superadmin-settings"
       ].includes(tabParam)) {
@@ -284,7 +309,11 @@ function AdminDashboardPage() {
     }
   }, []);
 
-  const navigateToTab = (tab: AdminTab) => {
+  const zoomNavigationGuard = useRef<(() => Promise<boolean>) | null>(null);
+  const registerZoomNavigationGuard = useCallback((guard: (() => Promise<boolean>) | null) => { zoomNavigationGuard.current = guard; }, []);
+  const navigateToTab = async (tab: AdminTab) => {
+    if (tab === activeTab) return;
+    if (zoomNavigationGuard.current && !await zoomNavigationGuard.current()) return;
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -296,7 +325,7 @@ function AdminDashboardPage() {
   const applyDashboardTheme = (theme: DashboardTheme) => {
     setDashboardTheme(theme);
     try {
-      localStorage.setItem("progressnow_dashboard_theme", theme);
+      localStorage.setItem("progressrooms_dashboard_theme", theme);
       notify(`${theme.charAt(0).toUpperCase() + theme.slice(1)} dashboard theme applied.`, "success");
     } catch {
       notify("Theme applied for this visit, but it could not be saved on this device.", "info");
@@ -313,6 +342,8 @@ function AdminDashboardPage() {
     }
   });
 
+  const [studioRestricted, setStudioRestricted] = useState(false);
+  const [studioPlanLabel, setStudioPlanLabel] = useState("");
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
   const isTeacher = currentUser?.role === "TEACHER" || currentUser?.role === "INSTRUCTOR";
   const isStudioOwner = !isSuperAdmin && !isTeacher;
@@ -338,7 +369,6 @@ function AdminDashboardPage() {
   const [isAccountCompleted, setIsAccountCompleted] = useState<boolean>(false);
   const [completionStep, setCompletionStep] = useState<number>(1);
   const [isSavingProfile, setIsSavingProfile] = useState<boolean>(false);
-  const [isConnectingZoom, setIsConnectingZoom] = useState<boolean>(false);
 
   // Step 1: Studio & Contact Info
   const [setupStudioName, setSetupStudioName] = useState("");
@@ -347,13 +377,13 @@ function AdminDashboardPage() {
   const [setupSupportEmail, setSetupSupportEmail] = useState("");
   const [setupStudioTagline, setSetupStudioTagline] = useState("");
   const [setupDisciplines, setSetupDisciplines] = useState<string[]>([
-    "Hatha Yoga",
-    "Vinyasa Flow",
-    "Aerial Yoga"
+    "Music",
+    "Performing Arts",
+    "Dance"
   ]);
 
-  // Step 2: Teaching Location & Mode
-  const [setupTeachingMode, setSetupTeachingMode] = useState<"PHYSICAL" | "ONLINE" | "HYBRID">("HYBRID");
+  // Step 2: Teaching Location (optional) & Mode
+  const [setupTeachingMode, setSetupTeachingMode] = useState<"PHYSICAL" | "ONLINE" | "HYBRID">("ONLINE");
   const [setupAddressLine1, setSetupAddressLine1] = useState("");
   const [setupAddressLine2, setSetupAddressLine2] = useState("");
   const [setupCity, setSetupCity] = useState("");
@@ -361,7 +391,7 @@ function AdminDashboardPage() {
   const [setupPincode, setSetupPincode] = useState("");
   const [setupCountry, setSetupCountry] = useState("India");
 
-  // Step 3: GST & Legal Business Identity
+  // Step 3: GST (optional) & Legal Business Identity
   const [setupHasGst, setSetupHasGst] = useState(false);
   const [setupGstNumber, setSetupGstNumber] = useState("");
   const [setupLegalBusinessName, setSetupLegalBusinessName] = useState("");
@@ -374,56 +404,27 @@ function AdminDashboardPage() {
   const [setupConfirmAccountNumber, setSetupConfirmAccountNumber] = useState("");
   const [setupIfscCode, setSetupIfscCode] = useState("");
   const [setupUpiId, setSetupUpiId] = useState("");
-  const [setupSettlementCycle, setSetupSettlementCycle] = useState<"DAILY" | "WEEKLY" | "MONTHLY">("WEEKLY");
+  const setupSettlementCycle = "MONTHLY";
 
   // Step 5: Zoom Live Classroom Authentication
   const [zoomConnected, setZoomConnected] = useState(false);
   const [zoomAccountEmail, setZoomAccountEmail] = useState("");
   const [zoomAutoMeetingEnabled, setZoomAutoMeetingEnabled] = useState(true);
-  const [zoomWaitingRoom, setZoomWaitingRoom] = useState(true);
-  const [zoomHostVideo, setZoomHostVideo] = useState(true);
-  const [zoomAuthTab, setZoomAuthTab] = useState<"ONE_CLICK" | "CREDENTIALS">("ONE_CLICK");
-  const [zoomClientId, setZoomClientId] = useState("");
-  const [zoomClientSecret, setZoomClientSecret] = useState("");
-  const [zoomAccountId, setZoomAccountId] = useState("");
-  const [testZoomMeeting, setTestZoomMeeting] = useState<{
-    join_url: string;
-    passcode: string;
-    meeting_id: string;
-    provider?: string;
-    is_simulated?: boolean;
-    start_url?: string;
-  } | null>(null);
-  const [isGeneratingTestMeeting, setIsGeneratingTestMeeting] = useState(false);
-  const [zoomTestError, setZoomTestError] = useState<string | null>(null);
-
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("onboarding") === "zoom") { setActiveTab("account-completion"); setCompletionStep(5); } }, []);
   // Helper validation functions
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const isValidPhone = (phone: string) => phone.replace(/\D/g, "").length >= 10;
-  const isValidPin = (pin: string) => pin.replace(/\D/g, "").length >= 5;
-  const isValidPan = (pan: string) => /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(pan.trim());
-  const isValidGstin = (gst: string) => gst.trim().length === 15;
   const isValidIfsc = (ifsc: string) => ifsc.trim().length === 11;
 
   // Exact step-by-step verification checks
   const isStep1Complete = Boolean(
     setupStudioName?.trim() &&
     isValidPhone(setupPhone) &&
-    isValidEmail(setupSupportEmail) &&
-    setupDisciplines?.length > 0
+    isValidEmail(setupSupportEmail)
   );
 
-  const isStep2Complete = Boolean(
-    setupTeachingMode &&
-    setupAddressLine1?.trim() &&
-    setupCity?.trim() &&
-    setupState?.trim() &&
-    isValidPin(setupPincode)
-  );
-
-  const isStep3Complete = setupHasGst
-    ? Boolean(isValidGstin(setupGstNumber) && setupLegalBusinessName?.trim())
-    : Boolean(setupPanNumber?.trim() && isValidPan(setupPanNumber));
+  const isStep2Complete = true; // Optional location and teaching mode.
+  const isStep3Complete = true; // Optional business and tax information.
 
   const isStep4Complete = Boolean(
     setupBankName?.trim() &&
@@ -433,7 +434,7 @@ function AdminDashboardPage() {
     isValidIfsc(setupIfscCode)
   );
 
-  const isStep5Complete = Boolean(zoomConnected);
+  const isStep5Complete = zoomConnected;
   const isStep6Complete = Boolean(
     isStep1Complete &&
     isStep2Complete &&
@@ -457,14 +458,13 @@ function AdminDashboardPage() {
 
   const getFirstIncompleteStep = (): number => {
     if (!isStep1Complete) return 1;
-    if (!isStep2Complete) return 2;
-    if (!isStep3Complete) return 3;
     if (!isStep4Complete) return 4;
     if (!isStep5Complete) return 5;
     return 6;
   };
 
-  const handleOpenAccountDetails = () => {
+  const handleOpenAccountDetails = async () => {
+    if (zoomNavigationGuard.current && !await zoomNavigationGuard.current()) return;
     const stepToLoad = getFirstIncompleteStep();
     setCompletionStep(stepToLoad);
     setActiveTab("account-completion");
@@ -473,24 +473,12 @@ function AdminDashboardPage() {
   const validateStep = (stepNum: number): { valid: boolean; errorMsg?: string } => {
     switch (stepNum) {
       case 1:
-        if (!setupStudioName.trim()) return { valid: false, errorMsg: "Please enter your Studio / Sanctuary Name." };
+        if (!setupStudioName.trim()) return { valid: false, errorMsg: "Please enter your Studio Name." };
         if (!setupPhone.trim() || !isValidPhone(setupPhone)) return { valid: false, errorMsg: "Please provide a valid 10+ digit Mobile Phone Number." };
         if (!setupSupportEmail.trim() || !isValidEmail(setupSupportEmail)) return { valid: false, errorMsg: "Please provide a valid Support / Business Email address." };
-        if (!setupDisciplines.length) return { valid: false, errorMsg: "Please select at least one teaching discipline." };
         return { valid: true };
       case 2:
-        if (!setupAddressLine1.trim()) return { valid: false, errorMsg: "Please provide your Studio Street Address / Location." };
-        if (!setupCity.trim()) return { valid: false, errorMsg: "Please enter the City." };
-        if (!setupState.trim()) return { valid: false, errorMsg: "Please enter the State." };
-        if (!setupPincode.trim() || !isValidPin(setupPincode)) return { valid: false, errorMsg: "Please provide a valid 5-6 digit PIN / Postal Code." };
-        return { valid: true };
       case 3:
-        if (setupHasGst) {
-          if (!setupGstNumber.trim() || !isValidGstin(setupGstNumber)) return { valid: false, errorMsg: "Please enter a valid 15-character GSTIN (e.g. 27AABCU9603R1ZM)." };
-          if (!setupLegalBusinessName.trim()) return { valid: false, errorMsg: "Please enter your Legal Entity Name as per GST certificate." };
-        } else {
-          if (!setupPanNumber.trim() || !isValidPan(setupPanNumber)) return { valid: false, errorMsg: "Please provide a valid 10-character PAN number (e.g. AABCU9603R)." };
-        }
         return { valid: true };
       case 4:
         if (!setupAccountHolderName.trim()) return { valid: false, errorMsg: "Please enter the Bank Account Holder Name." };
@@ -504,8 +492,7 @@ function AdminDashboardPage() {
         if (!setupIfscCode.trim() || !isValidIfsc(setupIfscCode)) return { valid: false, errorMsg: "Please provide a valid 11-character Bank IFSC Code." };
         return { valid: true };
       case 5:
-        if (!zoomConnected) return { valid: false, errorMsg: "Please authenticate and connect your Zoom account to enable live class streaming." };
-        return { valid: true };
+        return zoomConnected ? { valid: true } : { valid: false, errorMsg: "Authenticate your initial Zoom account before continuing." };
       default:
         return { valid: true };
     }
@@ -536,7 +523,7 @@ function AdminDashboardPage() {
   const [teacherActiveTotal, setTeacherActiveTotal] = useState(0);
   const [teacherTotalPages, setTeacherTotalPages] = useState(1);
   const [teacherSortBy, setTeacherSortBy] = useState<"name" | "code" | "joined" | "status">("name");
-  const [teacherSortOrder, setTeacherSortOrder] = useState<"asc" | "desc">("asc");
+  const teacherSortOrder = "asc";
   const [isAddTeacherOpen, setIsAddTeacherOpen] = useState(false);
   const [isEditTeacherOpen, setIsEditTeacherOpen] = useState(false);
   const [isSavingTeacher, setIsSavingTeacher] = useState(false);
@@ -546,14 +533,53 @@ function AdminDashboardPage() {
   // Add / Edit Teacher form fields
   const [teacherUsername, setTeacherUsername] = useState("");
   const [teacherPassword, setTeacherPassword] = useState("");
+  const [teacherPasswordVisible, setTeacherPasswordVisible] = useState(false);
+  const [teacherPasswordChanged, setTeacherPasswordChanged] = useState(false);
+  const [studioPasswordPrompt, setStudioPasswordPrompt] = useState(false);
+  const [studioPasswordInput, setStudioPasswordInput] = useState("");
+  const [studioPasswordResolve, setStudioPasswordResolve] = useState<((value: string | null) => void) | null>(null);
+  const askStudioPassword = () => new Promise<string | null>(resolve => {
+    setStudioPasswordInput(""); setStudioPasswordResolve(() => resolve); setStudioPasswordPrompt(true);
+  });
+  const finishStudioPassword = (value: string | null) => {
+    studioPasswordResolve?.(value); setStudioPasswordResolve(null); setStudioPasswordPrompt(false); setStudioPasswordInput("");
+  };
+  const manageTeacherPassword = async (change: boolean) => {
+    if (!editingTeacher) return;
+    const password = await askStudioPassword();
+    if (!password) return;
+    try {
+    const response = await fetch(`${API_BASE_URL}/teachers/${editingTeacher.id}/password`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ studio_password: password }),
+    });
+    const data = await response.json();
+    // Legacy accounts may create a new password after valid Studio reconfirmation.
+    if (!response.ok && !((change || teacherPasswordChanged) && response.status === 409)) { showToast(data.detail || "Unable to verify Studio password"); return; }
+    if (change) { setTeacherPassword(""); setTeacherPasswordChanged(true); }
+    else if (!teacherPasswordChanged) setTeacherPassword(data.password);
+    setTeacherPasswordVisible(!change);
+    } catch { showToast("Unable to verify Studio password. Please retry."); }
+  };
+  const sendTeacherInvitation = async () => {
+    if (!editingTeacher) return;
+    const password = await askStudioPassword(); if (!password) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/teachers/${editingTeacher.id}/invitation`, {
+        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ studio_password: password }),
+      });
+      const data = await response.json(); showToast(data.message || data.detail || "Unable to send invitation");
+    } catch { showToast("Unable to send invitation. Please retry."); }
+  };
   const [teacherAddress, setTeacherAddress] = useState("");
   const [teacherLocation, setTeacherLocation] = useState("");
+  const [teacherBillingCountry, setTeacherBillingCountry] = useState("");
   const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem("pr_access_token") || ""}` });
   const [teacherName, setTeacherName] = useState("");
   const [teacherEmail, setTeacherEmail] = useState("");
   const [teacherPhone, setTeacherPhone] = useState("");
-  const [teacherTitle, setTeacherTitle] = useState("Sanctuary Guide");
-  const [teacherBio, setTeacherBio] = useState("Certified movement specialist and yoga instructor.");
+  const [teacherTitle, setTeacherTitle] = useState("Teacher");
+  const [teacherBio, setTeacherBio] = useState("");
   const [teacherIsActive, setTeacherIsActive] = useState(true);
 
   // Batches state
@@ -562,8 +588,8 @@ function AdminDashboardPage() {
 
   // New batch form state
   const [newBatchName, setNewBatchName] = useState("");
-  const [newBatchType, setNewBatchType] = useState("Vinyasa Flow");
-  const [newBatchInstructor, setNewBatchInstructor] = useState("Lead Instructor (Yoga Guide)");
+  const [newBatchType, setNewBatchType] = useState("Performing Arts");
+  const [newBatchInstructor, setNewBatchInstructor] = useState("Lead Instructor (Teacher)");
   const [newBatchDays, setNewBatchDays] = useState<string[]>(["Tue", "Thu"]);
   const [newBatchStart, setNewBatchStart] = useState("17:00");
   const [newBatchEnd, setNewBatchEnd] = useState("18:00");
@@ -584,7 +610,7 @@ function AdminDashboardPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [studentSortBy, setStudentSortBy] = useState<"name" | "status" | "joined">("name");
-  const [studentSortOrder, setStudentSortOrder] = useState<"asc" | "desc">("asc");
+  const studentSortOrder = "asc";
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
   const [isAddStudentOpen, setIsAddStudentOpen] = useState(false);
   const [studentAdmissionEmail, setStudentAdmissionEmail] = useState("");
@@ -593,15 +619,7 @@ function AdminDashboardPage() {
   const [isAddingStudent, setIsAddingStudent] = useState(false);
 
   // Super Admin Platform States (with Live API)
-  const [adminInstructors, setAdminInstructors] = useState<PlatformInstructor[]>([]);
-  const [adminInstructorsLoading, setAdminInstructorsLoading] = useState(false);
   const [adminMetrics, setAdminMetrics] = useState<PlatformMetrics | null>(null);
-  const [adminSearch, setAdminSearch] = useState("");
-  const [adminStatusFilter, setAdminStatusFilter] = useState("ALL");
-  const [adminCurrentPage, setAdminCurrentPage] = useState(1);
-  const [adminPageSize, setAdminPageSize] = useState(5);
-  const [adminTotalItems, setAdminTotalItems] = useState(0);
-  const [adminTotalPages, setAdminTotalPages] = useState(1);
   const [adminOrgs, setAdminOrgs] = useState<any[]>([]);
 
   // Attendance states (Calendar vs Checklist)
@@ -643,11 +661,12 @@ function AdminDashboardPage() {
   const [attendanceEvents, setAttendanceEvents] = useState<CalendarSessionEvent[]>([]);
   const [focusedClassTitle, setFocusedClassTitle] = useState<string | null>(null);
   const [rosterSearch, setRosterSearch] = useState("");
-  const [rosterFilter, setRosterFilter] = useState<"ALL" | "ATTENDED" | "ABSENT" | "EXCUSED" | "UNMARKED">("ALL");
+  const [rosterFilter, setRosterFilter] = useState<"ALL" | "ATTENDED" | "ABSENT" | "EXCUSED" | "SCHEDULED">("ALL");
   const [markingEnrollmentId, setMarkingEnrollmentId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
 
-  const openAttendanceFor = (type: "teacher" | "student", person?: StudioTeacher | Student) => {
+  const openAttendanceFor = async (type: "teacher" | "student", person?: StudioTeacher | Student) => {
+    if (zoomNavigationGuard.current && !await zoomNavigationGuard.current()) return;
     const isTeacherUser = currentUser?.role === "TEACHER" || currentUser?.role === "INSTRUCTOR";
     const targetType = isTeacherUser ? "student" : type;
     setAttendanceType(targetType);
@@ -732,6 +751,20 @@ function AdminDashboardPage() {
     }
   };
 
+  useEffect(() => {
+    const occurrence = liveAttendanceClasses.find(item => item.id === selectedLiveClassId);
+    const start = Date.parse(occurrence?.start_at || "");
+    if (!Number.isFinite(start)) return;
+    const markStarted = () => {
+      if (start > Date.now()) return;
+      setLiveRoster(items => items.map(item => item.attendance_status === "SCHEDULED"
+        ? { ...item, attendance_status: "ATTENDED" } : item));
+    };
+    if (start <= Date.now()) { markStarted(); return; }
+    const timer = setTimeout(markStarted, Math.min(start - Date.now() + 10, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [liveAttendanceClasses, selectedLiveClassId]);
+
   const handleMarkLiveAttendance = async (enrollmentId: string, status: string) => {
     const orgId = currentUser?.organization_id;
     if (!orgId || !selectedLiveClassId) return;
@@ -744,7 +777,7 @@ function AdminDashboardPage() {
       showToast("🌿 Attendance marked successfully!");
       setLiveRoster(prev => prev.map(s => s.enrollment_id === enrollmentId ? { ...s, attendance_status: status } : s));
       setAttendanceEvents(items => items.map(item => item.occurrenceId === selectedLiveClassId && item.enrollmentId === enrollmentId
-        ? { ...item, status: status === "ATTENDED" ? "PRESENT" : status === "EXCUSED" ? "CANCELLED" : "ABSENT" } : item));
+        ? { ...item, status: status === "ATTENDED" ? "PRESENT" : status === "EXCUSED" ? "EXCUSED" : "ABSENT" } : item));
     } catch (e: any) {
       showToast(`⚠️ ${e.message || "Failed to mark attendance"}`);
     } finally {
@@ -807,7 +840,7 @@ function AdminDashboardPage() {
       const merged = { ...stored, ...updated };
       localStorage.setItem("pr_user", JSON.stringify(merged));
       setCurrentUser(merged);
-      showToast("🌿 Teacher profile updated successfully!");
+      showToast("Teacher profile updated successfully!");
     } catch (err: any) {
       showToast(`⚠️ ${err.message || "Failed to update profile"}`);
     } finally {
@@ -919,6 +952,11 @@ function AdminDashboardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
+          username: teacherUsername.trim() || undefined,
+          password: teacherPassword || undefined,
+          address: teacherAddress.trim() || undefined,
+          location: teacherLocation.trim() || undefined,
+          billing_country: teacherBillingCountry || undefined,
           name: teacherName.trim(),
           email: teacherEmail.trim().toLowerCase(),
           phone: teacherPhone.trim() || undefined,
@@ -931,7 +969,8 @@ function AdminDashboardPage() {
         showToast(`⚠️ ${err.detail || "Failed to invite teacher"}`);
         return;
       }
-      showToast("🌿 Teacher invited to studio roster successfully!");
+      showToast("Teacher created. Open Edit to send the email invitation.");
+      setTeacherPassword(""); setTeacherUsername(""); setTeacherPasswordChanged(false); setTeacherPasswordVisible(false);
       setIsAddTeacherOpen(false);
       setTeacherName("");
       setTeacherEmail("");
@@ -948,13 +987,14 @@ function AdminDashboardPage() {
 
   // Open Edit Teacher Modal with existing data
   const handleOpenEditTeacher = (teacher: StudioTeacher) => {
+    setTeacherPasswordVisible(false); setTeacherPasswordChanged(false);
     setEditingTeacher(teacher);
-    setTeacherUsername(teacher.username || ""); setTeacherPassword(""); setTeacherAddress(teacher.address || ""); setTeacherLocation(teacher.location || "");
+    setTeacherUsername(teacher.username || ""); setTeacherPassword(""); setTeacherAddress(teacher.address || ""); setTeacherLocation(teacher.location || ""); setTeacherBillingCountry(teacher.billing_country || "");
     setTeacherName(teacher.name);
     setTeacherEmail(teacher.email);
-    setTeacherPhone(teacher.phone);
+    setTeacherPhone(teacher.phone || "");
     setTeacherTitle(teacher.title);
-    setTeacherBio(teacher.bio);
+    setTeacherBio(teacher.bio || "");
     setTeacherIsActive(teacher.is_active);
     setIsEditTeacherOpen(true);
   };
@@ -966,14 +1006,23 @@ function AdminDashboardPage() {
     if (isSavingTeacher) return;
     setIsSavingTeacher(true);
     try {
+      if (editingTeacher.is_active && !teacherIsActive) {
+        const impact = await teacherZoomImpact(editingTeacher.id, editingTeacher.studio_id);
+        if (!await confirmAction({ title: "Deactivate teacher and Zoom binding?", description: `${impact.future_class_count} future Zoom classes may be affected. ${impact.message} Assigned classes will be deactivated.`, confirmLabel: "Deactivate", destructive: true })) return;
+      }
+      const studioPassword = await askStudioPassword();
+      if (!studioPassword) return;
       const res = await fetch(`${API_BASE_URL}/teachers/${editingTeacher.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
+          studio_password: studioPassword,
+          email: teacherEmail,
           username: teacherUsername,
-          ...(teacherPassword ? { password: teacherPassword } : {}),
+          ...(teacherPasswordChanged && teacherPassword ? { password: teacherPassword } : {}),
           address: teacherAddress,
           location: teacherLocation,
+          billing_country: teacherBillingCountry || undefined,
           name: teacherName,
           phone: teacherPhone,
           title: teacherTitle,
@@ -986,7 +1035,8 @@ function AdminDashboardPage() {
         showToast(`⚠️ ${err.detail || "Failed to update teacher"}`);
         return;
       }
-      showToast("🌿 Teacher profile updated successfully!");
+      const savedTeacher = await res.json();
+      showToast(savedTeacher.invitation_message || "Teacher profile updated successfully!");
       setIsEditTeacherOpen(false);
       setEditingTeacher(null);
       fetchStudioTeachers();
@@ -995,9 +1045,17 @@ function AdminDashboardPage() {
     } finally { setIsSavingTeacher(false); }
   };
 
+  const teacherZoomImpact = async (memberId: string, orgId?: string) => {
+    const response = await fetch(`${API_BASE_URL}/organizations/${orgId || currentUser?.organization_id}/teachers/${memberId}/zoom/impact`, { headers: authHeaders() });
+    if (!response.ok) throw new Error("Unable to preview Zoom class impact. Reload before changing teacher access.");
+    return await response.json();
+  };
+
   // Remove a teacher from the studio
   const handleDeleteTeacher = async (teacherId: string, name: string) => {
-    if (!await confirmAction({ title: "Remove teacher?", description: `${name} will be removed from this studio. Check their scheduled classes before proceeding.`, confirmLabel: "Remove teacher", destructive: true })) return;
+    let impact;
+    try { impact = await teacherZoomImpact(teacherId); } catch (e) { notify((e as Error).message, "error"); return; }
+    if (!await confirmAction({ title: "Remove teacher?", description: `${name}'s studio access, assigned classes and Zoom binding will be deactivated. ${impact.future_class_count} future classes may be affected. ${impact.message}`, confirmLabel: "Remove teacher and Zoom binding", destructive: true })) return;
     try {
       const res = await fetch(`${API_BASE_URL}/teachers/${teacherId}`, {
         method: "DELETE",
@@ -1017,8 +1075,10 @@ function AdminDashboardPage() {
 
   const handleTeacherActivation = async (teacher: StudioTeacher) => {
     const action = teacher.is_active ? "Deactivate" : "Activate";
+    let impact;
+    if (teacher.is_active) { try { impact = await teacherZoomImpact(teacher.id, teacher.studio_id); } catch (e) { notify((e as Error).message, "error"); return; } }
     const description = teacher.is_active
-      ? `${teacher.name}'s access and every class assigned to them will be deactivated. Attendance history is retained.`
+      ? `${teacher.name}'s access, assigned classes and Zoom binding will be deactivated. ${impact?.future_class_count || 0} future Zoom classes may be affected. ${impact?.message || ""} Attendance history is retained.`
       : `${teacher.name} will regain teacher access. Their previously deactivated classes remain inactive until you activate them individually.`;
     if (!await confirmAction({ title: `${action} teacher?`, description, confirmLabel: `${action} teacher`, destructive: teacher.is_active })) return;
     try {
@@ -1028,6 +1088,40 @@ function AdminDashboardPage() {
       showToast(teacher.is_active ? `🌿 Teacher and ${updated.deactivated_class_count || 0} assigned classes deactivated.` : "🌿 Teacher activated. Review their classes before reopening them.");
       fetchStudioTeachers();
     } catch (err: any) { showToast(`⚠️ ${err.message || "Could not update teacher"}`); }
+  };
+
+  const [exportingRoster, setExportingRoster] = useState(false);
+  const exportStudentRoster = async () => {
+    if (exportingRoster) return;
+    setExportingRoster(true);
+    try {
+      const params = new URLSearchParams({ page: "1", page_size: "100", sort_by: studentSortBy, sort_order: studentSortOrder });
+      if (currentUser?.organization_id) params.set("studio_id", currentUser.organization_id);
+      if (studentSearch) params.set("search", studentSearch);
+      if (studentStatusFilter !== "ALL") params.set("status", studentStatusFilter);
+      const rows: Student[] = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        params.set("page", String(page));
+        const response = await fetch(`${API_BASE_URL}/students?${params}`, { headers: authHeaders() });
+        if (!response.ok) throw new Error("Could not export roster. Please retry.");
+        const data = await response.json();
+        rows.push(...data.items); totalPages = data.total_pages; page += 1;
+      } while (page <= totalPages);
+      if (!rows.length) { showToast("No students match the current filters."); return; }
+      const csv = rosterCsv([
+        ["Name", "Email", "Phone", "Verification", "Class pass", "Classes attended", "Total classes", "Status"],
+        ...rows.map(student => [student.name, student.email, student.phone, student.is_verified || student.verification_status === "VERIFIED" ? "Verified" : "Not verified", student.plan, student.attended, student.total, student.status]),
+      ]);
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+      const link = document.createElement("a");
+      link.href = url; link.download = `student-roster-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link); link.click(); link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast(`Exported ${rows.length} students to CSV`);
+    } catch (error) { showToast(error instanceof Error ? error.message : "Could not export roster"); }
+    finally { setExportingRoster(false); }
   };
 
   // Fetch Students from FastAPI Backend
@@ -1083,30 +1177,6 @@ function AdminDashboardPage() {
     }
   };
 
-  // Fetch Instructors for Super Admin from FastAPI Backend
-  const fetchAdminInstructors = async () => {
-    setAdminInstructorsLoading(true);
-    try {
-      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
-      const url = `${API_BASE_URL}/admin/instructors?page=${adminCurrentPage}&page_size=${adminPageSize}${
-        adminSearch ? `&search=${encodeURIComponent(adminSearch)}` : ""
-      }${adminStatusFilter !== "ALL" ? `&status=${adminStatusFilter}` : ""}`;
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAdminInstructors(data.items);
-        setAdminTotalItems(data.total_items);
-        setAdminTotalPages(data.total_pages);
-      }
-    } catch (e) {
-      console.warn("Backend API not reachable for admin instructors");
-    } finally {
-      setAdminInstructorsLoading(false);
-    }
-  };
-
   // Fetch Super Admin Metrics
   const fetchAdminMetrics = async () => {
     try {
@@ -1128,26 +1198,6 @@ function AdminDashboardPage() {
       }
     } catch (e) {
       console.warn("Error fetching admin metrics");
-    }
-  };
-
-  const toggleInstructorStatus = async (memberId: string) => {
-    const account = adminInstructors.find((instructor) => instructor.id === memberId);
-    const suspending = Boolean(account?.is_active);
-    if (!await confirmAction({ title: suspending ? "Suspend account access?" : "Restore account access?", description: suspending ? "This instructor will no longer be able to access the platform. Existing studio records will be kept." : "This instructor will be able to access the platform again.", confirmLabel: suspending ? "Suspend access" : "Restore access", destructive: suspending })) return;
-    try {
-      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
-      const res = await fetch(`${API_BASE_URL}/admin/instructors/${memberId}/toggle-status`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error("Could not update studio access. Please try again.");
-      const data = await res.json();
-      showToast(`🌿 ${data.message}`);
-      fetchAdminInstructors();
-      fetchAdminMetrics();
-    } catch (e) {
-      notify("Could not update studio access. Check your connection and try again.", "error");
     }
   };
 
@@ -1179,7 +1229,7 @@ function AdminDashboardPage() {
         if (data.disciplines) {
           setSetupDisciplines(data.disciplines.split(",").map((s: string) => s.trim()));
         }
-        if (data.teaching_mode) setSetupTeachingMode(data.teaching_mode);
+        if (data.teaching_mode) setSetupTeachingMode(!data.account_completed && data.completion_step < 3 && !data.address_line1 ? "ONLINE" : data.teaching_mode);
         if (data.address_line1) setSetupAddressLine1(data.address_line1);
         if (data.address_line2) setSetupAddressLine2(data.address_line2);
         if (data.city) setSetupCity(data.city);
@@ -1194,17 +1244,15 @@ function AdminDashboardPage() {
         if (data.account_holder_name) setSetupAccountHolderName(data.account_holder_name);
         if (data.ifsc_code) setSetupIfscCode(data.ifsc_code);
         if (data.upi_id) setSetupUpiId(data.upi_id);
-        if (data.settlement_cycle) setSetupSettlementCycle(data.settlement_cycle);
+
         if (data.zoom_auto_meeting_enabled !== undefined) setZoomAutoMeetingEnabled(data.zoom_auto_meeting_enabled);
-        if (data.zoom_waiting_room !== undefined) setZoomWaitingRoom(data.zoom_waiting_room);
-        if (data.zoom_host_video !== undefined) setZoomHostVideo(data.zoom_host_video);
 
         // Store profile snapshot in localStorage for instantaneous rendering
         try {
           localStorage.setItem("pr_studio_profile", JSON.stringify(data));
         } catch (err) {}
 
-        if (!data.account_completed && currentUser?.role !== "SUPER_ADMIN") {
+        if (!data.account_completed && currentUser?.role !== "SUPER_ADMIN" && !new URLSearchParams(window.location.search).has("tab")) {
           setActiveTab("account-completion");
         }
       }
@@ -1215,31 +1263,31 @@ function AdminDashboardPage() {
 
   // One-click prefill sample details for testing
   const handleFillSampleDetails = () => {
-    setSetupStudioName(currentUser?.organization_name || "Prana Sanctuary Studio");
+    setSetupStudioName(currentUser?.organization_name || "Learning Studio");
     setSetupPhone("+91 98765 43210");
     setSetupWhatsappNumber("+91 98765 43210");
-    setSetupSupportEmail(currentUser?.email || "namaste@pranasanctuary.com");
-    setSetupStudioTagline("Sacred Traditional Hatha, Aerial Flow & Meditation Sanctuary");
-    setSetupDisciplines(["Hatha Yoga", "Vinyasa Flow", "Aerial Yoga", "Pranayama & Meditation"]);
-    setSetupTeachingMode("HYBRID");
-    setSetupAddressLine1("Level 3, Sacred Banyan Arcade, 108 North Main Road");
-    setSetupAddressLine2("Opposite Osho Garden, Koregaon Park");
+    setSetupSupportEmail(currentUser?.email || "support@example.com");
+    setSetupStudioTagline("Classes, workshops and personal instruction");
+    setSetupDisciplines(["Music", "Performing Arts", "Dance", "Language Learning"]);
+    setSetupTeachingMode("ONLINE");
+    setSetupAddressLine1("Level 3, Central Learning Centre, 108 North Main Road");
+    setSetupAddressLine2("Opposite Central Park, Koregaon Park");
     setSetupCity("Pune");
     setSetupState("Maharashtra");
     setSetupPincode("411001");
     setSetupCountry("India");
     setSetupHasGst(true);
     setSetupGstNumber("27AABCU9603R1ZM");
-    setSetupLegalBusinessName("Prana Wellness Movement Private Limited");
+    setSetupLegalBusinessName("Creative Learning Private Limited");
     setSetupPanNumber("AABCU9603R");
     setSetupBankName("HDFC Bank");
-    setSetupAccountHolderName("Prana Wellness Movement Pvt Ltd");
+    setSetupAccountHolderName("Creative Learning Pvt Ltd");
     setSetupAccountNumber("50100234567890");
     setSetupConfirmAccountNumber("50100234567890");
     setSetupIfscCode("HDFC0001234");
-    setSetupUpiId("pranashala@okhdfcbank");
-    setSetupSettlementCycle("WEEKLY");
-    showToast("🌿 Pre-filled verified sanctuary sample details!");
+    setSetupUpiId("learningstudio@okhdfcbank");
+
+    showToast("🌿 Pre-filled verified studio sample details!");
   };
 
   // Save Progress across steps
@@ -1263,7 +1311,6 @@ function AdminDashboardPage() {
         whatsapp_number: setupWhatsappNumber || setupPhone,
         support_email: setupSupportEmail,
         studio_tagline: setupStudioTagline,
-        disciplines: setupDisciplines.join(", "),
         teaching_mode: setupTeachingMode,
         address_line1: setupAddressLine1,
         address_line2: setupAddressLine2,
@@ -1281,11 +1328,11 @@ function AdminDashboardPage() {
         ifsc_code: setupIfscCode,
         upi_id: setupUpiId,
         settlement_cycle: setupSettlementCycle,
-        zoom_connected: zoomConnected,
-        zoom_account_email: zoomAccountEmail,
-        zoom_auto_meeting_enabled: zoomAutoMeetingEnabled,
-        zoom_waiting_room: zoomWaitingRoom,
-        zoom_host_video: zoomHostVideo,
+
+
+
+
+
         completion_step: targetStep
       };
 
@@ -1304,127 +1351,17 @@ function AdminDashboardPage() {
         showToast("🌿 Studio setup progress saved!");
         fetchStudioProfile(orgId);
       } else {
-        if (nextStep) setCompletionStep(nextStep);
-        showToast("🌿 Progress saved locally!");
+        const error = await res.json();
+        notify(error.detail || "Unable to save setup progress. Please retry.", "error");
       }
     } catch (e) {
-      if (nextStep) setCompletionStep(nextStep);
-      showToast("🌿 Progress saved locally!");
+      notify("Unable to save setup progress. Check your connection and retry.", "error");
     } finally {
       setIsSavingProfile(false);
     }
   };
 
-  // Zoom Connect handler
-  const handleConnectZoom = async (mode: "ONE_CLICK" | "CREDENTIALS" = "ONE_CLICK") => {
-    setIsConnectingZoom(true);
-    try {
-      const orgId = currentUser?.organization_id || "65e82b8f-1494-4658-90d1-f450e21b20a5";
-      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
-      const email = setupSupportEmail || currentUser?.email || "owner.zoom@yogastudio.test";
-
-      const res = await fetch(`${API_BASE_URL}/organizations/${orgId}/zoom/connect`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          account_email: email,
-          client_id: mode === "CREDENTIALS" ? zoomClientId : null,
-          client_secret: mode === "CREDENTIALS" ? zoomClientSecret : null,
-          account_id: mode === "CREDENTIALS" ? zoomAccountId : null,
-          auto_meeting_enabled: zoomAutoMeetingEnabled,
-          waiting_room: zoomWaitingRoom,
-          host_video: zoomHostVideo
-        })
-      });
-
-      if (res.ok) {
-        setZoomConnected(true);
-        setZoomAccountEmail(email);
-        showToast(`🎥 Zoom Connected (${email})! Live class meeting links active.`);
-        fetchStudioProfile(orgId);
-      } else {
-        notify("Zoom could not be connected. Check your account details and try again.", "error");
-      }
-    } catch (e) {
-      notify("Unable to reach Zoom setup. Check your connection and try again.", "error");
-    } finally {
-      setIsConnectingZoom(false);
-    }
-  };
-
-  // Zoom Disconnect handler
-  const handleDisconnectZoom = async () => {
-    if (!await confirmAction({ title: "Disconnect Zoom?", description: "New automatic meeting links will be unavailable until you reconnect Zoom. Existing classes will remain in your schedule.", confirmLabel: "Disconnect", destructive: true })) return;
-    try {
-      const orgId = currentUser?.organization_id || "65e82b8f-1494-4658-90d1-f450e21b20a5";
-      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
-      const response = await fetch(`${API_BASE_URL}/organizations/${orgId}/zoom/disconnect`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error("Disconnect failed");
-    } catch (e) { notify("Unable to disconnect Zoom. Please try again.", "error"); return; }
-    setZoomConnected(false);
-    setZoomAccountEmail("");
-    showToast("Zoom account disconnected.");
-  };
-
-  // Test Zoom Room Generation
-  const handleGenerateTestZoomMeeting = async () => {
-    setIsGeneratingTestMeeting(true);
-    setZoomTestError(null);
-    if (!zoomConnected) {
-      setTestZoomMeeting(null);
-      const errMsg = "Zoom is not connected. You must connect your Zoom account or complete authentication before generating test meetings.";
-      setZoomTestError(errMsg);
-      notify(errMsg, "error");
-      setIsGeneratingTestMeeting(false);
-      return;
-    }
-    try {
-      const orgId = currentUser?.organization_id || "65e82b8f-1494-4658-90d1-f450e21b20a5";
-      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-instructor";
-      const res = await fetch(`${API_BASE_URL}/organizations/${orgId}/zoom/generate-meeting`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          topic: `${setupStudioName || "Sanctuary"} Test Live Classroom`,
-          duration_minutes: 60
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTestZoomMeeting(data);
-        setZoomTestError(null);
-        if (data.is_simulated) {
-          showToast("🧪 Generated simulated test room (Dev Simulation)");
-        } else {
-          showToast("🎥 Zoom live meeting generated successfully!");
-        }
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setTestZoomMeeting(null);
-        const errMsg = errData.detail || "Zoom is not connected. You must authenticate and connect Zoom before generating test meetings.";
-        setZoomTestError(errMsg);
-        notify(errMsg, "error");
-      }
-    } catch (e: any) {
-      setTestZoomMeeting(null);
-      const errMsg = e?.message || "Failed to generate Zoom meeting. Connect Zoom integration first.";
-      setZoomTestError(errMsg);
-      notify(errMsg, "error");
-    } finally {
-      setIsGeneratingTestMeeting(false);
-    }
-  };
-
-  // Complete Account Setup & Launch Sanctuary
+  // Complete Account Setup & Launch Studio
   const handleCompleteOnboarding = async () => {
     // Validate all 5 steps before completing launch
     for (let s = 1; s <= 5; s++) {
@@ -1446,7 +1383,6 @@ function AdminDashboardPage() {
         whatsapp_number: setupWhatsappNumber || setupPhone,
         support_email: setupSupportEmail,
         studio_tagline: setupStudioTagline,
-        disciplines: setupDisciplines.join(", "),
         teaching_mode: setupTeachingMode,
         address_line1: setupAddressLine1,
         address_line2: setupAddressLine2,
@@ -1464,17 +1400,17 @@ function AdminDashboardPage() {
         ifsc_code: setupIfscCode,
         upi_id: setupUpiId,
         settlement_cycle: setupSettlementCycle,
-        zoom_connected: zoomConnected,
-        zoom_account_email: zoomAccountEmail,
-        zoom_auto_meeting_enabled: zoomAutoMeetingEnabled,
-        zoom_waiting_room: zoomWaitingRoom,
-        zoom_host_video: zoomHostVideo,
+
+
+
+
+
         account_completed: true,
         completion_step: 6,
         completion_percentage: 100
       };
 
-      await fetch(`${API_BASE_URL}/organizations/${orgId}/profile`, {
+      const launchResponse = await fetch(`${API_BASE_URL}/organizations/${orgId}/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -1483,6 +1419,7 @@ function AdminDashboardPage() {
         body: JSON.stringify(payload)
       });
 
+      if (!launchResponse.ok) { const error = await launchResponse.json(); throw new Error(error.detail || "Unable to complete setup"); }
       setIsAccountCompleted(true);
       setCompletionStep(6);
       if (currentUser) {
@@ -1501,10 +1438,7 @@ function AdminDashboardPage() {
       fetchStudioProfile(orgId);
       setActiveTab("settings");
     } catch (e) {
-      setIsAccountCompleted(true);
-      setCompletionStep(6);
-      showToast("🎉 Studio Account Completed! Values saved to Studio Profiler.");
-      setActiveTab("settings");
+      notify(e instanceof Error ? e.message : "Studio setup could not be saved. Please try again.", "error");
     } finally {
       setIsSavingProfile(false);
     }
@@ -1527,8 +1461,9 @@ function AdminDashboardPage() {
         const validTabs: AdminTab[] = [
           "account-completion", "studio-teachers", "students", "classes-plans",
           "subscriptions-manager", "attendance-tracker", "my-website", "queries-manager",
-          "analytics", "billing-dashboard", "billing-downloads", "settings",
-          "superadmin-instructors", "superadmin-analytics", "superadmin-settings"
+          "analytics", "billing-dashboard", "billing-saas", "billing-progressrooms", "billing-downloads", "settings",
+          "zoom-settings", "zoom-host-key",
+          "superadmin-instructors", "superadmin-billing", "superadmin-analytics", "superadmin-settings"
         ];
 
         if (requestedTab && validTabs.includes(requestedTab)) {
@@ -1663,13 +1598,12 @@ function AdminDashboardPage() {
   useEffect(() => {
     if (currentUser?.role === "SUPER_ADMIN") {
       if (activeTab === "superadmin-instructors") {
-        fetchAdminInstructors();
         fetchAdminMetrics();
       } else if (activeTab === "superadmin-analytics") {
         fetchAdminMetrics();
       }
     }
-  }, [activeTab, currentUser, adminCurrentPage, adminPageSize, adminSearch, adminStatusFilter]);
+  }, [activeTab, currentUser]);
 
   // Check double-booking conflicts whenever instructor, days, or time range changes
   useEffect(() => {
@@ -1696,6 +1630,7 @@ function AdminDashboardPage() {
   };
 
   const handleLogout = async () => {
+    if (zoomNavigationGuard.current && !await zoomNavigationGuard.current()) return;
     if (!await confirmAction({ title: "Sign out?", description: "Unsaved form changes will be lost. You can sign in again anytime.", confirmLabel: "Sign out" })) return;
     localStorage.removeItem("pr_access_token");
     localStorage.removeItem("pr_user");
@@ -1746,7 +1681,7 @@ function AdminDashboardPage() {
     setIsCreateModalOpen(false);
     showToast(
       `🌿 New Batch "${newEntry.name}" created! ${
-        zoomConnected && zoomAutoMeetingEnabled ? "🎥 Live Zoom meeting link generated automatically." : "30-day timetable generated."
+        zoomConnected && zoomAutoMeetingEnabled ? "Zoom meetings will be provisioned when the class is opened, using its resolved host." : "30-day timetable generated."
       }`
     );
   };
@@ -1784,7 +1719,7 @@ function AdminDashboardPage() {
       });
     } else {
       await staffApi(`/organizations/${orgId}/occurrences/${event.occurrenceId}/attendance`, {
-        method: "POST", body: JSON.stringify({ enrollment_id: event.enrollmentId, status: event.status === "PRESENT" ? "ATTENDED" : event.status === "CANCELLED" ? "EXCUSED" : "ABSENT", notes: event.remarks }),
+        method: "POST", body: JSON.stringify({ enrollment_id: event.enrollmentId, status: event.status === "PRESENT" ? "ATTENDED" : event.status === "EXCUSED" ? "EXCUSED" : "ABSENT", notes: event.remarks }),
       });
     }
     setAttendanceEvents(items => items.map(item => item.id === event.id ? event : item));
@@ -1801,24 +1736,31 @@ function AdminDashboardPage() {
   // Feature boolean flags: disable features not accessible to teachers
   const features = useMemo(() => ({
     // Studio-only features disabled for teachers by boolean:
-    manageTeachers: isStudioOwner,
-    myWebsite: isStudioOwner,
+    manageTeachers: isStudioOwner && !studioRestricted,
+    myWebsite: isStudioOwner && !studioRestricted,
     accountDetails: isStudioOwner,
-    membershipsManager: isStudioOwner,
-    studioAnalytics: isStudioOwner,
-    createClasses: isStudioOwner,
+    membershipsManager: isStudioOwner && !studioRestricted,
+    studioAnalytics: isStudioOwner && !studioRestricted,
+    createClasses: isStudioOwner && !studioRestricted,
     studioProfileSettings: isStudioOwner,
     billingDetails: isStudioOwner,
+    zoomSettings: isStudioOwner && !studioRestricted,
 
     // Integrated features shared by both studio and teacher:
-    viewClasses: true,
-    manageStudents: true,
-    attendanceTracker: true,
-    queriesManager: true,
+    viewClasses: !studioRestricted,
+    manageStudents: !studioRestricted,
+    attendanceTracker: !studioRestricted,
+    queriesManager: !studioRestricted,
     settings: true,
     dashboardTheme: true,
     teacherProfileSettings: isTeacher,
-  }), [isStudioOwner, isTeacher]);
+  }), [isStudioOwner, isTeacher, studioRestricted]);
+
+  useEffect(() => {
+    if (studioRestricted && !["settings", "account-completion", "billing-saas", "billing-progressrooms"].includes(activeTab)) {
+      setActiveTab(isTeacher ? "settings" : "billing-saas");
+    }
+  }, [studioRestricted, activeTab, isTeacher]);
 
   // Tab protection guard: ensure teachers don't stay on studio-only tabs
   useEffect(() => {
@@ -1829,9 +1771,14 @@ function AdminDashboardPage() {
         "subscriptions-manager",
         "analytics",
         "billing-dashboard",
+        "billing-saas",
+        "billing-progressrooms",
         "billing-downloads",
         "my-website",
+        "zoom-settings",
+        "zoom-host-key",
         "superadmin-instructors",
+        "superadmin-billing",
         "superadmin-analytics",
         "superadmin-settings",
       ];
@@ -1845,13 +1792,13 @@ function AdminDashboardPage() {
   }, [isTeacher, activeTab, attendanceType]);
 
   const orgTitle = isSuperAdmin
-    ? "ProgressNow HQ"
-    : (currentUser?.organization_name || "Tranquil Flow Sanctuary");
+    ? "Progress Rooms HQ"
+    : (currentUser?.organization_name || "Learning Studio");
   const roleSubtitle = isSuperAdmin
     ? "Platform Super Admin"
-    : (isTeacher ? "Teacher Portal • Sanctuary Studio" : "Studio Operations");
-  const userDisplayName = currentUser?.full_name || (isSuperAdmin ? "Platform Super Admin" : (isTeacher ? "Sanctuary Guide" : "Studio Owner"));
-  const userDisplayEmail = currentUser?.email || (isSuperAdmin ? "admin@progressrooms.com" : (isTeacher ? "teacher@yogastudio.com" : "owner@yogastudio.com"));
+    : (isTeacher ? "Teacher Portal • Studio" : "Studio Operations");
+  const userDisplayName = currentUser?.full_name || (isSuperAdmin ? "Platform Super Admin" : (isTeacher ? "Teacher" : "Studio Owner"));
+  const userDisplayEmail = currentUser?.email || (isSuperAdmin ? "admin@progressrooms.com" : (isTeacher ? "teacher@example.com" : "owner@example.com"));
   const userInitials = isSuperAdmin ? "SA" : (isTeacher ? "TC" : "SO");
 
 
@@ -1884,8 +1831,9 @@ function AdminDashboardPage() {
                 <select
                   id="studio-switcher-select"
                   value={currentUser.organization_id}
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const targetId = e.target.value;
+                    if (zoomNavigationGuard.current && !await zoomNavigationGuard.current()) return;
                     const targetOrg = currentUser.organizations.find((o: any) => o.id === targetId);
                     if (targetOrg) {
                       const updatedUser = {
@@ -1926,6 +1874,10 @@ function AdminDashboardPage() {
                   className={`nav-item ${activeTab === "superadmin-instructors" ? "active" : ""}`}
                 >
                   <span>Manage Studios</span>
+                </button>
+
+                <button onClick={() => navigateToTab("superadmin-billing")} className={`nav-item ${activeTab === "superadmin-billing" ? "active" : ""}`}>
+                  <span>Studio Billing & Activity</span>
                 </button>
 
                 <button
@@ -2011,26 +1963,21 @@ function AdminDashboardPage() {
                   </button>
                 )}
 
-                {features.studioAnalytics && (
-                  <button
-                    onClick={() => navigateToTab("analytics")}
-                    className={`nav-item ${activeTab === "analytics" ? "active" : ""}`}
-                  >
-                    <span>Studio Analytics</span>
-                  </button>
-                )}
+                {isStudioOwner && <button onClick={() => navigateToTab("billing-saas")} className={`nav-item ${activeTab === "billing-saas" ? "active" : ""}`}><span>Progress Rooms Billing</span></button>}
 
                 {features.billingDetails && (
                   <>
                     <button
-                      onClick={() => navigateToTab("billing-dashboard")}
-                      className={`nav-item ${activeTab.startsWith("billing-") ? "active" : ""}`}
+                      onClick={() => navigateToTab("billing-progressrooms")}
+                      className={`nav-item ${(activeTab.startsWith("billing-") && activeTab !== "billing-saas") || activeTab === "analytics" ? "active" : ""}`}
                     >
-                      <span>Billing Details</span>
+                      <span>Student Billing &amp; Usage</span>
                     </button>
-                    {activeTab.startsWith("billing-") && (
+                    {((activeTab.startsWith("billing-") && activeTab !== "billing-saas") || activeTab === "analytics") && (
                       <div className="settings-submenu" aria-label="Billing sections">
+                        <button type="button" className={activeTab === "billing-progressrooms" ? "active" : ""} onClick={() => navigateToTab("billing-progressrooms")}>Active-student usage</button>
                         <button type="button" className={activeTab === "billing-dashboard" ? "active" : ""} onClick={() => navigateToTab("billing-dashboard")}>Billing Dashboard</button>
+                        {features.studioAnalytics && <button type="button" className={activeTab === "analytics" ? "active" : ""} onClick={() => navigateToTab("analytics")}>Studio Analytics</button>}
                         <button type="button" className={activeTab === "billing-downloads" ? "active" : ""} onClick={() => navigateToTab("billing-downloads")}>Download Bills</button>
                       </div>
                     )}
@@ -2040,12 +1987,12 @@ function AdminDashboardPage() {
                 {features.settings && (
                   <button
                     onClick={() => navigateToTab("settings")}
-                    className={`nav-item ${activeTab === "settings" ? "active" : ""}`}
+                    className={`nav-item ${activeTab === "settings" || activeTab.startsWith("zoom-") ? "active" : ""}`}
                   >
                     <span>Settings</span>
                   </button>
                 )}
-                {features.settings && activeTab === "settings" && (
+                {features.settings && (activeTab === "settings" || activeTab.startsWith("zoom-")) && (
                   <div className="settings-submenu" aria-label="Settings sections">
                     {features.accountDetails && (
                       <button
@@ -2057,18 +2004,23 @@ function AdminDashboardPage() {
                     )}
                     <button
                       type="button"
-                      className={settingsSection === "profile" ? "active" : ""}
-                      onClick={() => setSettingsSection("profile")}
+                      className={activeTab === "settings" && settingsSection === "profile" ? "active" : ""}
+                      onClick={() => { setSettingsSection("profile"); navigateToTab("settings"); }}
                     >
                       Profile Settings
                     </button>
                     <button
                       type="button"
-                      className={settingsSection === "dashboard" ? "active" : ""}
-                      onClick={() => setSettingsSection("dashboard")}
+                      className={activeTab === "settings" && settingsSection === "dashboard" ? "active" : ""}
+                      onClick={() => { setSettingsSection("dashboard"); navigateToTab("settings"); }}
                     >
                       Dashboard Settings
                     </button>
+                    {features.zoomSettings && (
+                      <button type="button" className={activeTab.startsWith("zoom-") ? "active" : ""} onClick={() => navigateToTab("zoom-settings")}>
+                        Zoom Settings
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -2105,6 +2057,7 @@ function AdminDashboardPage() {
             </div>
             <div className="truncate">
               <p className="text-xs font-bold text-white truncate">{userDisplayName}</p>
+              {!isSuperAdmin && studioPlanLabel && <button type="button" onClick={() => navigateToTab(isStudioOwner ? "billing-saas" : "settings")} title={studioPlanLabel} className="mt-1 rounded-md border border-emerald-300/30 bg-emerald-300/10 px-2 py-1 text-[10px] font-semibold text-emerald-100">{studioPlanLabel}</button>}
               <p className="text-[10px] text-[#81A882] truncate">{userDisplayEmail}</p>
               {isTeacher && currentUser?.teacher_code && <p className="mt-0.5 text-[10px] font-bold tracking-[.18em] text-white">CODE {currentUser.teacher_code}</p>}
             </div>
@@ -2120,8 +2073,9 @@ function AdminDashboardPage() {
         </div>
       </aside></ResponsiveSidebar>
 
-      {/* Main Sanctuary Dashboard Viewport */}
+      {/* Main Studio Dashboard Viewport */}
       <main id="main-content" className="dashboard-content min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 xl:p-8">
+        {!isSuperAdmin && currentUser?.organization_id && <StudioAccessNotice orgId={currentUser.organization_id} isOwner={isStudioOwner} onBilling={() => navigateToTab("billing-saas")} onRestricted={setStudioRestricted} onPlanLabel={setStudioPlanLabel} />}
         {isTeacher && currentUser?.teacher_code && (
           <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[#CEDECF] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -2166,224 +2120,13 @@ function AdminDashboardPage() {
             </div>
           </div>
         )}
-        {/* SUPER ADMIN TAB 1: STUDIOS & INSTRUCTORS MANAGEMENT */}
-        {activeTab === "superadmin-instructors" && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Manage Studios & Organizations</h1>
-                <p className="text-xs text-[#40514E] mt-0.5">
-                  Super Admin platform governance: review registered studios, monitor academy health, and manage tenant credentials.
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    fetchAdminInstructors();
-                    fetchAdminMetrics();
-                    showToast("Refreshed platform database records");
-                  }}
-                  className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition"
-                >
-                  <span>Refresh Platform DB</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Metrics Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
-                <span className="text-xs font-semibold text-slate-500">Registered Studios</span>
-                <p className="text-2xl font-bold text-[#0C2417] mt-1">{adminMetrics?.total_organizations ?? 6}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Live tenant organizations</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
-                <span className="text-xs font-semibold text-slate-500">Total Teachers / Instructors</span>
-                <p className="text-2xl font-bold text-[#0C2417] mt-1">{adminMetrics?.total_instructors ?? 10}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Across all studio academies</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
-                <span className="text-xs font-semibold text-slate-500">Total Enrolled Yogis</span>
-                <p className="text-2xl font-bold text-[#0C2417] mt-1">{adminMetrics?.total_students ?? 20}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Active platform practitioners</p>
-              </div>
-            </div>
-
-            {/* Search & Filter Bar */}
-            <div className="bg-white p-4 rounded-2xl border border-[#E1E9E2] shadow-sm flex flex-col sm:flex-row items-center gap-3">
-              <div className="relative flex-1 w-full">
-                <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search by instructor name, email, or studio..."
-                  value={adminSearch}
-                  onChange={(e) => {
-                    setAdminSearch(e.target.value);
-                    setAdminCurrentPage(1);
-                  }}
-                  className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#133623]"
-                />
-              </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <select
-                  value={adminStatusFilter}
-                  onChange={(e) => {
-                    setAdminStatusFilter(e.target.value);
-                    setAdminCurrentPage(1);
-                  }}
-                  className="px-3 py-2 text-xs rounded-xl border border-[#CEDECF] bg-white text-slate-700 font-medium"
-                >
-                  <option value="ALL">All Statuses</option>
-                  <option value="ACTIVE">Active Teachers</option>
-                  <option value="SUSPENDED">Suspended</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Instructors Table */}
-            <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden">
-              <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable records table">
-                {adminInstructorsLoading ? (
-                  <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
-                    <Loader2 className="h-5 w-5 animate-spin text-[#133623]" />
-                    <span>Loading instructors from PostgreSQL database...</span>
-                  </div>
-                ) : (
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#F4F7F4] border-b border-[#E1E9E2] text-[#1b4332] uppercase tracking-wider font-bold">
-                      <tr>
-                        <th className="px-6 py-4">Instructor & Email</th>
-                        <th className="px-6 py-4">Studio / Academy</th>
-                        <th className="px-6 py-4">Role & Specialization</th>
-                        <th className="px-6 py-4">Status</th>
-                        <th className="px-6 py-4">Registered</th>
-                        <th className="px-6 py-4 text-right">Super Admin Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#E1E9E2]">
-                      {adminInstructors.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                            No instructors found matching your criteria.
-                          </td>
-                        </tr>
-                      ) : (
-                        adminInstructors.map((inst) => (
-                          <tr key={inst.id} className="hover:bg-[#F9FAF9] transition">
-                            <td className="px-6 py-4">
-                              <p className="font-bold text-[#0C2417] text-sm">{inst.instructor_name}</p>
-                              <p className="text-[11px] text-slate-500">{inst.email}</p>
-                              <p className="text-[10px] text-slate-400">{inst.phone}</p>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="font-bold text-[#1b4332]">{inst.studio_name}</span>
-                              <span className="block text-[10px] text-slate-400 font-mono">/{inst.studio_slug}</span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="font-semibold text-slate-800">{inst.title}</span>
-                              <span className="block text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-0.5">
-                                {inst.role}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span
-                                className={`record-capsule px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  inst.is_active
-                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                    : "bg-red-50 text-red-700 border border-red-200"
-                                }`}
-                              >
-                                {inst.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-slate-500">
-                              {inst.joined_at}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <button
-                                onClick={() => toggleInstructorStatus(inst.id)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                                  inst.is_active
-                                    ? "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
-                                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                                }`}
-                              >
-                                {inst.is_active ? "Suspend Access" : "Activate Access"}
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-
-              {/* Admin Pagination Controls */}
-              <div className="px-6 py-4 bg-[#FAF7F2] border-t border-[#E1E9E2] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
-                <div className="flex items-center gap-3">
-                  <span>
-                    Showing <strong>{adminTotalItems === 0 ? 0 : (adminCurrentPage - 1) * adminPageSize + 1}</strong> to{" "}
-                    <strong>{Math.min(adminCurrentPage * adminPageSize, adminTotalItems)}</strong> of <strong>{adminTotalItems}</strong> instructors
-                  </span>
-
-                  <div className="flex items-center gap-1 ml-2">
-                    <span className="text-slate-400">Rows:</span>
-                    <select
-                      value={adminPageSize}
-                      onChange={(e) => {
-                        setAdminPageSize(Number(e.target.value));
-                        setAdminCurrentPage(1);
-                      }}
-                      className="px-2 py-1 rounded-lg border border-[#CEDECF] bg-white font-medium text-[#0C2417]"
-                    >
-                      <option value={5}>5</option>
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setAdminCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={adminCurrentPage <= 1}
-                    className="px-2.5 py-1.5 rounded-lg border border-[#CEDECF] bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1 font-medium"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                    <span>Prev</span>
-                  </button>
-
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: adminTotalPages }, (_, i) => i + 1).map((pageNum) => (
-                      <button
-                        key={pageNum}
-                        onClick={() => setAdminCurrentPage(pageNum)}
-                        className={`w-7 h-7 rounded-lg font-bold text-xs transition ${
-                          adminCurrentPage === pageNum
-                            ? "bg-[#133623] text-white shadow-sm"
-                            : "bg-white border border-[#CEDECF] text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => setAdminCurrentPage((p) => Math.min(adminTotalPages, p + 1))}
-                    disabled={adminCurrentPage >= adminTotalPages}
-                    className="px-2.5 py-1.5 rounded-lg border border-[#CEDECF] bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition flex items-center gap-1 font-medium"
-                  >
-                    <span>Next</span>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+        {isSuperAdmin && (activeTab === "superadmin-instructors" || activeTab === "superadmin-billing") && (
+          <AdminStudios key={activeTab} mode={activeTab === "superadmin-billing" ? "billing" : "directory"} onViewMore={(id) => {
+            navigateToTab("superadmin-billing");
+            const url = new URL(window.location.href);
+            url.searchParams.set("studio", id);
+            window.history.replaceState({}, "", url.toString());
+          }} />
         )}
 
         {/* SUPER ADMIN TAB 2: PLATFORM OVERVIEW & METRICS */}
@@ -2391,7 +2134,7 @@ function AdminDashboardPage() {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Platform Overview & Subscriptions</h1>
-              <p className="text-xs text-[#40514E] mt-0.5">Real-time health, subscriber retention, and tenancy metrics across ProgressNow OS.</p>
+              <p className="text-xs text-[#40514E] mt-0.5">Real-time health, subscriber retention, and tenancy metrics across Progress Rooms OS.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -2479,12 +2222,12 @@ function AdminDashboardPage() {
                     </span>
                   ) : (
                     <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      100% Completed • Sanctuary Active
+                      100% Completed • Studio Active
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-[#40514E] mt-1">
-                  Complete all 6 essential studio setup steps: mobile & WhatsApp, location & teaching mode, GST registration, bank payouts, Zoom live video, and final launch.
+                  Complete your contact details, bank payouts, and initial Zoom authentication to launch. Location and tax details are optional and can be added later.
                 </p>
               </div>
 
@@ -2507,11 +2250,11 @@ function AdminDashboardPage() {
                   <div className="min-w-0">
                     <p className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">Step {completionStep} of 6</p>
                     <h2 className="text-xs font-bold text-[#0C2417] truncate">
-                      {["Studio Contact & Phone", "Location & Mode", "GST & Tax Identity", "Bank Payout Accounts", "Zoom Video Classroom", "Review & Sanctuary Launch"][completionStep - 1]}
+                      {["Studio Contact & Phone", "Location & Mode (optional)", "GST & Tax Identity (optional)", "Bank Payout Accounts", "Zoom Video Classroom", "Review & Studio Launch"][completionStep - 1]}
                     </h2>
                   </div>
                   <span className={`stepper-chip shrink-0 ${checkStepCompleted(completionStep) ? "complete" : "active"}`}>
-                    {checkStepCompleted(completionStep) ? "Completed" : "In Progress"}
+                    {[2, 3].includes(completionStep) ? "Optional" : checkStepCompleted(completionStep) ? "Completed" : "In Progress"}
                   </span>
                 </div>
 
@@ -2531,8 +2274,8 @@ function AdminDashboardPage() {
               <div className="overflow-x-auto pb-1 -mx-1 px-1 flex items-center gap-2">
                 {[
                   { step: 1, label: "01 Contact" },
-                  { step: 2, label: "02 Location" },
-                  { step: 3, label: "03 GST" },
+                  { step: 2, label: "02 Location (optional)" },
+                  { step: 3, label: "03 GST (optional)" },
                   { step: 4, label: "04 Bank" },
                   { step: 5, label: "05 Zoom" },
                   { step: 6, label: "06 Launch" }
@@ -2564,11 +2307,11 @@ function AdminDashboardPage() {
               {/* LEFT COLUMN: VERTICAL STEPPER CARD (Matching reference image left card) */}
               <div className="hidden lg:block lg:col-span-4 xl:col-span-4 space-y-4 sticky top-6">
                 <div className="bg-white rounded-3xl border border-[#CEDECF] p-6 shadow-sm">
-                  {/* Top Brand / Sanctuary Mark */}
+                  {/* Top Brand / Studio Mark */}
                   <div className="flex items-center justify-between pb-5 border-b border-[#E1E9E2]">
                     <div>
                       <h2 className="font-serif font-bold text-base text-[#0C2417]">Studio Setup</h2>
-                      <p className="text-[11px] text-slate-500 font-medium">Sanctuary Onboarding</p>
+                      <p className="text-[11px] text-slate-500 font-medium">Studio Onboarding</p>
                     </div>
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                       isAccountCompleted
@@ -2583,8 +2326,8 @@ function AdminDashboardPage() {
                   <div className="py-4 space-y-0.5" aria-label="Step navigation timeline">
                     {[
                       { step: 1, label: "Studio Contact" },
-                      { step: 2, label: "Location & Mode" },
-                      { step: 3, label: "GST & Legal" },
+                      { step: 2, label: "Location & Mode (optional)" },
+                      { step: 3, label: "GST & Legal (optional)" },
                       { step: 4, label: "Bank & Payouts" },
                       { step: 5, label: "Zoom Live Video" },
                       { step: 6, label: "Review & Launch" }
@@ -2649,7 +2392,7 @@ function AdminDashboardPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        showToast("🌿 Sanctuary Concierge: concierge@progressrooms.com • +91 800-SANCTUARY");
+                        showToast("🌿 Support: concierge@progressrooms.com • +91 800-SUPPORT");
                       }}
                       className="text-[11px] font-bold text-[#2D7A58] hover:underline shrink-0"
                     >
@@ -2680,7 +2423,7 @@ function AdminDashboardPage() {
                           Studio Contact & Primary Identity
                         </h3>
                         <p className="text-xs text-slate-500 mt-1">
-                          Provide your studio name, primary phone, WhatsApp number, and teaching disciplines.
+                          Provide your studio name, primary phone{whatsappCompletelyDisabled ? "" : ", WhatsApp number"}, and teaching disciplines.
                         </p>
                       </div>
                     </div>
@@ -2697,12 +2440,12 @@ function AdminDashboardPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="dashboard-page-field-1" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                      Studio / Sanctuary Name *
+                      Studio Name *
                     </label>
                     <input id="dashboard-page-field-1"
                       type="text"
                       required
-                      placeholder="e.g. Sahil Yoga Studio"
+                      placeholder="e.g. Sahil Teaching Studio"
                       value={setupStudioName}
                       onChange={(e) => setSetupStudioName(e.target.value)}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
@@ -2731,8 +2474,8 @@ function AdminDashboardPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="relative">
+                <div className={`grid grid-cols-1 ${whatsappCompletelyDisabled ? "" : "sm:grid-cols-2"} gap-4`}>
+                  <div className={`relative ${whatsappCompletelyDisabled ? "hidden" : ""}`}>
                     <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                       WhatsApp Contact Number
                     </label>
@@ -2747,7 +2490,7 @@ function AdminDashboardPage() {
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
                       />
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-1">Your studio recipient number for ProgressRooms notices. Messages to students use each student’s own number.</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Your studio recipient number for Progress Rooms notices. Messages to students use each student’s own number.</p>
                   </div>
 
                   <div>
@@ -2759,7 +2502,7 @@ function AdminDashboardPage() {
                       <input
                         type="email"
                         required
-                        placeholder="namaste@studio.com"
+                        placeholder="support@example.com"
                         value={setupSupportEmail}
                         onChange={(e) => setSetupSupportEmail(e.target.value)}
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
@@ -2770,58 +2513,14 @@ function AdminDashboardPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                    Studio Tagline / Headline
+                    Studio Tagline / Introduction (optional)
                   </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Traditional Hatha, Aerial Movement & Pranayama Sanctuary"
+                  <textarea rows={4} maxLength={5000}
+                    placeholder="e.g. Music, dance, art and academic tutoring"
                     value={setupStudioTagline}
                     onChange={(e) => setSetupStudioTagline(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
                   />
-                </div>
-
-                {/* Disciplines Selection */}
-                <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-2">
-                    Primary Movement & Teaching Disciplines
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      "Hatha Yoga",
-                      "Vinyasa Flow",
-                      "Aerial Yoga",
-                      "Yin Yoga",
-                      "Ashtanga",
-                      "Meditation",
-                      "Pranayama & Breathwork",
-                      "Pilates Conditioning",
-                      "Sound Bath"
-                    ].map((disc) => {
-                      const isSelected = setupDisciplines.includes(disc);
-                      return (
-                        <button
-                          key={disc}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setSetupDisciplines(setupDisciplines.filter((d) => d !== disc));
-                            } else {
-                              setSetupDisciplines([...setupDisciplines, disc]);
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
-                            isSelected
-                              ? "bg-[#133623] text-white shadow-sm"
-                              : "bg-[#F4F7F4] text-slate-700 hover:bg-[#E8F0E9] border border-[#CEDECF]"
-                          }`}
-                        >
-                          <span>{isSelected ? "✓" : "+"}</span>
-                          <span>{disc}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
 
                 {/* Footer Controls */}
@@ -2847,10 +2546,10 @@ function AdminDashboardPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
-                            STEP 2 / 6
+                            STEP 2 / 6 · OPTIONAL
                           </span>
                           <span className={`stepper-chip ${checkStepCompleted(2) ? "complete" : "active"}`}>
-                            {checkStepCompleted(2) ? "Completed" : "In Progress"}
+                            Optional
                           </span>
                         </div>
                         <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
@@ -2874,18 +2573,18 @@ function AdminDashboardPage() {
                 {/* Teaching Mode Selector */}
                 <div>
                   <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-2">
-                    Studio Teaching Mode *
+                    Studio Teaching Mode (optional)
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                     {[
                       {
                         mode: "HYBRID",
-                        title: "🌿 Hybrid Sanctuary",
-                        desc: "Both in-person Shala and live Zoom interactive classes"
+                        title: "🌿 Hybrid Studio",
+                        desc: "Both in-person and live online classes"
                       },
                       {
                         mode: "PHYSICAL",
-                        title: "🏢 Physical Shala Only",
+                        title: "🏢 Physical Studio Only",
                         desc: "Traditional brick-and-mortar studio classes"
                       },
                       {
@@ -2911,17 +2610,18 @@ function AdminDashboardPage() {
                   </div>
                 </div>
 
+                <p className="text-xs text-slate-600">Optional: keep 100% Virtual Studio selected to skip location details. Choose Hybrid or Physical to enter a venue.</p>
                 {/* Location Inputs */}
-                <div className="space-y-4">
+                <fieldset disabled={setupTeachingMode === "ONLINE"} className="space-y-4 disabled:opacity-50">
                   <div>
                     <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                      Studio Street Address / Shala Building *
+                      Studio Street Address / Building (optional)
                     </label>
                     <div className="relative">
                       <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="e.g. Level 3, Sacred Banyan Arcade, 108 North Main Road"
+                        placeholder="e.g. Level 3, Central Learning Centre, 108 North Main Road"
                         value={setupAddressLine1}
                         onChange={(e) => setSetupAddressLine1(e.target.value)}
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] focus:outline-none focus:ring-2 focus:ring-[#133623]"
@@ -2945,7 +2645,7 @@ function AdminDashboardPage() {
 
                     <div>
                       <label htmlFor="dashboard-page-field-4" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                        City *
+                        City (optional)
                       </label>
                       <input id="dashboard-page-field-4"
                         type="text"
@@ -2958,7 +2658,7 @@ function AdminDashboardPage() {
 
                     <div>
                       <label htmlFor="dashboard-page-field-5" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                        State *
+                        State (optional)
                       </label>
                       <input id="dashboard-page-field-5"
                         type="text"
@@ -2973,7 +2673,7 @@ function AdminDashboardPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="dashboard-page-field-6" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                        PIN / Postal Code *
+                        PIN / Postal Code (optional)
                       </label>
                       <input id="dashboard-page-field-6"
                         type="text"
@@ -2996,7 +2696,7 @@ function AdminDashboardPage() {
                       />
                     </div>
                   </div>
-                </div>
+                </fieldset>
 
                 {/* Footer Controls */}
                 <div className="pt-4 border-t border-[#E1E9E2] flex flex-wrap items-center justify-between gap-3">
@@ -3008,12 +2708,13 @@ function AdminDashboardPage() {
                     <ChevronLeft className="w-4 h-4" />
                     <span>Previous Step</span>
                   </button>
+                  <button type="button" onClick={() => setCompletionStep(3)} className="text-xs font-semibold text-[#2D7A58]">Skip this optional step</button>
                   <button
                     type="button"
                     onClick={() => handleSaveStep(3)}
                     className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
                   >
-                    <span>Save & Continue: GST & Legal</span>
+                    <span>Continue to optional tax details</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -3028,17 +2729,17 @@ function AdminDashboardPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
-                        STEP 3 / 6
+                        STEP 3 / 6 · OPTIONAL
                       </span>
                       <span className={`stepper-chip ${checkStepCompleted(3) ? "complete" : "active"}`}>
-                        {checkStepCompleted(3) ? "Completed" : "In Progress"}
+                        Optional
                       </span>
                     </div>
                     <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
-                      GST Registration & Legal Business Identity
+                      GST & Business Identity (optional)
                     </h3>
                     <p className="text-xs text-slate-500 mt-1">
-                      Specify your business entity name, Goods & Services Tax (GSTIN), and PAN details for compliance.
+                      Optional: add business or tax information if applicable. You can skip this step and update it later.
                     </p>
                   </div>
                 </div>
@@ -3074,7 +2775,7 @@ function AdminDashboardPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                       <div>
                         <label htmlFor="dashboard-page-field-8" className="block text-[11px] font-bold text-[#1b4332] uppercase mb-1">
-                          GSTIN (15 Digits) *
+                          GSTIN (15 Digits) (optional)
                         </label>
                         <input id="dashboard-page-field-8"
                           type="text"
@@ -3088,7 +2789,7 @@ function AdminDashboardPage() {
 
                       <div>
                         <label htmlFor="dashboard-page-field-9" className="block text-[11px] font-bold text-[#1b4332] uppercase mb-1">
-                          Legal Entity Name *
+                          Legal Entity Name (optional)
                         </label>
                         <input id="dashboard-page-field-9"
                           type="text"
@@ -3146,6 +2847,7 @@ function AdminDashboardPage() {
                     <ChevronLeft className="w-4 h-4" />
                     <span>Previous Step</span>
                   </button>
+                  <button type="button" onClick={() => setCompletionStep(4)} className="text-xs font-semibold text-[#2D7A58]">Skip this optional step</button>
                   <button
                     type="button"
                     onClick={() => handleSaveStep(4)}
@@ -3176,7 +2878,7 @@ function AdminDashboardPage() {
                       Bank Account & Settlement Payouts
                     </h3>
                     <p className="text-xs text-slate-500 mt-1">
-                      Provide verified bank payout specifications to receive student membership fees (&quot;The Thanks Perspective&quot;).
+                      Provide your bank account details for monthly payouts of student fees.
                     </p>
                   </div>
                 </div>
@@ -3275,13 +2977,13 @@ function AdminDashboardPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                      Instant UPI ID (for Quick Settlements)
+                      UPI ID (optional)
                     </label>
                     <div className="relative">
                       <Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="e.g. pranashala@okhdfcbank"
+                        placeholder="e.g. learningstudio@okhdfcbank"
                         value={setupUpiId}
                         onChange={(e) => setSetupUpiId(e.target.value.toLowerCase())}
                         className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9] font-mono focus:outline-none focus:ring-2 focus:ring-[#133623]"
@@ -3290,32 +2992,7 @@ function AdminDashboardPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                    Settlement Frequency
-                  </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      { id: "DAILY", title: "Daily Settlement", desc: "T+1 rolling transfers" },
-                      { id: "WEEKLY", title: "Weekly Settlement", desc: "Every Monday payout" },
-                      { id: "MONTHLY", title: "Monthly Settlement", desc: "1st of every month" }
-                    ].map((cycle) => (
-                      <button
-                        key={cycle.id}
-                        type="button"
-                        onClick={() => setSetupSettlementCycle(cycle.id as any)}
-                        className={`p-3 rounded-2xl border text-left transition ${
-                          setupSettlementCycle === cycle.id
-                            ? "bg-[#E8F0E9] border-[#133623] text-[#0C2417] ring-1 ring-[#133623]"
-                            : "bg-[#F9FAF9] border-[#CEDECF] text-slate-600 hover:bg-white"
-                        }`}
-                      >
-                        <p className="text-xs font-bold">{cycle.title}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{cycle.desc}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <p className="rounded-xl bg-[#F4F7F4] p-4 text-sm text-[#133623]"><strong>Monthly settlements:</strong> Payouts are processed during the final two calendar days of each month.</p>
 
                 {/* Footer Controls */}
                 <div className="pt-4 border-t border-[#E1E9E2] flex flex-wrap items-center justify-between gap-3">
@@ -3339,313 +3016,12 @@ function AdminDashboardPage() {
               </div>
             )}
 
-            {/* STEP 5: ZOOM AUTHENTICATION & LIVE CLASSROOM INTEGRATION */}
-            {completionStep === 5 && (
-              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-[#CEDECF] shadow-sm space-y-6">
-                {/* Reference Card Header */}
-                <div className="flex items-start gap-3.5 pb-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono font-bold tracking-wider text-slate-400 uppercase">
-                        STEP 5 / 6
-                      </span>
-                      <span className={`stepper-chip ${checkStepCompleted(5) ? "complete" : "active"}`}>
-                        {checkStepCompleted(5) ? "Completed" : "In Progress"}
-                      </span>
-                    </div>
-                    <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
-                      Zoom Live Classroom Video Authentication
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      When authenticated, newly created class batches will automatically generate live Zoom meeting rooms.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Card-level Linear Progress Bar */}
-                <div className="card-linear-progress my-2">
-                  <div className="card-linear-progress-fill" style={{ width: "83%" }} />
-                </div>
-
-                <div className="border-b border-[#E1E9E2] pb-2">
-                  <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Virtual Classroom Integration</p>
-                </div>
-
-                {/* Live Status Banner */}
-                {zoomConnected ? (
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
-                        ✓
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-xs text-emerald-900">Zoom Account Authenticated</h4>
-                        <p className="text-[11px] text-emerald-700 mt-0.5">
-                          Connected Account: <strong>{zoomAccountEmail || "owner.zoom@yogastudio.test"}</strong>
-                        </p>
-                        <p className="text-[10px] text-emerald-600 mt-1">
-                          Automated Meeting Generation is ACTIVE. Classes will generate unique Zoom URLs upon batch creation.
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleDisconnectZoom}
-                      className="text-xs text-red-600 hover:text-red-800 font-bold hover:underline shrink-0"
-                    >
-                      Disconnect Zoom
-                    </button>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-bold text-xs">Zoom Integration Pending</h4>
-                      <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                        Authenticate your Zoom account so your scheduled class batches automatically provision private video conference links for enrolled yogis.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Connect Options */}
-                {!zoomConnected && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 border-b border-slate-200 pb-2">
-                      <button
-                        type="button"
-                        onClick={() => setZoomAuthTab("ONE_CLICK")}
-                        className={`text-xs font-bold pb-2 border-b-2 transition ${
-                          zoomAuthTab === "ONE_CLICK"
-                            ? "border-[#133623] text-[#0C2417]"
-                            : "border-transparent text-slate-400 hover:text-slate-700"
-                        }`}
-                      >
-                        ⚡ One-Click Instant Zoom OAuth Connect
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setZoomAuthTab("CREDENTIALS")}
-                        className={`text-xs font-bold pb-2 border-b-2 transition ${
-                          zoomAuthTab === "CREDENTIALS"
-                            ? "border-[#133623] text-[#0C2417]"
-                            : "border-transparent text-slate-400 hover:text-slate-700"
-                        }`}
-                      >
-                        🔑 Server-to-Server API Keys
-                      </button>
-                    </div>
-
-                    {zoomAuthTab === "ONE_CLICK" ? (
-                      <div className="p-6 rounded-2xl bg-[#F4F7F4] border border-[#CEDECF] text-center space-y-4">
-                        <div className="max-w-md mx-auto space-y-2">
-                          <h4 className="text-sm font-bold text-[#0C2417]">Authorize ProgressNow Sanctuary on Zoom</h4>
-                          <p className="text-xs text-slate-600 leading-relaxed">
-                            Click below to authorize Zoom. ProgressNow will request permission to create scheduled video meetings on your behalf.
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={isConnectingZoom}
-                          onClick={() => handleConnectZoom("ONE_CLICK")}
-                          className="px-6 py-3 rounded-xl bg-[#2D8CFF] hover:bg-[#1A73E8] text-white font-bold text-xs shadow-md transition inline-flex items-center gap-2"
-                        >
-                          {isConnectingZoom ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Video className="w-4 h-4" />
-                          )}
-                          <span>Authenticate & Connect Zoom</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 p-4 rounded-2xl bg-[#F4F7F4] border border-[#CEDECF]">
-                        <div>
-                          <label htmlFor="dashboard-page-field-16" className="block text-xs font-bold text-slate-700 uppercase mb-1">Zoom Account ID</label>
-                          <input id="dashboard-page-field-16"
-                            type="text"
-                            placeholder="e.g. act_12345678"
-                            value={zoomAccountId}
-                            onChange={(e) => setZoomAccountId(e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono"
-                          />
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label htmlFor="dashboard-page-field-17" className="block text-xs font-bold text-slate-700 uppercase mb-1">Zoom Client ID</label>
-                            <input id="dashboard-page-field-17"
-                              type="text"
-                              placeholder="OAuth Client ID"
-                              value={zoomClientId}
-                              onChange={(e) => setZoomClientId(e.target.value)}
-                              className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label htmlFor="dashboard-page-field-18" className="block text-xs font-bold text-slate-700 uppercase mb-1">Zoom Client Secret</label>
-                            <input id="dashboard-page-field-18"
-                              type="password"
-                              placeholder="OAuth Secret"
-                              value={zoomClientSecret}
-                              onChange={(e) => setZoomClientSecret(e.target.value)}
-                              className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white font-mono"
-                            />
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleConnectZoom("CREDENTIALS")}
-                          className="px-4 py-2 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold text-xs transition"
-                        >
-                          Save Credentials & Authenticate
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Virtual Classroom Defaults */}
-                <div className="p-4 rounded-2xl bg-[#FAF7F2] border border-[#CEDECF] space-y-3">
-                  <h4 className="text-xs font-bold text-[#0C2417]">Automated Virtual Classroom Settings</h4>
-                  <div className="space-y-2.5">
-                    <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={zoomAutoMeetingEnabled}
-                        onChange={(e) => setZoomAutoMeetingEnabled(e.target.checked)}
-                        className="rounded text-[#133623] focus:ring-[#133623]"
-                      />
-                      <span><strong>Auto-generate Zoom Meeting URL</strong> when creating new class batches (Recommended)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={zoomWaitingRoom}
-                        onChange={(e) => setZoomWaitingRoom(e.target.checked)}
-                        className="rounded text-[#133623] focus:ring-[#133623]"
-                      />
-                      <span>Enable Zoom Waiting Room (Students wait until instructor admits them)</span>
-                    </label>
-
-                    <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-slate-700">
-                      <input
-                        type="checkbox"
-                        checked={zoomHostVideo}
-                        onChange={(e) => setZoomHostVideo(e.target.checked)}
-                        className="rounded text-[#133623] focus:ring-[#133623]"
-                      />
-                      <span>Turn Host / Instructor Video automatically ON when class starts</span>
-                    </label>
-                  </div>
-                </div>
-
-                <DeveloperOnly>
-                {/* Test Generated Zoom Meeting Preview */}
-                <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-[#0C2417]">Interactive Live Test</h4>
-                      <p className="text-[11px] text-slate-500">Generate a sample Zoom meeting to verify auto-provisioning.</p>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={isGeneratingTestMeeting}
-                      onClick={handleGenerateTestZoomMeeting}
-                      className="px-3 py-1.5 rounded-xl border border-[#CEDECF] text-xs font-bold text-[#133623] hover:bg-[#F4F7F4] transition flex items-center gap-1.5"
-                    >
-                      {isGeneratingTestMeeting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                      <span>Generate Sample Zoom Room</span>
-                    </button>
-                  </div>
-
-                  {zoomTestError && (
-                    <div role="alert" className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-2">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                        <span className="font-semibold">{zoomTestError}</span>
-                      </div>
-                      <p className="text-[11px] text-amber-800">
-                        Zoom live rooms cannot be provisioned until authentication is connected. Please connect and authenticate your Zoom account first.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab("account-completion");
-                          setCompletionStep(5);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold text-[11px] transition shadow-xs"
-                      >
-                        <span>Connect Zoom / Go to Authentication →</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {testZoomMeeting && (
-                    <div className={`p-3 rounded-xl text-xs space-y-1.5 ${
-                      testZoomMeeting.is_simulated
-                        ? "bg-amber-50 border border-amber-200"
-                        : "bg-blue-50 border border-blue-200"
-                    }`}>
-                      <p className={`font-bold flex items-center gap-1.5 ${
-                        testZoomMeeting.is_simulated ? "text-amber-900" : "text-blue-900"
-                      }`}>
-                        <span>🎥</span>
-                        <span>
-                          {testZoomMeeting.is_simulated ? "[SIMULATION] Dev Test Room: " : "Meeting Provisioned: "}
-                          ID {testZoomMeeting.meeting_id} (Passcode: {testZoomMeeting.passcode})
-                        </span>
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          readOnly
-                          value={testZoomMeeting.join_url}
-                          className={`w-full px-2 py-1 rounded-lg border font-mono text-[11px] bg-white ${
-                            testZoomMeeting.is_simulated ? "border-amber-300" : "border-blue-300"
-                          }`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(testZoomMeeting.join_url);
-                            showToast("Copied Zoom meeting URL!");
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-white font-bold text-[11px] ${
-                            testZoomMeeting.is_simulated ? "bg-amber-700 hover:bg-amber-800" : "bg-blue-600 hover:bg-blue-700"
-                          }`}
-                        >
-                          Copy
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                </DeveloperOnly>
-
-                {/* Footer Controls */}
-                <div className="pt-4 border-t border-[#E1E9E2] flex flex-wrap items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setCompletionStep(4)}
-                    className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    <span>Previous Step</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSaveStep(6)}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-2"
-                  >
-                    <span>Save & Continue: Review & Launch</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Initial required Zoom authentication. Advanced options remain in Settings. */}
+            {completionStep === 5 && <div className="space-y-5 rounded-3xl border border-[#CEDECF] bg-white p-6 sm:p-8">
+              <InitialZoomSetup org={currentUser?.organization_id || ""} onConnected={(connected, email) => { setZoomConnected(connected); setZoomAccountEmail(email); }} />
+              <p className="text-sm text-slate-600">For advanced Zoom options and multiple Zoom accounts, open Settings, choose Zoom, and visit Zoom Settings.</p>
+              <div className="flex justify-between gap-3"><button type="button" className="rounded-xl border px-4 py-3" onClick={() => setCompletionStep(4)}>Back</button><button type="button" className="rounded-xl bg-emerald-900 px-4 py-3 text-white" onClick={() => void handleSaveStep(6)}>Continue to review</button></div>
+            </div>}
 
             {/* STEP 6: REVIEW & COMPLETE LAUNCH */}
             {completionStep === 6 && (
@@ -3662,10 +3038,10 @@ function AdminDashboardPage() {
                       </span>
                     </div>
                     <h3 className="font-serif font-bold text-xl text-[#0C2417] leading-tight mt-0.5">
-                      Review, Verification Checklist & Sanctuary Launch
+                      Review, Verification Checklist & Studio Launch
                     </h3>
                     <p className="text-xs text-slate-500 mt-1">
-                      Verify all configured steps. Once confirmed, your sanctuary is marked 100% complete and saved to your Profiler.
+                      Verify all configured steps. Once confirmed, your studio is marked 100% complete and saved to your Profiler.
                     </p>
                   </div>
                 </div>
@@ -3676,7 +3052,7 @@ function AdminDashboardPage() {
                 </div>
 
                 <div className="border-b border-[#E1E9E2] pb-2">
-                  <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Sanctuary Configuration Summary</p>
+                  <p className="text-[11px] font-bold text-[#1b4332] uppercase tracking-wider">Studio Configuration Summary</p>
                 </div>
 
                 {/* 5 Cards Summary */}
@@ -3693,17 +3069,17 @@ function AdminDashboardPage() {
                     </div>
                     <p><strong>Studio:</strong> {setupStudioName || "Not Provided"}</p>
                     <p><strong>Phone:</strong> {setupPhone || "Not Provided"}</p>
-                    <p><strong>WhatsApp:</strong> {setupWhatsappNumber || setupPhone || "Not Provided"}</p>
+                    <p className={whatsappCompletelyDisabled ? "hidden" : ""}><strong>WhatsApp:</strong> {setupWhatsappNumber || setupPhone || "Not Provided"}</p>
                     <p><strong>Email:</strong> {setupSupportEmail || "Not Provided"}</p>
-                    <p><strong>Tagline:</strong> {setupStudioTagline || "None"}</p>
-                    <p><strong>Disciplines:</strong> {setupDisciplines.join(", ") || "None"}</p>
+                    <p className="whitespace-pre-line"><strong>Introduction:</strong> {setupStudioTagline || "Not provided (optional)"}</p>
+
                   </div>
 
                   {/* Card 2: Location & Mode */}
                   <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
                       <span className="font-bold text-[#0C2417]">
-                        Step 2: Location & Mode
+                        Step 2: Location & Mode (optional)
                       </span>
                       <button onClick={() => setCompletionStep(2)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
                         Edit
@@ -3718,7 +3094,7 @@ function AdminDashboardPage() {
                   <div className="p-4 rounded-2xl bg-[#F9FAF9] border border-[#CEDECF] space-y-2">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
                       <span className="font-bold text-[#0C2417]">
-                        Step 3: GST & Tax Identity
+                        Step 3: GST (optional) & Tax Identity
                       </span>
                       <button onClick={() => setCompletionStep(3)} className="text-[10px] text-[#2D7A58] font-bold hover:underline">
                         Edit
@@ -3744,7 +3120,7 @@ function AdminDashboardPage() {
                     <p><strong>Account No:</strong> {setupAccountNumber ? `••••••••${setupAccountNumber.slice(-4)}` : (studioProfile?.account_number_masked || "Not Provided")}</p>
                     <p><strong>IFSC:</strong> {setupIfscCode || "Not Provided"}</p>
                     <p><strong>UPI ID:</strong> {setupUpiId || "None"}</p>
-                    <p><strong>Settlement:</strong> {setupSettlementCycle}</p>
+                    <p><strong>Settlement:</strong> Monthly · final two calendar days of each month</p>
                   </div>
 
                   {/* Card 5: Zoom Integration */}
@@ -3761,26 +3137,25 @@ function AdminDashboardPage() {
                       <p>
                         <strong>Status:</strong>{" "}
                         <span className={zoomConnected ? "text-emerald-700 font-bold" : "text-amber-700 font-bold"}>
-                          {zoomConnected ? "Authenticated 🟢" : "Pending ⚠️"}
+                          {zoomConnected ? "Host configured (check Zoom Settings for live/simulation status)" : "Authentication required"}
                         </span>
                       </p>
-                      <p><strong>Zoom Email:</strong> {zoomAccountEmail || "owner.zoom@yogastudio.test"}</p>
-                      <p><strong>Auto Meeting Links:</strong> {zoomAutoMeetingEnabled ? "Enabled (Active)" : "Disabled"}</p>
-                      <p><strong>Waiting Room:</strong> {zoomWaitingRoom ? "Enabled" : "Disabled"}</p>
+                      <p><strong>Zoom Email:</strong> {zoomAccountEmail || "No authorized Zoom account"}</p>
+
                     </div>
                   </div>
                 </div>
 
                 {/* Verification Checklist */}
                 <div className="p-4 rounded-2xl bg-[#F4F7F4] border border-[#CEDECF] space-y-2.5">
-                  <h4 className="text-xs font-bold text-[#0C2417] uppercase tracking-wider">Sanctuary Verification Checklist</h4>
+                  <h4 className="text-xs font-bold text-[#0C2417] uppercase tracking-wider">Studio Verification Checklist</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <div className="flex items-center gap-2">
                       <span className={isStep1Complete ? "text-emerald-600 font-bold" : "text-amber-600"}>
                         {isStep1Complete ? "✓" : "○"}
                       </span>
                       <span className={isStep1Complete ? "text-[#0C2417] font-medium" : "text-slate-500"}>
-                        Studio Profile & WhatsApp Mobile
+                        {whatsappCompletelyDisabled ? "Studio Profile & Mobile" : "Studio Profile & WhatsApp Mobile"}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -3788,7 +3163,7 @@ function AdminDashboardPage() {
                         {isStep2Complete ? "✓" : "○"}
                       </span>
                       <span className={isStep2Complete ? "text-[#0C2417] font-medium" : "text-slate-500"}>
-                        Location & Teaching Mode Address
+                        Location & Teaching Mode (optional)
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -3796,7 +3171,7 @@ function AdminDashboardPage() {
                         {isStep3Complete ? "✓" : "○"}
                       </span>
                       <span className={isStep3Complete ? "text-[#0C2417] font-medium" : "text-slate-500"}>
-                        GSTIN & Legal Business Tax ID
+                        GSTIN & Business Tax ID (optional)
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -3819,11 +3194,11 @@ function AdminDashboardPage() {
                 </div>
 
                 {/* Final Launch Action */}
-                <div className="p-6 rounded-3xl bg-gradient-to-br from-[#0C2417] via-[#133623] to-[#1b4332] text-white shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="p-6 rounded-3xl border border-[#CEDECF] bg-[#E8F0E9] text-[#0C2417] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-serif font-bold text-lg">Ready to Launch Sanctuary Dashboard</h4>
-                    <p className="text-xs text-[#E8F0E9] mt-0.5">
-                      Your account will be verified and marked as 100% complete. The sidebar will update to show completion and your sanctuary is fully operational.
+                    <h4 className="font-serif font-bold text-lg">Ready to launch your Studio dashboard</h4>
+                    <p className="text-xs text-slate-700 mt-1">
+                      Your account will be verified and marked as 100% complete. The sidebar will update to show completion and your studio is fully operational.
                     </p>
                   </div>
 
@@ -3864,12 +3239,12 @@ function AdminDashboardPage() {
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] text-slate-500 font-medium">Having troubles?</p>
-              <p className="text-xs font-bold text-[#0C2417]">Contact Sanctuary Concierge</p>
+              <p className="text-xs font-bold text-[#0C2417]">Contact Support</p>
             </div>
             <button
               type="button"
               onClick={() => {
-                showToast("🌿 Sanctuary Concierge: concierge@progressrooms.com • +91 800-SANCTUARY");
+                showToast("🌿 Support: concierge@progressrooms.com • +91 800-SUPPORT");
               }}
               className="text-xs font-bold text-[#2D7A58] hover:underline"
             >
@@ -3887,27 +3262,19 @@ function AdminDashboardPage() {
               <div>
                 <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Manage Studio Teachers</h1>
                 <p className="text-xs text-[#40514E] mt-0.5">
-                  Empower your sanctuary: add certified instructors, modify titles & contact info, or manage access.
+                  Empower your studio: add certified instructors, modify titles & contact info, or manage access.
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => {
-                    fetchStudioTeachers();
-                    showToast("Synced teachers from database");
-                  }}
-                  className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition"
-                >
-                  <span>Sync DB</span>
-                </button>
-                <button
-                  onClick={() => {
                     setTeacherName("");
-      setTeacherUsername(""); setTeacherPassword(""); setTeacherAddress(""); setTeacherLocation("");
+      setTeacherUsername(""); setTeacherPassword(""); setTeacherAddress(""); setTeacherLocation(""); setTeacherBillingCountry("");
                     setTeacherEmail("");
                     setTeacherPhone("");
-                    setTeacherTitle("Sanctuary Instructor");
-                    setTeacherBio("Certified somatic instructor and sanctuary guide.");
+                    setTeacherTitle("Instructor");
+                    setTeacherBio("");
+                    setTeacherPassword(""); setTeacherUsername(""); setTeacherAddress(""); setTeacherLocation(""); setTeacherBillingCountry("");
                     setIsAddTeacherOpen(true);
                   }}
                   className="btn-primary py-2 px-4 text-xs font-semibold shadow-sm"
@@ -3924,19 +3291,19 @@ function AdminDashboardPage() {
                 <p className="text-2xl font-bold text-[#0C2417] mt-1">
                   {teacherActiveTotal}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Conducting live yoga classes</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Teaching live classes</p>
               </div>
 
               <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
                 <span className="text-xs font-semibold text-slate-500">Total Studio Guides</span>
                 <p className="text-2xl font-bold text-[#0C2417] mt-1">{teacherTotal}</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Registered in your sanctuary team</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Registered in your studio team</p>
               </div>
 
               <div className="p-4 rounded-2xl bg-white border border-[#CEDECF] shadow-sm">
-                <span className="text-xs font-semibold text-slate-500">Studio Sanctuary</span>
+                <span className="text-xs font-semibold text-slate-500">Studio</span>
                 <p className="text-base font-bold text-[#0C2417] mt-1 truncate">
-                  {studioTeachers[0]?.studio_name || currentUser?.studio_name || "Sanctuary Studio"}
+                  {studioTeachers[0]?.studio_name || currentUser?.studio_name || "Studio"}
                 </p>
                 <p className="text-[10px] text-slate-400 mt-0.5">Primary studio account</p>
               </div>
@@ -3955,7 +3322,6 @@ function AdminDashboardPage() {
                 />
               </div>
               <select value={teacherSortBy} onChange={(e) => { setTeacherSortBy(e.target.value as typeof teacherSortBy); setTeacherPage(1); }} className="rounded-xl border border-[#CEDECF] bg-white px-3 py-2 text-xs font-medium"><option value="name">Sort by name</option><option value="code">Sort by teacher code</option><option value="joined">Sort by joined date</option><option value="status">Sort by status</option></select>
-              <button onClick={() => { setTeacherSortOrder(value => value === "asc" ? "desc" : "asc"); setTeacherPage(1); }} className="rounded-xl border border-[#CEDECF] bg-white px-3 py-2 text-xs font-bold">{teacherSortOrder === "asc" ? "Ascending" : "Descending"}</button>
             </div>
 
             {/* Teachers Table */}
@@ -3967,13 +3333,15 @@ function AdminDashboardPage() {
                     <span>Loading studio teachers...</span>
                   </div>
                 ) : (
-                  <table className="w-full text-left text-xs">
+                  <table className="roster-table w-full text-left text-xs">
+                    <colgroup><col style={{ width: "19.25926%" }} /><col style={{ width: "16.29630%" }} /><col style={{ width: "12.59259%" }} /><col style={{ width: "10.37037%" }} /><col style={{ width: "19.25926%" }} /><col style={{ width: "10.37037%" }} /><col style={{ width: "11.85185%" }} /></colgroup>
                     <thead className="bg-[#F4F7F4] border-b border-[#E1E9E2] text-[#1b4332] uppercase tracking-wider font-bold">
                       <tr>
                         <th className="px-6 py-4">Teacher & Contact</th>
                         <th className="px-6 py-4">Title & Specialization</th>
                         <th className="px-6 py-4">Teacher Code</th>
                         <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4">Zoom</th>
                         <th className="px-6 py-4">Joined Date</th>
                         <th className="px-6 py-4 text-right">Actions</th>
                       </tr>
@@ -3981,7 +3349,7 @@ function AdminDashboardPage() {
                     <tbody className="divide-y divide-[#E1E9E2]">
                       {studioTeachers.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                          <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                             <div className="flex flex-col items-center justify-center gap-2">
                               <span className="text-3xl">🧘</span>
                               <p className="font-semibold text-slate-600">No teachers found in studio roster</p>
@@ -3989,12 +3357,13 @@ function AdminDashboardPage() {
                               <button
                                 onClick={() => {
                                   setTeacherName("");
-      setTeacherUsername(""); setTeacherPassword(""); setTeacherAddress(""); setTeacherLocation("");
+      setTeacherUsername(""); setTeacherPassword(""); setTeacherAddress(""); setTeacherLocation(""); setTeacherBillingCountry("");
                                   setTeacherEmail("");
                                   setTeacherPhone("");
-                                  setTeacherTitle("Sanctuary Instructor");
-                                  setTeacherBio("Certified somatic instructor.");
-                                  setIsAddTeacherOpen(true);
+                                  setTeacherTitle("Instructor");
+                                  setTeacherBio("");
+                                  setTeacherPassword(""); setTeacherUsername(""); setTeacherAddress(""); setTeacherLocation(""); setTeacherBillingCountry("");
+                    setIsAddTeacherOpen(true);
                                 }}
                                 className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#133623] text-white hover:bg-[#0C2417] transition"
                               >
@@ -4005,14 +3374,14 @@ function AdminDashboardPage() {
                         </tr>
                       ) : (
                         studioTeachers.map((teacher) => (
-                          <tr key={teacher.id} onClick={() => setViewingTeacher(teacher)} className="hover:bg-[#F9FAF9] transition cursor-pointer">
+                          <tr key={teacher.id} tabIndex={0} onKeyDown={event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setViewingTeacher(teacher); } }} onClick={() => setViewingTeacher(teacher)} className="hover:bg-[#F9FAF9] transition cursor-pointer">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-8 h-8 rounded-full bg-[#CEDECF] text-[#133623] flex items-center justify-center font-bold text-xs uppercase">
                                   {teacher.name ? teacher.name.charAt(0) : "T"}
                                 </div>
                                 <div>
-                                  <p className="font-bold text-[#0C2417] text-sm">{teacher.name}</p>
+                                  <p className="font-bold text-[#0C2417] text-sm">{teacher.name}{teacher.is_owner && <span className="ml-2 text-[10px] font-semibold text-emerald-700">Owner · Teacher</span>}</p>
                                   <p className="text-[11px] text-slate-500">{teacher.email}</p>
                                   <p className="text-[10px] text-slate-400">{teacher.phone}</p>
                                 </div>
@@ -4023,9 +3392,9 @@ function AdminDashboardPage() {
                               <p className="text-[11px] text-slate-500 line-clamp-1 max-w-xs">{teacher.bio}</p>
                             </td>
                             <td className="px-6 py-4">
-                              <span className="record-capsule rounded-lg bg-[#E8F0E9] px-2.5 py-1 font-mono text-xs font-black tracking-[.16em] text-[#133623]">
-                                {teacher.teacher_code || "Pending"}
-                              </span>
+                              <button type="button" disabled={!teacher.teacher_code} className="record-capsule rounded-lg bg-[#E8F0E9] px-2.5 py-1 font-mono text-xs font-black tracking-[.16em] text-[#133623]" onClick={async event => {
+                                event.stopPropagation(); try { await navigator.clipboard.writeText(teacher.teacher_code!); showToast("Teacher code copied to your clipboard"); } catch { showToast("Unable to copy teacher code"); }
+                              }}>{teacher.teacher_code || "Pending"}</button>
                             </td>
                             <td className="px-6 py-4">
                               <span
@@ -4038,6 +3407,7 @@ function AdminDashboardPage() {
                                 {teacher.status}
                               </span>
                             </td>
+                            <td className="px-6 py-4"><TeacherZoomControl org={teacher.studio_id} member={teacher.id} name={teacher.name} userId={teacher.user_id} currentUserId={currentUser?.id || currentUser?.user_id} owner initialState={teacher} onChanged={() => void fetchStudioTeachers()} /></td>
                             <td className="px-6 py-4 text-slate-500">
                               {formatStudioDate(teacher.joined_at)}
                             </td>
@@ -4050,6 +3420,8 @@ function AdminDashboardPage() {
                                   <span>Edit</span>
                                 </button>
                                 <button
+                                  disabled={teacher.is_owner}
+                                  title={teacher.is_owner ? "Owner access is managed separately from teacher access" : undefined}
                                   onClick={(event) => { event.stopPropagation(); handleTeacherActivation(teacher); }}
                                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${teacher.is_active ? "bg-red-50 hover:bg-red-100 text-red-700 border-red-200" : "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"}`}
                                 >
@@ -4061,7 +3433,7 @@ function AdminDashboardPage() {
                                 >
                                   View attendance
                                 </button>
-                                {teacher.role !== "OWNER" && (
+                                {!teacher.is_owner && (
                                   <button
                                     onClick={(event) => { event.stopPropagation(); handleDeleteTeacher(teacher.id, teacher.name); }}
                                     className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition"
@@ -4094,7 +3466,7 @@ function AdminDashboardPage() {
                 <p className="text-xs text-[#40514E] mt-0.5">
                   {isTeacher
                     ? "Manage your studio's students, review attendance records, and student practice notes."
-                    : "Manage your active yogis, review OTP account verification, track attendance counts, and review membership status."}
+                    : "Manage your active students, review OTP account verification, track attendance counts, and review membership status."}
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -4109,19 +3481,11 @@ function AdminDashboardPage() {
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    fetchStudents();
-                    showToast("Refreshed student roster from database");
-                  }}
+                  onClick={() => void exportStudentRoster()}
+                  disabled={exportingRoster}
                   className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition"
                 >
-                  <span>Sync DB</span>
-                </button>
-                <button
-                  onClick={() => showToast("Exporting Student Roster CSV...")}
-                  className="px-4 py-2 text-xs font-semibold bg-white border border-[#CEDECF] rounded-xl text-[#0C2417] hover:bg-[#F9FAF9] shadow-sm transition"
-                >
-                  Export Roster (CSV)
+                  {exportingRoster ? "Exporting…" : "Export Roster (CSV)"}
                 </button>
               </div>
             </div>
@@ -4151,13 +3515,12 @@ function AdminDashboardPage() {
                   className="px-3 py-2 text-xs rounded-xl border border-[#CEDECF] bg-white text-slate-700 font-medium"
                 >
                   <option value="ALL">All Statuses</option>
-                  <option value="ACTIVE">Active Yogis</option>
+                  <option value="ACTIVE">Active Students</option>
                   <option value="EXPIRING_SOON">Expiring Soon</option>
                   <option value="INACTIVE">Inactive</option>
                   <option value="SUSPENDED">Suspended</option>
                 </select>
                 <select value={studentSortBy} onChange={(e) => { setStudentSortBy(e.target.value as typeof studentSortBy); setCurrentPage(1); }} className="px-3 py-2 text-xs rounded-xl border border-[#CEDECF] bg-white text-slate-700 font-medium"><option value="name">Sort by name</option><option value="status">Sort by status</option><option value="joined">Sort by joined date</option></select>
-                <button onClick={() => { setStudentSortOrder(value => value === "asc" ? "desc" : "asc"); setCurrentPage(1); }} className="rounded-xl border border-[#CEDECF] bg-white px-3 py-2 text-xs font-bold">{studentSortOrder === "asc" ? "Ascending" : "Descending"}</button>
               </div>
             </div>
 
@@ -4167,13 +3530,14 @@ function AdminDashboardPage() {
                 {studentsLoading ? (
                   <div className="p-12 text-center text-slate-500 flex items-center justify-center gap-2">
                     <Loader2 className="h-5 w-5 animate-spin text-[#133623]" />
-                    <span>Loading practitioners from PostgreSQL database...</span>
+                    <span>Loading students...</span>
                   </div>
                 ) : (
-                  <table className="w-full text-left text-xs">
+                  <table className="roster-table w-full text-left text-xs">
+                    <colgroup><col style={{ width: "20.74074%" }} /><col style={{ width: "12.59259%" }} /><col style={{ width: "17.77778%" }} /><col style={{ width: "13.33333%" }} /><col style={{ width: "13.33333%" }} /><col style={{ width: "22.22222%" }} /></colgroup>
                     <thead className="bg-[#F4F7F4] border-b border-[#E1E9E2] text-[#1b4332] uppercase tracking-wider font-bold">
                       <tr>
-                        <th className="px-6 py-4">Practitioner Name</th>
+                        <th className="px-6 py-4">Student Name</th>
                         <th className="px-6 py-4">Verification</th>
                         <th className="px-6 py-4">Active Class Pass</th>
                         <th className="px-6 py-4 text-center">Classes Attended</th>
@@ -4185,7 +3549,7 @@ function AdminDashboardPage() {
                       {students.length === 0 ? (
                         <tr>
                           <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                            No practitioners found matching your filter criteria.
+                            No students found matching your filter criteria.
                           </td>
                         </tr>
                       ) : (
@@ -4532,9 +3896,9 @@ function AdminDashboardPage() {
               const attendedCount = liveRoster.filter(s => s.attendance_status === "ATTENDED").length;
               const absentCount = liveRoster.filter(s => s.attendance_status === "ABSENT").length;
               const excusedCount = liveRoster.filter(s => s.attendance_status === "EXCUSED").length;
-              const unmarkedCount = liveRoster.filter(s => s.attendance_status === "UNMARKED" || !s.attendance_status).length;
+              const upcomingCount = liveRoster.filter(s => s.attendance_status === "SCHEDULED" || !s.attendance_status).length;
               const totalCount = liveRoster.length;
-              const markedCount = totalCount - unmarkedCount;
+              const markedCount = totalCount - upcomingCount;
               const percentMarked = totalCount > 0 ? Math.round((markedCount / totalCount) * 100) : 0;
               const selectedClass = liveAttendanceClasses.find(c => c.id === selectedLiveClassId);
 
@@ -4593,7 +3957,7 @@ function AdminDashboardPage() {
                       <button
                         type="button"
                         onClick={markAllLivePresent}
-                        disabled={isMarkingLiveAttendance || unmarkedCount === 0}
+                        disabled={isMarkingLiveAttendance || attendedCount === totalCount}
                         className="px-4 py-2 rounded-xl text-xs font-bold bg-[#133623] text-white hover:bg-[#1b4332] transition flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
                       >
                         {isMarkingLiveAttendance ? (
@@ -4645,7 +4009,7 @@ function AdminDashboardPage() {
                               ["ATTENDED", `Present (${attendedCount})`],
                               ["ABSENT", `Absent (${absentCount})`],
                               ["EXCUSED", `Excused (${excusedCount})`],
-                              ["UNMARKED", `Unmarked (${unmarkedCount})`],
+                              ["SCHEDULED", `Upcoming (${upcomingCount})`],
                             ] as const
                           ).map(([value, label]) => {
                             const active = rosterFilter === value;
@@ -4662,6 +4026,8 @@ function AdminDashboardPage() {
                                       ? "bg-[#dc2626] text-white shadow-xs"
                                       : value === "EXCUSED"
                                       ? "bg-[#ca8a04] text-white shadow-xs"
+                                      : value === "SCHEDULED"
+                                      ? "bg-[#2563eb] text-white shadow-xs"
                                       : "bg-[#133623] text-white shadow-xs"
                                     : "bg-[#F4F7F4] border border-[#CEDECF] text-slate-700 hover:bg-[#E8F0E9]"
                                 }`}
@@ -4778,10 +4144,10 @@ function AdminDashboardPage() {
                                         ? "bg-red-100 text-red-800"
                                         : status === "EXCUSED"
                                         ? "bg-amber-100 text-amber-800"
-                                        : "bg-slate-100 text-slate-600"
+                                        : "bg-blue-100 text-blue-800"
                                     }`}
                                   >
-                                    {status === "ATTENDED" ? "Present" : status === "ABSENT" ? "Absent" : status === "EXCUSED" ? "Excused" : "Not marked"}
+                                    {status === "ATTENDED" ? "Present" : status === "ABSENT" ? "Absent" : status === "EXCUSED" ? "Excused" : "Upcoming"}
                                   </span>
                                 </div>
                                 <p className="text-[11px] text-slate-500 truncate">{student.student_email}</p>
@@ -4970,7 +4336,23 @@ function AdminDashboardPage() {
 
             {/* Conversation Thread Modal */}
             {selectedTicket && (
-              <Modal
+              <Modal footer={<div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTicket(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        Close
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSendingTicketReply || !ticketReplyMessage.trim()}
+                        onClick={() => void sendTicketReply(selectedTicket.id)}
+                        className="px-5 py-2 rounded-xl text-xs font-bold bg-[#133623] hover:bg-[#0C2417] text-white transition disabled:opacity-50"
+                      >
+                        {isSendingTicketReply ? "Sending…" : "Send Reply"}
+                      </button>
+                    </div>}
                 title={`Ticket: ${selectedTicket.subject}`}
                 onClose={() => setSelectedTicket(null)}
               >
@@ -5044,23 +4426,7 @@ function AdminDashboardPage() {
                       placeholder="Type your response to the student…"
                       className="w-full p-3 rounded-xl border border-[#CEDECF] text-xs focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white text-slate-900"
                     />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTicket(null)}
-                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                      >
-                        Close
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isSendingTicketReply || !ticketReplyMessage.trim()}
-                        onClick={() => void sendTicketReply(selectedTicket.id)}
-                        className="px-5 py-2 rounded-xl text-xs font-bold bg-[#133623] hover:bg-[#0C2417] text-white transition disabled:opacity-50"
-                      >
-                        {isSendingTicketReply ? "Sending…" : "Send Reply"}
-                      </button>
-                    </div>
+
                   </div>
                 </div>
               </Modal>
@@ -5073,12 +4439,33 @@ function AdminDashboardPage() {
           <StudioAnalytics organizationId={currentUser.organization_id} onOpenBilling={() => navigateToTab("billing-dashboard")} />
         )}
 
+        {activeTab === "billing-saas" && isStudioOwner && currentUser?.organization_id && <SaaSBilling key={currentUser.organization_id} orgId={currentUser.organization_id} />}
+
+        {activeTab === "billing-progressrooms" && isStudioOwner && currentUser?.organization_id && (
+          <ProgressRoomsBilling orgId={currentUser.organization_id} />
+        )}
+
         {activeTab === "billing-dashboard" && currentUser?.organization_id && (
           <BillingCenter orgId={currentUser.organization_id} mode="dashboard" />
         )}
 
         {activeTab === "billing-downloads" && currentUser?.organization_id && (
           <BillingCenter orgId={currentUser.organization_id} mode="downloads" />
+        )}
+
+        {/* TAB: ZOOM SETTINGS & HOST KEY */}
+        {(activeTab === "zoom-settings" || activeTab === "zoom-host-key") && (
+          <ZoomSettings
+            org={currentUser?.organization_id || ""}
+            orgSlug={currentUser?.organization_slug || ""}
+            orgName={currentUser?.organization_name || ""}
+            currentUser={currentUser}
+            studioProfile={studioProfile}
+            initialTab={activeTab === "zoom-host-key" ? "host-key" : "settings"}
+            onNavigationGuard={registerZoomNavigationGuard}
+            onTabChange={(tab) => { void navigateToTab(tab === "host-key" ? "zoom-host-key" : "zoom-settings"); }}
+            onProfileUpdated={fetchStudioProfile}
+          />
         )}
 
         {/* TAB 7: STUDIO PROFILER & SETTINGS */}
@@ -5112,7 +4499,7 @@ function AdminDashboardPage() {
                   <div>
                     <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Teacher Profile Settings</h1>
                     <p className="text-xs text-[#40514E] mt-0.5">
-                      Update your teacher details, contact information, and sanctuary teaching location.
+                      Update your teacher details, contact information, and studio teaching location.
                     </p>
                   </div>
 
@@ -5161,11 +4548,11 @@ function AdminDashboardPage() {
                       <div className="pt-2 grid grid-cols-2 gap-3 text-xs bg-[#F4F7F4] p-3 rounded-2xl border border-[#E1E9E2]">
                         <div>
                           <span className="text-[10px] uppercase font-bold text-slate-400 block">Registered Email</span>
-                          <span className="font-semibold text-[#0C2417]">{currentUser?.email || "teacher@yogastudio.com"}</span>
+                          <span className="font-semibold text-[#0C2417]">{currentUser?.email || "teacher@example.com"}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Sanctuary Studio</span>
-                          <span className="font-semibold text-[#0C2417]">{currentUser?.organization_name || "Tranquil Flow Sanctuary"}</span>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Studio</span>
+                          <span className="font-semibold text-[#0C2417]">{currentUser?.organization_name || "Learning Studio"}</span>
                         </div>
                       </div>
                     </div>
@@ -5188,7 +4575,7 @@ function AdminDashboardPage() {
                   <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Profile Settings</h1>
                   {isStep6Complete && zoomConnected ? (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-[#133623] border border-emerald-300 inline-flex items-center">
-                      Sanctuary Active
+                      Studio Active
                     </span>
                   ) : (
                     <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center">
@@ -5197,7 +4584,7 @@ function AdminDashboardPage() {
                   )}
                 </div>
                 <p className="text-xs text-[#40514E] mt-0.5">
-                  Official sanctuary profile, contact details, physical/online location, legal business & GST identity, fee payout accounts, and authenticated Zoom integration.
+                  Official studio profile, contact details, physical/online location, legal business & GST identity, fee payout accounts, and authenticated Zoom integration.
                 </p>
               </div>
 
@@ -5209,11 +4596,11 @@ function AdminDashboardPage() {
                   <span>Edit in Account Details</span>
                 </button>
                 <Link
-                  href={`/${studioProfile?.slug || currentUser?.organization_slug || "sahil-yoga-studio"}`}
+                  href={`/${studioProfile?.slug || currentUser?.organization_slug || "sahil-teaching-studio"}`}
                   target="_blank"
                   className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#133623] hover:bg-[#0C2417] text-white shadow-sm transition"
                 >
-                  <span>Public Sanctuary Page</span>
+                  <span>Public Studio Page</span>
                 </Link>
               </div>
             </div>
@@ -5227,14 +4614,14 @@ function AdminDashboardPage() {
               <div className="flex-1 text-xs">
                 <h4 className="font-bold">
                   {isStep6Complete && zoomConnected
-                    ? "Verified Sanctuary Roster & Integrations Active"
+                    ? "Verified Studio Roster & Integrations Active"
                     : !zoomConnected
                     ? `Setup In Progress (${displayPercentage}% - Zoom Disconnected)`
                     : "Account Setup Incomplete - Finish All Steps"}
                 </h4>
                 <p className="text-slate-600 mt-0.5">
                   {isStep6Complete && zoomConnected
-                    ? "Sanctuary profile and live video integrations are active. Classes automatically provision authenticated Zoom meeting links with waiting room security."
+                    ? "Studio profile and live video integrations are active. Classes automatically provision authenticated Zoom meeting links with waiting room security."
                     : !zoomConnected
                     ? "Studio profile and payment details are saved, but Zoom live video integration is disconnected. Connect Zoom OAuth in Step 5 before scheduled online classes can automatically provision live rooms."
                     : "Your studio account needs a few more details to be fully operational. Click 'Complete Setup' to finish configuring your phone, teaching location, GST/PAN, payout bank details, and Zoom live classroom."}
@@ -5274,14 +4661,14 @@ function AdminDashboardPage() {
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Studio Name</label>
                     <p className="font-serif font-bold text-base text-[#0C2417]">
-                      {setupStudioName || studioProfile?.name || currentUser?.organization_name || "Sahil Yoga Studio"}
+                      {setupStudioName || studioProfile?.name || currentUser?.organization_name || "Sahil Teaching Studio"}
                     </p>
                   </div>
 
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tagline / Mission</label>
-                    <p className="text-slate-700 font-medium">
-                      {setupStudioTagline || studioProfile?.studio_tagline || "Traditional Hatha, Aerial Movement & Meditation Sanctuary"}
+                    <p className="whitespace-pre-line text-slate-700 font-medium">
+                      {setupStudioTagline || studioProfile?.studio_tagline || "Classes, workshops and personal instruction"}
                     </p>
                   </div>
 
@@ -5300,7 +4687,7 @@ function AdminDashboardPage() {
                       </p>
                     </div>
 
-                    <div className="relative p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2]">
+                    <div className={`relative p-2.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] ${whatsappCompletelyDisabled ? "hidden" : ""}`}>
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
                           WhatsApp Contact
@@ -5318,7 +4705,7 @@ function AdminDashboardPage() {
                         <Mail className="h-3 w-3 text-emerald-600" /> Support Email
                       </label>
                       <p className="font-bold text-[#0C2417] text-xs mt-1 truncate" title={setupSupportEmail || studioProfile?.support_email || currentUser?.email}>
-                        {setupSupportEmail || studioProfile?.support_email || currentUser?.email || "namaste@pranasanctuary.com"}
+                        {setupSupportEmail || studioProfile?.support_email || currentUser?.email || "support@example.com"}
                       </p>
                     </div>
                   </div>
@@ -5328,7 +4715,7 @@ function AdminDashboardPage() {
                     <div className="flex flex-wrap gap-1.5 mt-1">
                       {(setupDisciplines.length > 0
                         ? setupDisciplines
-                        : (studioProfile?.disciplines ? studioProfile.disciplines.split(", ") : ["Hatha Yoga", "Vinyasa Flow", "Aerial Yoga"])
+                        : (studioProfile?.disciplines ? studioProfile.disciplines.split(", ") : ["Music", "Performing Arts", "Dance"])
                       ).map((d) => (
                         <span key={d} className="px-2.5 py-0.5 rounded-lg text-[11px] font-semibold bg-[#E8F0E9] text-[#1b4332] border border-[#CEDECF]">
                           {d}
@@ -5363,10 +4750,10 @@ function AdminDashboardPage() {
                     <div className="mt-1">
                       <span className="px-3 py-1 rounded-xl text-xs font-bold bg-[#133623] text-white shadow-sm inline-flex items-center gap-1.5">
                         {setupTeachingMode === "PHYSICAL"
-                          ? "Physical In-Studio Sanctuary"
+                          ? "Physical In-Studio"
                           : setupTeachingMode === "ONLINE"
                           ? "100% Live Interactive Online"
-                          : "Hybrid Sanctuary (Physical & Live Online)"}
+                          : "Hybrid Studio (Physical & Live Online)"}
                       </span>
                     </div>
                   </div>
@@ -5375,7 +4762,7 @@ function AdminDashboardPage() {
                     <div>
                       <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Address Line 1 & 2</label>
                       <p className="font-semibold text-slate-800 mt-0.5">
-                        {setupAddressLine1 || studioProfile?.address_line1 || "Level 3, Sacred Banyan Arcade, 108 North Main Road"}
+                        {setupAddressLine1 || studioProfile?.address_line1 || "Level 3, Central Learning Centre, 108 North Main Road"}
                       </p>
                       {(setupAddressLine2 || studioProfile?.address_line2) && (
                         <p className="text-slate-600">
@@ -5429,7 +4816,7 @@ function AdminDashboardPage() {
                   <div>
                     <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Legal Business Entity Name</label>
                     <p className="font-semibold text-slate-800 text-xs">
-                      {setupLegalBusinessName || studioProfile?.legal_business_name || "Prana Wellness Movement Private Limited"}
+                      {setupLegalBusinessName || studioProfile?.legal_business_name || "Creative Learning Private Limited"}
                     </p>
                   </div>
 
@@ -5499,7 +4886,7 @@ function AdminDashboardPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-slate-600 font-medium">Beneficiary / Holder:</span>
                     <span className="font-semibold text-slate-800">
-                      {setupAccountHolderName || studioProfile?.account_holder_name || "Prana Wellness Movement Pvt Ltd"}
+                      {setupAccountHolderName || studioProfile?.account_holder_name || "Creative Learning Pvt Ltd"}
                     </span>
                   </div>
 
@@ -5520,172 +4907,20 @@ function AdminDashboardPage() {
                   <div className="flex items-center justify-between pt-1 border-t border-emerald-200">
                     <span className="text-slate-600 font-medium">Direct UPI ID:</span>
                     <span className="font-mono text-emerald-800 font-bold">
-                      {setupUpiId || studioProfile?.upi_id || "pranashala@okhdfcbank"}
+                      {setupUpiId || studioProfile?.upi_id || "learningstudio@okhdfcbank"}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between pt-1 border-t border-emerald-200">
                     <span className="text-slate-600 font-medium">Settlement Schedule:</span>
                     <span className="font-bold text-[#133623] bg-emerald-100 px-2 py-0.5 rounded text-[10px]">
-                      {setupSettlementCycle || studioProfile?.settlement_cycle || "WEEKLY"} (Every Monday)
+                      Monthly · final two calendar days of each month
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* CARD 5: ZOOM LIVE CLASSROOM AUTHENTICATION */}
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4 md:col-span-2">
-                <div className="flex items-center justify-between pb-3 border-b border-[#F0F4F0]">
-                  <div>
-                    <h3 className="font-bold text-sm text-[#0C2417]">Zoom Live Video Integration</h3>
-                    <p className="text-[11px] text-slate-500">Automated meeting room generation for live batches</p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {zoomConnected ? (
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300 inline-flex items-center">
-                        Authenticated & Connected
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center">
-                        Not Connected
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 text-xs">
-                  <div className="p-3.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Connected Zoom Account</label>
-                    <p className="font-bold text-[#0C2417] truncate" title={zoomAccountEmail || studioProfile?.zoom_account_email}>
-                      {zoomConnected ? (zoomAccountEmail || studioProfile?.zoom_account_email || "Active OAuth Account") : "No account connected"}
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      {zoomConnected ? "API tokens refreshed automatically" : "Connect via OAuth or Server-to-Server App"}
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Classroom Automation</label>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                      <span className="font-bold text-[#0C2417]">
-                        {zoomAutoMeetingEnabled ? "Auto-create on Batch Creation" : "Manual link creation"}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500">Creates unique https://us05web.zoom.us/j/... rooms</p>
-                  </div>
-
-                  <div className="p-3.5 rounded-2xl bg-[#F9FAF9] border border-[#E1E9E2] space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Security & Video Defaults</label>
-                    <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-700">
-                      <span>Waiting Room: {zoomWaitingRoom ? "✓ Enabled" : "✗ Off"}</span>
-                      <span>•</span>
-                      <span>Host Video: {zoomHostVideo ? "✓ On" : "✗ Off"}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500">Protects privacy and streamlines teacher start</p>
-                  </div>
-                </div>
-
-                {/* Actions & Live Tester */}
-                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-[#F0F4F0]">
-                  <div className="flex items-center gap-2">
-                    <DeveloperOnly><button
-                      onClick={handleGenerateTestZoomMeeting}
-                      disabled={isGeneratingTestMeeting}
-                      className="px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition flex items-center gap-1.5"
-                    >
-                      {isGeneratingTestMeeting ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Video className="h-3.5 w-3.5" />
-                      )}
-                      <span>Test Generate Zoom Meeting</span>
-                    </button></DeveloperOnly>
-
-                    {zoomConnected && (
-                      <button
-                        onClick={handleDisconnectZoom}
-                        className="px-3.5 py-2 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-50 border border-red-200 transition"
-                      >
-                        Disconnect Zoom
-                      </button>
-                    )}
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setActiveTab("account-completion");
-                      setCompletionStep(5);
-                    }}
-                    className="text-xs text-[#133623] hover:underline font-bold self-end sm:self-auto"
-                  >
-                    Configure Advanced Zoom OAuth Settings →
-                  </button>
-                </div>
-
-                <DeveloperOnly>
-                {/* Test meeting error or preview banner */}
-                {zoomTestError && (
-                  <div role="alert" className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-2">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <span className="font-semibold">{zoomTestError}</span>
-                    </div>
-                    <p className="text-[11px] text-amber-800">
-                      Live Zoom meetings require an authenticated Zoom account. Please enter your Zoom credentials or complete OAuth authentication above.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const emailInput = document.getElementById("zoom-email-input") || document.querySelector("input[type=email]");
-                        if (emailInput) (emailInput as HTMLElement).focus();
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold text-[11px] transition shadow-xs"
-                    >
-                      <span>Fill Zoom Credentials & Connect Above ↑</span>
-                    </button>
-                  </div>
-                )}
-
-                {testZoomMeeting && (
-                  <div className={`p-3.5 rounded-2xl border text-xs space-y-1.5 ${
-                    testZoomMeeting.is_simulated
-                      ? "bg-amber-50 border-amber-200 text-amber-950"
-                      : "bg-blue-50 border-blue-200 text-blue-950"
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <span className={`font-bold flex items-center gap-1.5 ${
-                        testZoomMeeting.is_simulated ? "text-amber-900" : "text-blue-900"
-                      }`}>
-                        <CheckCircle2 className={`h-4 w-4 ${testZoomMeeting.is_simulated ? "text-amber-600" : "text-blue-600"}`} />
-                        {testZoomMeeting.is_simulated
-                          ? "[SIMULATION] Development Simulation Test Room (Dev Mode)"
-                          : "Live Zoom Room Provisioned Successfully!"}
-                      </span>
-                      <a
-                        href={testZoomMeeting.join_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`font-bold hover:underline flex items-center gap-1 ${
-                          testZoomMeeting.is_simulated ? "text-amber-800" : "text-blue-700"
-                        }`}
-                      >
-                        <span>Open Meeting</span>
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                    <div className={`flex flex-wrap gap-4 text-[11px] font-mono ${
-                      testZoomMeeting.is_simulated ? "text-amber-800" : "text-blue-800"
-                    }`}>
-                      <span>Room ID: {testZoomMeeting.meeting_id}</span>
-                      <span>Passcode: {testZoomMeeting.passcode}</span>
-                      <span className="truncate max-w-xs">URL: {testZoomMeeting.join_url}</span>
-                    </div>
-                  </div>
-                )}
-                </DeveloperOnly>
-              </div>
+              <section className="rounded-3xl border bg-white p-6 md:col-span-2"><h3 className="font-bold">Zoom classroom accounts</h3><p className="my-3 text-sm text-slate-600">Manage teacher authorization, shared defaults and the studio fallback host in Zoom Settings.</p><button type="button" className="rounded-xl border px-4 py-2" onClick={() => navigateToTab("zoom-settings")}>Open Zoom Settings</button></section>
             </div>
               </>
               )
@@ -5693,16 +4928,32 @@ function AdminDashboardPage() {
               <div className="space-y-6">
                 <div>
                   <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Dashboard Settings</h1>
-                  <p className="text-xs text-[#40514E] mt-1">Personalize your workspace color theme. Changes are saved on this device.</p>
+                  <p className="text-xs text-[#40514E] mt-1">Personalize your dashboard typography and color theme. Your font is saved to your account. Color themes are saved on this device.</p>
                 </div>
 
                 <section className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-4" aria-labelledby="dashboard-font-heading">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                       <h2 id="dashboard-font-heading" className="font-bold text-base text-[#0C2417]">Typography</h2>
-                      <p className="text-xs text-slate-500 mt-1">Lora is used consistently for all dashboard headings, navigation, cards, and controls.</p>
+                      <p className="text-xs text-slate-500 mt-1">Applies to all headings, navigation, tables, forms and dialogs in your dashboard. Your font choice is saved to your account and restored whenever you sign in, on any device.</p>
                     </div>
-                    <span className="text-sm font-semibold">Lora</span>
+                    <span className="text-sm font-semibold">{dashboardFonts.find((option) => option.id === dashboardFont)?.name}</span>
+                  </div>
+                  {fontError && <p role="alert" className="text-sm text-red-700">{fontError}</p>}
+                  {fontSaving && <p role="status" className="text-sm text-[#2D7A58]">Saving font to your account…</p>}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3" role="group" aria-label="Dashboard font choices">
+                    {dashboardFonts.map((option) => (
+                      <button key={option.id} type="button" aria-pressed={dashboardFont === option.id}
+                        disabled={fontLoading || fontSaving}
+                        onClick={() => selectFont(option.id)}
+                        style={{ fontFamily: option.family }}
+                        className={`rounded-2xl border p-4 text-left transition ${dashboardFont === option.id ? "border-[#2D7A58] bg-[#E8F0E9] ring-1 ring-[#2D7A58]" : "border-[#CEDECF] hover:border-[#81A882]"}`}>
+                        <span className="flex items-center justify-between gap-2"><strong>{option.name}</strong>{dashboardFont === option.id && <Check className="h-4 w-4" />}</span>
+                        <span className="mt-1 block text-xs text-[#40514E]">{option.description}</span>
+                        <span className="mt-4 block text-lg">Your studio, beautifully organized.</span>
+                        <span className="mt-1 block text-xs">Classes · Students · Attendance · 0123456789</span>
+                      </button>
+                    ))}
                   </div>
                 </section>
 
@@ -5765,7 +5016,21 @@ function AdminDashboardPage() {
 
       {/* CREATE CLASS BATCH MODAL (FEAT-05) */}
       {isCreateModalOpen && (
-        <Modal
+        <Modal footer={<div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  aria-label="Close create batch" onClick={() => setIsCreateModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button form="modal-src-app--dashboard--dashboard-page-tsx-2"
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+                >
+                  <span>🌿 Create Batch & Generate Timetable</span>
+                </button>
+              </div>}
           title="Create New Class Batch"
           subtitle="Configure recurring schedule rules and automated meeting room."
           onClose={() => setIsCreateModalOpen(false)}
@@ -5783,7 +5048,8 @@ function AdminDashboardPage() {
               </div>
             )}
 
-            <form onSubmit={handleCreateBatch} className="space-y-4">
+            <form id="modal-src-app--dashboard--dashboard-page-tsx-2" onSubmit={handleCreateBatch} className="space-y-4">
+              <PurchasePolicyNotice />
               <div>
                 <label htmlFor="dashboard-page-field-19" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Batch / Class Name *
@@ -5791,7 +5057,7 @@ function AdminDashboardPage() {
                 <input id="dashboard-page-field-19"
                   type="text"
                   required
-                  placeholder="e.g. Sunset Vinyasa Flow, Aerial Silks Beginner"
+                  placeholder="e.g. Sunset Performing Arts, Aerial Silks Beginner"
                   value={newBatchName}
                   onChange={(e) => setNewBatchName(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#133623] text-xs placeholder:text-xs placeholder:text-slate-400 bg-[#F9FAF9]"
@@ -5808,11 +5074,11 @@ function AdminDashboardPage() {
                     onChange={(e) => setNewBatchType(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-white"
                   >
-                    <option value="Hatha Yoga">Hatha Yoga</option>
-                    <option value="Aerial Yoga">Aerial Yoga</option>
-                    <option value="Vinyasa Flow">Vinyasa Flow</option>
-                    <option value="Meditation">Meditation & Pranayama</option>
-                    <option value="Pilates">Pilates Conditioning</option>
+                    <option value="Music">Music</option>
+                    <option value="Dance">Dance</option>
+                    <option value="Performing Arts">Performing Arts</option>
+                    <option value="Languages">Languages & Language Learning</option>
+                    <option value="Pilates">Fitness</option>
                     <option value="Workshop">Weekend Intensive Workshop</option>
                   </select>
                 </div>
@@ -5887,7 +5153,7 @@ function AdminDashboardPage() {
 
                 <div>
                   <label htmlFor="dashboard-page-field-24" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
-                    Max Yogis
+                    Maximum Students
                   </label>
                   <input id="dashboard-page-field-24"
                     type="number"
@@ -5912,6 +5178,7 @@ function AdminDashboardPage() {
                 </div>
               </div>
 
+<AdvancedOptions description="Custom meeting link and Zoom connection details">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider">
@@ -5933,7 +5200,7 @@ function AdminDashboardPage() {
                           Authenticated Zoom Account: {zoomAccountEmail || "Connected"}
                         </p>
                         <p className="text-[11px] text-blue-700 mt-0.5">
-                          When you save this batch, an authenticated Zoom meeting room with waiting room protection will be automatically generated upon scheduling. You can also specify an optional custom URL below.
+                          When you save this batch, a Zoom meeting will be provisioned when the class is opened, using its resolved host and saved studio defaults. You can also specify an optional custom URL below.
                         </p>
                       </div>
                     </div>
@@ -5955,7 +5222,7 @@ function AdminDashboardPage() {
                       className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
                     />
                     <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Zoom not connected yet. A generic room URL will be assigned.</span>
+                      <span>Zoom not connected yet. Choose a studio Zoom host in Zoom Settings before provisioning an online meeting.</span>
                       <button
                         type="button"
                         onClick={() => {
@@ -5972,34 +5239,38 @@ function AdminDashboardPage() {
                 )}
               </div>
 
-              <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  aria-label="Close create batch" onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
-                >
-                  <span>🌿 Create Batch & Generate Timetable</span>
-                </button>
-              </div>
+
+</AdvancedOptions>
+              <p className="text-xs text-slate-500">Zoom authorization is optional. Save the teacher profile first, then manage their Zoom account from the roster.</p>
+
             </form>
           </div>
         </Modal>
       )}
 
       {isAddStudentOpen && (
-        <Modal
+        <Modal footer={<div className="flex justify-end gap-3 border-t border-[#E1E9E2] pt-4">
+              <button
+                type="button"
+                onClick={() => setIsAddStudentOpen(false)}
+                className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button form="modal-src-app--dashboard--dashboard-page-tsx-3"
+                type="submit"
+                disabled={isAddingStudent || !studentAdmissionClasses.length}
+                className="rounded-xl bg-[#133623] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0C2417] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isAddingStudent ? "Adding…" : "Add Student"}
+              </button>
+            </div>}
           title="Add a registered student"
           subtitle="Students must register, verify their account, and provide a phone number before you can admit them to a class."
           onClose={() => setIsAddStudentOpen(false)}
           confirmDiscard
         >
-          <form onSubmit={handleAddStudent} className="p-6 space-y-4">
+          <form id="modal-src-app--dashboard--dashboard-page-tsx-3" onSubmit={handleAddStudent} className="p-6 space-y-4">
             <label className="block text-xs font-bold text-[#1b4332]">
               Student email *
               <input
@@ -6027,36 +5298,42 @@ function AdminDashboardPage() {
                 ))}
               </select>
             </label>
-            <div className="flex justify-end gap-3 border-t border-[#E1E9E2] pt-4">
-              <button
-                type="button"
-                onClick={() => setIsAddStudentOpen(false)}
-                className="rounded-xl px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isAddingStudent || !studentAdmissionClasses.length}
-                className="rounded-xl bg-[#133623] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0C2417] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isAddingStudent ? "Adding…" : "Add Student"}
-              </button>
-            </div>
+
           </form>
         </Modal>
       )}
 
       {/* ADD TEACHER MODAL */}
       {isAddTeacherOpen && (
-        <Modal
-          title="Invite Teacher to Studio"
-          subtitle="Invite an instructor to join your teaching roster. A unique 8-digit teacher code will be automatically assigned."
+        <Modal footer={<div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  aria-label="Close add teacher" onClick={() => setIsAddTeacherOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button form="modal-src-app--dashboard--dashboard-page-tsx-4"
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center justify-center"
+                  disabled={isSavingTeacher}
+                >
+                  <span>{isSavingTeacher ? "Sending…" : "Send Invitation"}</span>
+                </button>
+              </div>}
+          title="Create Teacher in Studio"
+          subtitle="Create an instructor directly in your Studio. A unique 8-digit teacher code will be automatically assigned."
           onClose={() => setIsAddTeacherOpen(false)}
           confirmDiscard
         >
           <div className="p-6 space-y-4">
-            <form onSubmit={handleCreateTeacher} className="space-y-4">
+            <form id="modal-src-app--dashboard--dashboard-page-tsx-4" onSubmit={handleCreateTeacher} className="space-y-4">
+              <label className="block text-xs font-bold">Username<input value={teacherUsername} minLength={3} onChange={e => setTeacherUsername(e.target.value)} className="block border rounded-xl p-2 w-full" placeholder="Generated if blank" /></label>
+              <label className="block text-xs font-bold">Password<input type="password" autoComplete="new-password" minLength={8} value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} className="block border rounded-xl p-2 w-full" placeholder="Secure password generated if blank" /></label>
+              <label className="block text-xs font-bold">Address<input value={teacherAddress} onChange={e => setTeacherAddress(e.target.value)} className="block border rounded-xl p-2 w-full" /></label>
+              <label className="block text-xs font-bold">Location<input value={teacherLocation} onChange={e => setTeacherLocation(e.target.value)} className="block border rounded-xl p-2 w-full" /></label>
+              <label className="block text-xs font-bold">Country of teaching operations<select value={teacherBillingCountry} onChange={e => setTeacherBillingCountry(e.target.value)} className="mt-1 block w-full rounded-xl border bg-white p-2"><option value="">Not confirmed · Support review</option><option value="IN">India</option><option value="ZZ">Outside India · Contact support</option>{teacherBillingCountry && !["IN", "ZZ"].includes(teacherBillingCountry) && <option value={teacherBillingCountry}>{teacherBillingCountry}</option>}</select></label>
+
               <div>
                 <label htmlFor="dashboard-page-field-26" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                   Full Name *
@@ -6086,7 +5363,26 @@ function AdminDashboardPage() {
                   />
                 </div>
 
-                <div>
+
+              </div>
+
+              <div>
+                <label htmlFor="dashboard-page-field-29" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
+                  Title & Specialization *
+                </label>
+                <input id="dashboard-page-field-29"
+                  type="text"
+                  required
+                  placeholder="e.g. Senior music teacher or academic tutor"
+                  value={teacherTitle}
+                  onChange={(e) => setTeacherTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 bg-[#F9FAF9]"
+                />
+              </div>
+
+
+
+<AdvancedOptions description="Optional phone number and teacher biography">                <div>
                   <label htmlFor="dashboard-page-field-28" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
                     Phone Number (Optional)
                   </label>
@@ -6097,96 +5393,93 @@ function AdminDashboardPage() {
                     onChange={(e) => setTeacherPhone(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 bg-[#F9FAF9]"
                   />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="dashboard-page-field-29" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
-                  Title & Specialization *
-                </label>
-                <input id="dashboard-page-field-29"
-                  type="text"
-                  required
-                  placeholder="e.g. Senior Aerial & Hatha Guide"
-                  value={teacherTitle}
-                  onChange={(e) => setTeacherTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 bg-[#F9FAF9]"
-                />
-              </div>
-
-              <div>
+                </div>              <div>
                 <label htmlFor="dashboard-page-field-30" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
-                  Bio / Sanctuary Notes
+                  Bio / Teacher Notes
                 </label>
                 <textarea id="dashboard-page-field-30"
                   rows={3}
-                  placeholder="500hr RYT certified, 7+ years practicing somatic flows..."
+                  placeholder="Qualifications, teaching experience, and specializations..."
                   value={teacherBio}
                   onChange={(e) => setTeacherBio(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 bg-[#F9FAF9]"
                 />
-              </div>
+              </div></AdvancedOptions>
+              <p className="text-xs text-slate-500">Zoom authorization is optional. Save the teacher profile first, then manage their Zoom account from the roster.</p>
 
-              <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  aria-label="Close add teacher" onClick={() => setIsAddTeacherOpen(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center justify-center"
-                  disabled={isSavingTeacher}
-                >
-                  <span>{isSavingTeacher ? "Sending…" : "Send Invitation"}</span>
-                </button>
-              </div>
             </form>
           </div>
         </Modal>
       )}
 
       {viewingTeacher && (
-        <Modal
+        <Modal footer={<div className="flex justify-end gap-2 border-t border-[#E1E9E2] pt-4">
+              <button onClick={() => { const teacher = viewingTeacher; setViewingTeacher(null); handleOpenEditTeacher(teacher); }} className="rounded-xl border border-[#CEDECF] px-4 py-2.5 text-xs font-bold">Edit profile</button>
+              <button onClick={() => { const teacher = viewingTeacher; setViewingTeacher(null); openAttendanceFor("teacher", teacher); }} className="rounded-xl bg-[#133623] px-4 py-2.5 text-xs font-bold text-white">View attendance</button>
+            </div>}
           title="Teacher Profile"
           subtitle={viewingTeacher.name}
           onClose={() => setViewingTeacher(null)}
         >
           <div className="p-6 space-y-4">
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
+              {Object.entries({ Name: viewingTeacher.name, Username: viewingTeacher.username, "Title / specialization": viewingTeacher.title, "Teacher code": viewingTeacher.teacher_code, Address: viewingTeacher.address, Location: viewingTeacher.location, Studio: viewingTeacher.studio_name, Role: viewingTeacher.is_owner ? "Owner / Teacher" : viewingTeacher.can_teach ? "Teacher" : viewingTeacher.role, "Zoom authorization": zoomLabel(viewingTeacher), "Authorized Zoom email": viewingTeacher.zoom_verified_email, "Effective Zoom host": viewingTeacher.effective_zoom_host?.email, "Default host": viewingTeacher.is_default_zoom_host ? "Yes" : "No", "Next Zoom action": viewingTeacher.zoom_ready ? "Account holder starts the meeting" : "Connect Zoom or configure studio fallback" }).map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="break-words font-semibold text-[#0C2417]">{value || "Not provided"}</dd></div>)}
+
               <div><dt className="text-xs text-slate-500">Email</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.email}</dd></div>
               <div className="relative"><dt className="text-xs text-slate-500">Phone</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.phone || "Not provided"}</dd><WhatsAppNotificationHint kind="contact" /></div>
               <div><dt className="text-xs text-slate-500">Status</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.status}</dd></div>
-              <div><dt className="text-xs text-slate-500">Joined</dt><dd className="font-semibold text-[#0C2417]">{viewingTeacher.joined_at}</dd></div>
+              <div><dt className="text-xs text-slate-500">Joined</dt><dd className="font-semibold text-[#0C2417]">{formatStudioDate(viewingTeacher.joined_at)}</dd></div>
             </dl>
             <p className="rounded-xl bg-[#F4F7F4] p-4 text-sm leading-6 text-slate-600">{viewingTeacher.bio || "No teacher bio has been added."}</p>
-            <div className="flex justify-end gap-2 border-t border-[#E1E9E2] pt-4">
-              <button onClick={() => { const teacher = viewingTeacher; setViewingTeacher(null); handleOpenEditTeacher(teacher); }} className="rounded-xl border border-[#CEDECF] px-4 py-2.5 text-xs font-bold">Edit profile</button>
-              <button onClick={() => { const teacher = viewingTeacher; setViewingTeacher(null); openAttendanceFor("teacher", teacher); }} className="rounded-xl bg-[#133623] px-4 py-2.5 text-xs font-bold text-white">View attendance</button>
-            </div>
+            <TeacherZoomControl org={viewingTeacher.studio_id} member={viewingTeacher.id} name={viewingTeacher.name} userId={viewingTeacher.user_id} currentUserId={currentUser?.id || currentUser?.user_id} owner initialState={viewingTeacher} onChanged={() => { void fetchStudioTeachers(); setViewingTeacher(null); }} />
+
           </div>
         </Modal>
       )}
 
       {viewingStudent && <StudentDetails student={viewingStudent} onClose={() => setViewingStudent(null)} onSaved={() => { void fetchStudents(); }} />}
 
+      {studioPasswordPrompt && <Modal title="Confirm Studio password" subtitle="Enter the password used to sign in to this Studio account" onClose={() => finishStudioPassword(null)}>
+        <form className="p-6 space-y-4" onSubmit={e => { e.preventDefault(); finishStudioPassword(studioPasswordInput); }}>
+          <input aria-label="Studio password" type="password" autoComplete="current-password" autoFocus required value={studioPasswordInput} onChange={e => setStudioPasswordInput(e.target.value)} className="border rounded-xl p-3 w-full" />
+          <button type="submit" className="rounded-xl bg-emerald-900 text-white px-4 py-2">Confirm</button>
+        </form>
+      </Modal>}
       {/* EDIT TEACHER MODAL */}
       {isEditTeacherOpen && editingTeacher && (
-        <Modal
+        <Modal footer={<div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditTeacherOpen(false);
+                    setEditingTeacher(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button form="modal-src-app--dashboard--dashboard-page-tsx-6"
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center justify-center"
+                  disabled={isSavingTeacher}
+                >
+                  <span>{isSavingTeacher ? "Saving…" : "Save Changes"}</span>
+                </button>
+              </div>}
           title="Edit Teacher Profile"
           subtitle="Modify details or update active teaching status."
           onClose={() => { setIsEditTeacherOpen(false); setEditingTeacher(null); }}
           confirmDiscard
         >
           <div className="p-6 space-y-4">
-            <form onSubmit={handleUpdateTeacher} className="space-y-4">
+            <TeacherZoomControl org={editingTeacher.studio_id} member={editingTeacher.id} name={editingTeacher.name} userId={editingTeacher.user_id} currentUserId={currentUser?.id || currentUser?.user_id} owner initialState={editingTeacher} onChanged={() => void fetchStudioTeachers()} />
+            <form id="modal-src-app--dashboard--dashboard-page-tsx-6" onSubmit={handleUpdateTeacher} className="space-y-4">
               <div className="grid gap-3">
                 <label className="text-xs font-bold">Username<input required minLength={3} pattern="[a-zA-Z0-9_.-]+" value={teacherUsername} onChange={e => setTeacherUsername(e.target.value)} className="block border rounded-xl p-2 w-full text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400" /></label>
-                <label className="text-xs font-bold">New password (leave blank to keep current)<input type="password" autoComplete="new-password"  minLength={8} value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} className="block border rounded-xl p-2 w-full text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400" /></label>
-                <label className="text-xs font-bold">Address<input required value={teacherAddress} onChange={e => setTeacherAddress(e.target.value)} className="block border rounded-xl p-2 w-full text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400" /></label>
-                <label className="text-xs font-bold">Location<input required value={teacherLocation} onChange={e => setTeacherLocation(e.target.value)} className="block border rounded-xl p-2 w-full text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400" /></label>
+
+                <label className="text-xs font-bold">Address<input value={teacherAddress} onChange={e => setTeacherAddress(e.target.value)} className="block border rounded-xl p-2 w-full text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400" /></label>
+                <label className="text-xs font-bold">Location<input value={teacherLocation} onChange={e => setTeacherLocation(e.target.value)} className="block border rounded-xl p-2 w-full text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400" /></label>
+              <label className="block text-xs font-bold">Country of teaching operations<select value={teacherBillingCountry} onChange={e => setTeacherBillingCountry(e.target.value)} className="mt-1 block w-full rounded-xl border bg-white p-2"><option value="">Not confirmed · Support review</option><option value="IN">India</option><option value="ZZ">Outside India · Contact support</option>{teacherBillingCountry && !["IN", "ZZ"].includes(teacherBillingCountry) && <option value={teacherBillingCountry}>{teacherBillingCountry}</option>}</select></label>
               </div>
 
               <div>
@@ -6209,9 +5502,10 @@ function AdminDashboardPage() {
                   </label>
                   <input id="dashboard-page-field-32"
                     type="email"
-                    disabled
+                    required
                     value={teacherEmail}
-                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs sm:text-sm bg-slate-100 text-slate-500 cursor-not-allowed"
+                    onChange={e => setTeacherEmail(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs sm:text-sm"
                   />
                 </div>
 
@@ -6243,7 +5537,7 @@ function AdminDashboardPage() {
 
               <div>
                 <label htmlFor="dashboard-page-field-35" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1">
-                  Bio / Sanctuary Notes
+                  Bio / Teacher Notes
                 </label>
                 <textarea id="dashboard-page-field-35"
                   rows={3}
@@ -6262,6 +5556,7 @@ function AdminDashboardPage() {
                     <input
                       type="radio"
                       name="teacher_status"
+                      disabled={editingTeacher.is_owner}
                       checked={teacherIsActive}
                       onChange={() => setTeacherIsActive(true)}
                       className="text-[#133623] focus:ring-[#133623]"
@@ -6272,6 +5567,7 @@ function AdminDashboardPage() {
                     <input
                       type="radio"
                       name="teacher_status"
+                      disabled={editingTeacher.is_owner}
                       checked={!teacherIsActive}
                       onChange={() => setTeacherIsActive(false)}
                       className="text-[#133623] focus:ring-[#133623]"
@@ -6281,25 +5577,15 @@ function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#E1E9E2] flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditTeacherOpen(false);
-                    setEditingTeacher(null);
-                  }}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-xs shadow-md transition flex items-center justify-center"
-                  disabled={isSavingTeacher}
-                >
-                  <span>{isSavingTeacher ? "Saving…" : "Save Changes"}</span>
-                </button>
+<div className="space-y-2">
+                <label className="block text-xs font-bold">Teacher password<input type={teacherPasswordVisible ? "text" : "password"} autoComplete="new-password" readOnly={!teacherPasswordChanged} required={teacherPasswordChanged} minLength={8} value={teacherPassword} placeholder="••••••••" onChange={e => setTeacherPassword(e.target.value)} className="block border rounded-xl p-2 w-full" /></label>
+                <button type="button" aria-label={teacherPasswordVisible ? "Hide password" : "Show password"} onClick={() => { if (teacherPasswordVisible) { setTeacherPasswordVisible(false); if (!teacherPasswordChanged) setTeacherPassword(""); } else { void manageTeacherPassword(false); } }} className="rounded-xl border p-2">{teacherPasswordVisible ? <span className="inline-flex gap-2"><EyeOff size={16} /> Hide password</span> : <span className="inline-flex gap-2"><Eye size={16} /> Show password</span>}</button>
+                <button type="button" onClick={() => void manageTeacherPassword(true)} className="rounded-xl border p-2 ml-2">Create / change password</button>
+                <button type="button" onClick={() => void sendTeacherInvitation()} className="block rounded-xl border p-2">Send invitation through email only</button>
+                <p className="text-xs text-slate-500">Save changes before sending. An invitation is sent once. Later saved changes automatically email the updated details.</p>
               </div>
+              <p className="text-xs text-slate-500">Zoom authorization is optional. Save the teacher profile first, then manage their Zoom account from the roster.</p>
+
             </form>
           </div>
         </Modal>

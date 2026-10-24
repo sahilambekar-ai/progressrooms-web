@@ -17,7 +17,7 @@ export default function TeacherPage() {
 
   return (
     <div className="min-h-screen bg-[#F4F7F4] flex items-center justify-center p-8 text-[#133623]">
-      <p className="font-serif text-lg">Redirecting to sanctuary studio dashboard…</p>
+      <p className="font-serif text-lg">Redirecting to studio dashboard…</p>
     </div>
   );
 }

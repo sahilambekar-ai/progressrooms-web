@@ -21,7 +21,7 @@ export function OtpVerificationCard({
   onSuccess,
   onBack,
   title = "Verify Your Account",
-  subtitle = "Enter the 6-digit verification code sent to your email to activate and verify your sanctuary account.",
+  subtitle = "Enter the 6-digit verification code sent to your email to activate and verify your studio account.",
   purpose = "LOGIN_VERIFICATION",
 }: OtpVerificationCardProps) {
   const developerMode = useDeveloperMode();

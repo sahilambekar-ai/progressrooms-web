@@ -1,4 +1,7 @@
 "use client";
+import { ClassPackageSummary } from "@/components/ClassPackageSummary";
+import { CollapsedDescription } from "@/components/RichDescription";
+import { ClassPackageOptions } from "@/components/ClassPackageOptions";
 import { useCallback, useEffect, useState } from 'react';
 import dynamic from "next/dynamic";
 import { PanelLoading } from "@/components/PanelLoading";
@@ -28,6 +31,7 @@ type Enrollment = {
   purchase_name?: string;
   session_id?: string;
   tier_id?: string | null;
+  description?: string;
   session_name: string;
   organization_name: string;
   organization_slug: string;
@@ -40,6 +44,7 @@ type Enrollment = {
 
 type Class = {
   id: string;
+  description?: string;
   session_name: string;
   organization_name: string;
   instructor_name: string;
@@ -52,18 +57,21 @@ type Class = {
 type Studio = { id: string; name: string; slug: string };
 
 type TeacherOfferingClass = {
+  instructor_names?: string[];
   id: string;
   name: string;
   slug: string;
+  full_description?: string;
   short_description?: string;
   session_type: string;
   delivery_mode: string;
   skill_level: string;
   duration_minutes: number;
-  capacity: number;
-  remaining_spots: number;
+  capacity: number | null;
+  remaining_spots: number | null;
   pricing?: {
-    pricing_type: string;
+    packages?: import("@/types").ClassPackage[];
+    pricing_type: import("@/types").Pricing["pricing_type"];
     price: number;
     currency: string;
     total_classes?: number | null;
@@ -83,6 +91,7 @@ type TeacherOfferingClass = {
 };
 
 type TeacherOfferingPass = {
+  class_packages?: { session_id: string; package_id: string; total_classes: number; class_name: string }[];
   id: string;
   name: string;
   description?: string | null;
@@ -169,7 +178,7 @@ function TeacherAffiliationCard({
           </div>
           <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
             <MapPin size={13} />
-            <span>{affiliation.location || 'Sanctuary Studio'}</span>
+            <span>{affiliation.location || 'Studio'}</span>
             <span className="text-slate-300">·</span>
             <Clock size={13} />
             <span>Timezone: {affiliation.timezone}</span>
@@ -266,20 +275,20 @@ function TeacherAffiliationCard({
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedClasses.map((cls) => {
-              const spotsText = `${cls.remaining_spots} of ${cls.capacity} spots left`;
+              const spotsText = cls.capacity == null ? "No capacity limit" : `${cls.remaining_spots} of ${cls.capacity} spots left`;
               return (
                 <article
                   key={cls.id}
                   className="bg-[#F9FAF9] border border-[#CEDECF] rounded-2xl p-5 flex flex-col justify-between space-y-3"
                 >
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-row-reverse items-center justify-between gap-2">
                       <span className="text-[10px] font-bold uppercase tracking-wider bg-white px-2 py-0.5 rounded-md border border-[#CEDECF] text-[#133623]">
                         {cls.delivery_mode === 'ONLINE_LIVE' ? 'Online Live' : 'Hybrid'}
                       </span>
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                          cls.remaining_spots > 2
+                          (cls.remaining_spots == null || cls.remaining_spots > 2)
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                             : 'bg-amber-50 text-amber-800 border border-amber-200'
                         }`}
@@ -292,9 +301,9 @@ function TeacherAffiliationCard({
                       {cls.name}
                     </h5>
 
-                    <p className="text-xs text-slate-500 line-clamp-2">
-                      {cls.short_description || 'Make time to practice and grow with us.'}
-                    </p>
+                    <p className="text-xs text-slate-600"><span className="font-semibold">Teachers:</span> {cls.instructor_names?.join(", ") || "Contact studio"} · {cls.duration_minutes} mins</p>
+                    <ClassPackageSummary pricing={cls.pricing} />
+                    <CollapsedDescription text={cls.full_description || cls.short_description}>
 
                     {cls.next_session && (
                       <p className="text-[11px] font-medium text-emerald-800 bg-white p-2 rounded-xl border border-[#CEDECF]">
@@ -309,43 +318,10 @@ function TeacherAffiliationCard({
                         </p>
                       ))}
                     </div>
+                    </CollapsedDescription>
                   </div>
 
-                  <div className="pt-2 border-t border-[#E1E9E2] flex items-center justify-between gap-2">
-                    {cls.pricing ? (
-                      <div>
-                        <p className="font-bold text-base text-[#0C2417]">
-                          {new Intl.NumberFormat('en-IN', {
-                            style: 'currency',
-                            currency: cls.pricing.currency,
-                          }).format(cls.pricing.price)}
-                        </p>
-                        <p className="text-[10px] text-slate-500">
-                          {cls.pricing.total_classes ? `${cls.pricing.total_classes} sessions` : 'Unlimited'} · {cls.pricing.validity_days}d
-                        </p>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-500">Free Enrollment</span>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSelectOffering({
-                          id: cls.id,
-                          kind: 'class',
-                          name: cls.name,
-                          price: cls.pricing?.price || 0,
-                          currency: cls.pricing?.currency || 'INR',
-                          total_classes: cls.pricing?.total_classes || undefined,
-                          validity_days: cls.pricing?.validity_days || 30,
-                        });
-                      }}
-                      className="px-4 py-2 bg-[#133623] hover:bg-[#0C2417] text-white rounded-xl text-xs font-bold transition shadow-xs"
-                    >
-                      Buy class
-                    </button>
-                  </div>
+                  {cls.pricing && <ClassPackageOptions id={cls.id} name={cls.name} pricing={cls.pricing} onBuy={onSelectOffering} disabled={cls.remaining_spots === 0} />}
                 </article>
               );
             })}
@@ -404,8 +380,9 @@ function TeacherAffiliationCard({
                     {pass.name}
                   </h5>
 
+                  {pass.class_packages?.map(p => <p key={`${p.session_id}:${p.package_id}`} className="text-xs text-[#133623]">{p.class_name} · {p.total_classes} sessions</p>)}
                   {pass.description && (
-                    <p className="text-xs text-slate-600 line-clamp-2">{pass.description}</p>
+                    <CollapsedDescription text={pass.description} />
                   )}
 
                   <p className="text-xs text-slate-600 font-medium">
@@ -505,6 +482,18 @@ export default function StudentPortalPage() {
 
   // Selected checkout offering
   const [selectedOffering, setSelectedOffering] = useState<Purchase | null>(null);
+  useEffect(() => {
+    if (!teacherResult) return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('buy');
+    for (const studio of teacherResult.studios) {
+      const cls = studio.classes.find(c => c.id === id);
+      const pass = studio.passes.find(p => p.id === id);
+      const pkg = cls?.pricing?.packages?.find(p => p.id === params.get('package'));
+      if (params.get('kind') === 'class' && cls?.pricing && (pkg || !cls.pricing.packages?.length)) setSelectedOffering({ id: cls.id, name: cls.name, kind: 'class', price: pkg?.price ?? cls.pricing.price, offer_price: pkg?.offer_price, currency: cls.pricing.currency, total_classes: pkg?.total_classes ?? cls.pricing.total_classes ?? undefined, validity_days: pkg?.validity_days ?? cls.pricing.validity_days, package_id: pkg?.id });
+      if (params.get('kind') === 'pass' && pass) setSelectedOffering({ ...pass, total_classes: pass.total_classes ?? undefined, kind: 'pass' });
+    }
+  }, [teacherResult]);
 
   // Class cancellation & reschedule
   const [cancellingId, setCancellingId] = useState('');
@@ -652,12 +641,12 @@ export default function StudentPortalPage() {
     if (startTime - Date.now() < twoHoursMs) {
       setCancellationNotice({
         type: 'error',
-        message: `Late cancellation: "${className}" starts in less than 2 hours. According to studio policy, bookings can only be cancelled at least 2 hours prior to start time. Session credit cannot be refunded.`,
+        message: `Late cancellation: "${className}" starts in less than 2 hours. According to studio policy, bookings can only be cancelled at least 2 hours prior to start time. This booking cannot be cancelled in the app. Contact your teacher or studio for help. No payment is returned.`,
       });
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to cancel your booking for "${className}"? Your session credit will be preserved.`)) {
+    if (!window.confirm(`Are you sure you want to cancel your booking for "${className}"? Your unused session credit will remain available within your pass validity. No payment is returned.`)) {
       return;
     }
 
@@ -677,7 +666,7 @@ export default function StudentPortalPage() {
       }
       setCancellationNotice({
         type: 'success',
-        message: `Booking for "${className}" has been cancelled. Your session credit has been preserved.`,
+        message: `Booking for "${className}" has been cancelled. Your unused session credit remains available within your pass validity. No payment is returned.`,
       });
       await load();
     } catch (err: any) {
@@ -1043,7 +1032,7 @@ export default function StudentPortalPage() {
                 Find your teacher
               </h1>
               <p className="text-[#e8f5e9] text-sm sm:text-base max-w-2xl leading-relaxed">
-                Connect directly with your teacher using their 8-digit teacher code or full name. Discover their published classes and studio passes across all sanctuary locations.
+                Connect directly with your teacher using their 8-digit teacher code or full name. Discover their published classes and studio passes across all studio locations.
               </p>
             </div>
 
@@ -1098,13 +1087,6 @@ export default function StudentPortalPage() {
                 11000001 (Ananya Sen)
               </button>
               <span className="text-white/40">·</span>
-              <button
-                type="button"
-                onClick={() => setTab('explore')}
-                className="underline hover:text-white"
-              >
-                Or browse all studios
-              </button>
             </div>
           </section>
         ) : (
@@ -1169,12 +1151,6 @@ export default function StudentPortalPage() {
                     >
                       Find your teacher <ArrowRight size={18} />
                     </button>
-                    <button
-                      onClick={() => setTab('explore')}
-                      className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white rounded-xl px-5 py-3 font-bold transition"
-                    >
-                      Explore studios
-                    </button>
                   </div>
                 </>
               )
@@ -1186,12 +1162,11 @@ export default function StudentPortalPage() {
         <div
           role="tablist"
           aria-label="Student dashboard sections"
-          className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-4 border-b border-[#CEDECF]"
+          className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 border-b border-[#CEDECF]"
         >
           {([
             ['classes', 'My classes & passes'],
             ['teacher', 'Find your teacher'],
-            ['explore', 'Explore studios'],
             ['attendance', 'Attendance tracker'],
             ['support', 'Studio Support'],
           ] as const).map(([value, label]) => (
@@ -1233,7 +1208,7 @@ export default function StudentPortalPage() {
                 {scheduled.map((c) => (
                   <article key={c.id} className="relative p-5 flex flex-wrap items-center justify-between gap-4">
                     <div>
-                      <h3 className="font-semibold text-lg text-[#0C2417]">{c.session_name}</h3>
+                      <h3 className="font-semibold text-lg text-[#0C2417]">{c.session_name}</h3><CollapsedDescription text={c.description} />
                       <WhatsAppNotificationHint kind="reminder" />
                       <p className="text-sm text-slate-500 mt-1">
                         {c.organization_name} · Teacher: {c.instructor_name}
@@ -1409,7 +1384,7 @@ export default function StudentPortalPage() {
                         </span>
                       </div>
 
-                      <h3 className="font-serif text-2xl text-[#0C2417]">{e.purchase_name || e.session_name}</h3>
+                      <h3 className="font-serif text-2xl text-[#0C2417]">{e.purchase_name || e.session_name}</h3><CollapsedDescription text={e.description} />
 
                       {group.some((c) => c.amount_paid != null) && (
                         <p className="text-sm font-semibold text-slate-700">
@@ -1447,16 +1422,12 @@ export default function StudentPortalPage() {
                       </div>
 
                       <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E1E9E2]">
-                        <button
-                          className="inline-flex items-center gap-1.5 underline text-xs font-semibold text-[#133623] hover:text-[#0C2417]"
-                          onClick={() => exploreStudio(e.organization_slug)}
-                        >
-                          Explore this studio <ArrowRight size={14} />
-                        </button>
+
 
                         <button
                           type="button"
                           onClick={() => {
+                            if (!e.tier_id) { exploreStudio(e.organization_slug); return; }
                             setSelectedOffering({
                               id: e.tier_id || e.session_id || e.id,
                               kind: e.tier_id ? 'pass' : 'class',
@@ -1689,7 +1660,7 @@ export default function StudentPortalPage() {
                       Published Offerings by Studio
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Showing only offerings taught by {teacherResult.teacher.name}, organized by sanctuary studio.
+                      Showing only offerings taught by {teacherResult.teacher.name}, organized by studio.
                     </p>
                   </div>
 
@@ -1697,7 +1668,15 @@ export default function StudentPortalPage() {
                     <TeacherAffiliationCard
                       key={affiliation.studio_id}
                       affiliation={affiliation}
-                      onSelectOffering={setSelectedOffering}
+                      onSelectOffering={offering => {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('teacher', teacherResult.teacher.teacher_code);
+                        url.searchParams.set('buy', offering.id);
+                        url.searchParams.set('kind', offering.kind);
+                        if (offering.package_id) url.searchParams.set('package', offering.package_id); else url.searchParams.delete('package');
+                        window.history.replaceState(null, '', url.pathname + url.search);
+                        setSelectedOffering(offering);
+                      }}
                     />
                   ))}
                 </div>
@@ -1888,7 +1867,23 @@ export default function StudentPortalPage() {
 
             {/* Conversation Thread Modal */}
             {selectedSupportTicket && (
-              <Modal
+              <Modal footer={<div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSupportTicket(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        Close
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSendingSupportReply || !supportReplyMessage.trim()}
+                        onClick={() => void sendStudentReply(selectedSupportTicket.id)}
+                        className="px-5 py-2 rounded-xl text-xs font-bold bg-[#133623] hover:bg-[#0C2417] text-white transition disabled:opacity-50"
+                      >
+                        {isSendingSupportReply ? 'Sending…' : 'Send Message'}
+                      </button>
+                    </div>}
                 title={`Question: ${selectedSupportTicket.subject}`}
                 onClose={() => setSelectedSupportTicket(null)}
               >
@@ -1947,23 +1942,7 @@ export default function StudentPortalPage() {
                       placeholder="Type your message…"
                       className="w-full p-3 rounded-xl border border-[#CEDECF] text-xs focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white text-slate-900"
                     />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSupportTicket(null)}
-                        className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                      >
-                        Close
-                      </button>
-                      <button
-                        type="button"
-                        disabled={isSendingSupportReply || !supportReplyMessage.trim()}
-                        onClick={() => void sendStudentReply(selectedSupportTicket.id)}
-                        className="px-5 py-2 rounded-xl text-xs font-bold bg-[#133623] hover:bg-[#0C2417] text-white transition disabled:opacity-50"
-                      >
-                        {isSendingSupportReply ? 'Sending…' : 'Send Message'}
-                      </button>
-                    </div>
+
                   </div>
                 </div>
               </Modal>
@@ -1971,8 +1950,23 @@ export default function StudentPortalPage() {
 
             {/* New Support Ticket Modal */}
             {isNewTicketModalOpen && (
-              <Modal title="Ask your studio a question" onClose={() => setIsNewTicketModalOpen(false)}>
-                <form onSubmit={handleCreateNewTicket} className="p-6 max-w-lg w-full space-y-4">
+              <Modal footer={<div className="flex justify-end gap-2 pt-2 border-t border-[#E1E9E2]">
+                    <button
+                      type="button"
+                      onClick={() => setIsNewTicketModalOpen(false)}
+                      className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                    >
+                      Cancel
+                    </button>
+                    <button form="modal-src-app--student--student-page-tsx-2"
+                      type="submit"
+                      disabled={isSubmittingNewTicket || !newTicketSubject.trim() || !newTicketMessage.trim()}
+                      className="px-5 py-2 rounded-xl text-xs font-bold bg-[#133623] hover:bg-[#0C2417] text-white transition disabled:opacity-50"
+                    >
+                      {isSubmittingNewTicket ? 'Submitting…' : 'Submit Question'}
+                    </button>
+                  </div>} title="Ask your studio a question" onClose={() => setIsNewTicketModalOpen(false)}>
+                <form id="modal-src-app--student--student-page-tsx-2" onSubmit={handleCreateNewTicket} className="p-6 max-w-lg w-full space-y-4">
                   <div>
                     <label htmlFor="ticket-studio" className="block text-xs font-bold text-slate-700 mb-1">
                       Select Studio *
@@ -2038,22 +2032,7 @@ export default function StudentPortalPage() {
                     />
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-2 border-t border-[#E1E9E2]">
-                    <button
-                      type="button"
-                      onClick={() => setIsNewTicketModalOpen(false)}
-                      className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSubmittingNewTicket || !newTicketSubject.trim() || !newTicketMessage.trim()}
-                      className="px-5 py-2 rounded-xl text-xs font-bold bg-[#133623] hover:bg-[#0C2417] text-white transition disabled:opacity-50"
-                    >
-                      {isSubmittingNewTicket ? 'Submitting…' : 'Submit Question'}
-                    </button>
-                  </div>
+
                 </form>
               </Modal>
             )}
@@ -2063,7 +2042,26 @@ export default function StudentPortalPage() {
 
       {/* Reschedule Modal */}
       {reschedulingClass && (
-        <Modal
+        <Modal footer={<div className="flex justify-end gap-2 pt-3 border-t border-[#E1E9E2]">
+              <button
+                type="button"
+                onClick={() => setReschedulingClass(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Close
+              </button>
+              {rescheduleSlots.length > 0 && (
+                <button
+                  type="button"
+                  disabled={!selectedTargetSlotId || isSubmittingReschedule}
+                  onClick={() => void handleConfirmReschedule()}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-[#133623] hover:bg-[#0C2417] text-white transition disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSubmittingReschedule && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  <span>Confirm Reschedule</span>
+                </button>
+              )}
+            </div>}
           title={`Reschedule "${reschedulingClass.session_name}"`}
           onClose={() => {
             setReschedulingClass(null);
@@ -2143,26 +2141,7 @@ export default function StudentPortalPage() {
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#E1E9E2]">
-              <button
-                type="button"
-                onClick={() => setReschedulingClass(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-              >
-                Close
-              </button>
-              {rescheduleSlots.length > 0 && (
-                <button
-                  type="button"
-                  disabled={!selectedTargetSlotId || isSubmittingReschedule}
-                  onClick={() => void handleConfirmReschedule()}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-[#133623] hover:bg-[#0C2417] text-white transition disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isSubmittingReschedule && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  <span>Confirm Reschedule</span>
-                </button>
-              )}
-            </div>
+
           </div>
         </Modal>
       )}
@@ -2173,6 +2152,9 @@ export default function StudentPortalPage() {
           offering={selectedOffering}
           onClose={() => {
             setSelectedOffering(null);
+            const url = new URL(window.location.href);
+            ['buy', 'kind', 'package'].forEach(key => url.searchParams.delete(key));
+            window.history.replaceState(null, '', url.pathname + url.search);
             void load();
           }}
         />

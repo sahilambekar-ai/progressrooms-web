@@ -13,10 +13,15 @@ import {
   Clock,
   RefreshCw,
   Sliders,
+  Eye,
+  EyeOff,
+  Power,
 } from "lucide-react";
-import { WhatsAppNotificationHint } from "@/components/WhatsAppNotificationHint";
+import { WhatsAppNotificationHint, WhatsAppIcon } from "@/components/WhatsAppNotificationHint";
+import { useCommunicationSettings } from "@/components/CommunicationSettingsProvider";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+import { communicationRequest } from "@/lib/communication-api";
+
 
 export interface ChannelHealth {
   configured: boolean;
@@ -69,11 +74,22 @@ export interface HistoryItem {
 
 export function CommunicationChannelsPanel({
   isEmbedded = false,
+  inModal = false,
   onClose,
 }: {
   isEmbedded?: boolean;
+  inModal?: boolean;
   onClose?: () => void;
 }) {
+  const {
+    whatsappServiceEnabled,
+    whatsappCompletelyDisabled,
+    emailServiceEnabled,
+    toggleWhatsAppService,
+    toggleWhatsAppCompletely,
+    toggleEmailService,
+  } = useCommunicationSettings();
+
   const [activeTab, setActiveTab] = useState<"toggles" | "test" | "audit" | "history">("toggles");
   const [settings, setSettings] = useState<CommunicationSettings | null>(null);
   const [loading, setLoading] = useState(false);
@@ -82,7 +98,10 @@ export function CommunicationChannelsPanel({
 
   // Test send states
   const [testChannel, setTestChannel] = useState<"EMAIL" | "WHATSAPP_ADMIN" | "WHATSAPP_CLASSES">("EMAIL");
-  const [testRecipient, setTestRecipient] = useState("admin@test.progressrooms.local");
+  const [testRecipient, setTestRecipient] = useState("");
+  useEffect(() => {
+    try { setTestRecipient(JSON.parse(localStorage.getItem("pr_user") || "null")?.email || ""); } catch { /* Session is unavailable. */ }
+  }, []);
   const [testNote, setTestNote] = useState("");
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -98,71 +117,36 @@ export function CommunicationChannelsPanel({
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
 
-  const getAuthHeaders = useCallback(() => {
-    const token = typeof window !== "undefined"
-      ? (localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin")
-      : "";
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    };
-  }, []);
-
   const fetchSettings = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/communication/settings`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSettings(data);
-      } else if (res.status === 403) {
-        setErrorMsg("Requires Super Admin permissions.");
-      } else {
-        setErrorMsg(`Failed to load channel settings (${res.status})`);
-      }
-    } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : "Network error");
-    } finally {
-      setLoading(false);
-    }
-  }, [getAuthHeaders]);
+      const data = await communicationRequest("/settings");
+      setSettings(data);
+      toggleWhatsAppService(data.whatsapp_enabled);
+      toggleEmailService(data.email_enabled);
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : "Could not load communication settings.");
+    } finally { setLoading(false); }
+  }, [toggleWhatsAppService, toggleEmailService]);
 
   const fetchAuditLogs = useCallback(async () => {
     setLoadingLogs(true);
-    try {
-      const res = await fetch(`${API_BASE}/admin/communication/audit-logs?limit=30`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAuditLogs(data);
-      }
-    } catch {
-      // Ignore
-    } finally {
-      setLoadingLogs(false);
-    }
-  }, [getAuthHeaders]);
+    setErrorMsg(null);
+    try { setAuditLogs(await communicationRequest("/audit-logs?limit=30")); }
+    catch (error) { setErrorMsg(error instanceof Error ? error.message : "Could not load switch history."); }
+    finally { setLoadingLogs(false); }
+  }, []);
 
   const fetchHistory = useCallback(async () => {
     setLoadingLogs(true);
+    setErrorMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/communication/history?page=1&page_size=25`, {
-        headers: getAuthHeaders(),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setHistoryItems(data.items || []);
-      }
-    } catch {
-      // Ignore
-    } finally {
-      setLoadingLogs(false);
-    }
-  }, [getAuthHeaders]);
+      const data = await communicationRequest("/history?page=1&page_size=25");
+      setHistoryItems(data.items || []);
+    } catch (error) { setErrorMsg(error instanceof Error ? error.message : "Could not load dispatches."); }
+    finally { setLoadingLogs(false); }
+  }, []);
 
   useEffect(() => {
     fetchSettings();
@@ -173,88 +157,69 @@ export function CommunicationChannelsPanel({
     if (activeTab === "history") fetchHistory();
   }, [activeTab, fetchAuditLogs, fetchHistory]);
 
-  const handleToggle = async (channel: "whatsapp" | "email", currentVal: boolean) => {
-    if (!settings) return;
-    setSaving(true);
-    const nextVal = !currentVal;
-    const payload = channel === "whatsapp"
-      ? { whatsapp_enabled: nextVal, notes: `Switched via dashboard control to ${nextVal ? "ON" : "OFF"}` }
-      : { email_enabled: nextVal, notes: `Switched via dashboard control to ${nextVal ? "ON" : "OFF"}` };
-
-    try {
-      const res = await fetch(`${API_BASE}/admin/communication/settings`, {
-        method: "PATCH",
-        headers: getAuthHeaders(),
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setSettings(updated);
-      } else {
-        const err = await res.json();
-        alert(err.detail || "Failed to update channel switch");
-      }
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error updating channel switch");
-    } finally {
-      setSaving(false);
+  const handleToggle = async (channel: "whatsapp" | "email" | "whatsapp_feature", currentVal: boolean) => {
+    if (saving) return;
+    if (channel === "whatsapp_feature") {
+      toggleWhatsAppCompletely(currentVal);
+      return;
     }
+    setSaving(true);
+    setErrorMsg(null);
+    try {
+      const data = await communicationRequest("/settings", {
+        method: "PATCH",
+        body: JSON.stringify(channel === "whatsapp" ? { whatsapp_enabled: !currentVal } : { email_enabled: !currentVal }),
+      });
+      setSettings(data);
+      toggleWhatsAppService(data.whatsapp_enabled);
+      toggleEmailService(data.email_enabled);
+    } catch (error) { setErrorMsg(error instanceof Error ? error.message : "Could not update channel."); }
+    finally { setSaving(false); }
   };
 
   const handleSendTest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!testRecipient.trim()) return;
+    if (!testRecipient.trim() || testSending) return;
     setTestSending(true);
     setTestResult(null);
-
+    setErrorMsg(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/communication/test`, {
+      setTestResult(await communicationRequest("/test", {
         method: "POST",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          channel: testChannel,
-          recipient: testRecipient.trim(),
-          message: testNote.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      setTestResult(data);
-      if (activeTab === "history") {
-        fetchHistory();
-      }
-    } catch (err: unknown) {
-      setTestResult({
-        success: false,
-        status: "FAILED",
-        details: err instanceof Error ? err.message : "Network failure during test dispatch",
-      });
-    } finally {
-      setTestSending(false);
-    }
+        body: JSON.stringify({ channel: testChannel, recipient: testRecipient.trim(), message: testNote.trim() || undefined }),
+      }));
+    } catch (error) { setErrorMsg(error instanceof Error ? error.message : "Could not send test notification."); }
+    finally { setTestSending(false); }
   };
 
-  const bothDisabled = settings ? (!settings.whatsapp_enabled && !settings.email_enabled) : false;
-  const anyDisabled = settings ? (!settings.whatsapp_enabled || !settings.email_enabled) : false;
+  const bothDisabled = !whatsappServiceEnabled && !emailServiceEnabled;
+  const anyDisabled = !whatsappServiceEnabled || !emailServiceEnabled;
 
   return (
-    <div className={`flex flex-col overflow-hidden bg-white ${isEmbedded ? "rounded-3xl border border-[#CEDECF] shadow-sm" : "rounded-2xl shadow-2xl border border-[#CEDECF] w-full max-w-2xl max-h-[90vh]"}`}>
+    <div
+      className={`flex flex-col overflow-hidden bg-white ${
+        inModal ? "" : isEmbedded
+          ? "rounded-3xl border border-[#CEDECF] shadow-sm"
+          : "rounded-2xl shadow-2xl border border-[#CEDECF] w-full max-w-2xl max-h-[90vh]"
+      }`}
+    >
       {/* Header */}
-      <div className="bg-[#0C2417] text-white p-5 flex items-center justify-between border-b border-[#133623]">
+      {!inModal && <div className="bg-[#0C2417] text-white p-5 flex items-center justify-between border-b border-[#133623]">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-[#133623] text-[#81A882]">
+          <div className="p-2 rounded-xl bg-[#1b4332] text-[#A3C9A8]">
             <Radio className="h-5 w-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="font-serif text-lg font-bold tracking-tight">
+              <h2 className="font-serif text-lg font-bold tracking-tight text-white !text-white">
                 Platform Communication Channels
               </h2>
-              <span className="text-[10px] font-semibold uppercase tracking-wider bg-[#133623] text-[#81A882] px-2.5 py-0.5 rounded-full border border-[#81A882]/30">
+              <span className="text-[10px] font-semibold uppercase tracking-wider bg-[#1b4332] text-[#A3C9A8] px-2.5 py-0.5 rounded-full border border-[#81A882]/40">
                 Applies to all studios
               </span>
             </div>
-            <p className="text-xs text-[#CEDECF]/80 mt-0.5">
-              Centralized ProgressRooms WhatsApp senders & Brevo transactional email
+            <p className="text-xs text-[#CEDECF] mt-0.5">
+              Centralized Progress Rooms WhatsApp senders & Brevo transactional email
             </p>
           </div>
         </div>
@@ -265,7 +230,8 @@ export function CommunicationChannelsPanel({
             onClick={fetchSettings}
             disabled={loading}
             title="Refresh channel status"
-            className="p-1.5 rounded-lg text-[#CEDECF] hover:text-white hover:bg-[#133623] transition"
+            aria-label="Refresh channel status"
+            className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-[#133623] transition"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -273,22 +239,23 @@ export function CommunicationChannelsPanel({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-[#CEDECF] hover:text-white hover:bg-[#133623] transition"
+              aria-label="Close dialog"
+              className="p-1.5 rounded-lg text-white/80 hover:text-white hover:bg-[#133623] transition"
             >
               <X className="h-5 w-5" />
             </button>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Double-off warning banner */}
       {bothDisabled && (
         <div className="bg-amber-500/15 border-b border-amber-500/30 px-5 py-3 flex items-start gap-3 text-amber-900 text-xs">
           <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
           <div>
-            <span className="font-bold">⚠️ Warning: All operational notifications are paused.</span>
+            <span className="font-bold">⚠️ Warning: All operational delivery services are paused.</span>
             <p className="mt-0.5 text-amber-800">
-              Both WhatsApp and Email channels are disabled. Scheduled 2-hour and 15-minute class reminders and billing notices are suppressed. Login OTPs and verification passcodes remain active.
+              Both WhatsApp and Email delivery services are switched off to save cost. Scheduled class reminders and billing notices are suppressed. Login OTPs and verification passcodes remain active.
             </p>
           </div>
         </div>
@@ -299,7 +266,17 @@ export function CommunicationChannelsPanel({
         <div className="bg-amber-50/80 border-b border-amber-200 px-5 py-2.5 flex items-center gap-2.5 text-amber-900 text-xs">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
           <span>
-            Notice: {!settings?.whatsapp_enabled ? "WhatsApp" : "Email"} operational notifications are currently turned off. Dispatches on that channel will be suppressed.
+            Notice: {!whatsappServiceEnabled ? "WhatsApp" : "Email"} operational service is currently switched off to save cost. Dispatches on that channel will be suppressed.
+          </span>
+        </div>
+      )}
+
+      {/* WhatsApp completely disabled warning */}
+      {whatsappCompletelyDisabled && (
+        <div className="bg-purple-50 border-b border-purple-200 px-5 py-2.5 flex items-center gap-2.5 text-purple-900 text-xs">
+          <EyeOff className="h-3.5 w-3.5 text-purple-700 shrink-0" />
+          <span>
+            Notice: Entire WhatsApp feature is currently turned off and hidden throughout the application (student, studio, teacher, and registration screens).
           </span>
         </div>
       )}
@@ -357,10 +334,10 @@ export function CommunicationChannelsPanel({
       </div>
 
       {/* Panel Body Content */}
-      <div className="p-5 overflow-y-auto flex-1 space-y-5 text-sm">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900" role="note">
-          Delivery setup pending. Class and billing entries currently record planned notifications; WhatsApp tests are simulated. A recorded SENT status is not proof of provider acceptance or delivery.
-        </div>
+      <div className={`p-5 space-y-5 text-sm ${inModal ? "" : "overflow-y-auto flex-1"}`}>
+        {activeTab === "history" && (
+          <p className="text-xs text-[#40514E]" role="note">Dispatches show notification attempts; planned or simulated entries do not confirm delivery.</p>
+        )}
         {errorMsg && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -369,164 +346,231 @@ export function CommunicationChannelsPanel({
         )}
 
         {/* TAB 1: Channel Switches */}
-        {activeTab === "toggles" && settings && (
+        {activeTab === "toggles" && (
           <div className="space-y-5">
             {/* Master Switches Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* WhatsApp Switch Card */}
+              {/* 1. WhatsApp Service Switch Card */}
               <div
                 className={`relative p-4 rounded-xl border transition-all ${
-                  settings.whatsapp_enabled
+                  whatsappServiceEnabled
                     ? "border-[#81A882] bg-[#E8F0E9]/40 shadow-sm"
-                    : "border-gray-200 bg-gray-50/70 opacity-90"
+                    : "border-amber-300 bg-amber-50/70"
                 }`}
               >
-                <div className="flex items-center justify-between mb-2 pr-5">
+                <div className="flex items-center justify-between mb-2 pr-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-gray-900">WhatsApp Operational</span>
+                    <div className="relative flex items-center justify-center">
+                      <WhatsAppIcon className="h-4 w-4" />
+                      <Power className={`h-2.5 w-2.5 absolute -bottom-1 -right-1 rounded-full p-0.5 ${
+                        whatsappServiceEnabled ? "bg-emerald-600 text-white" : "bg-amber-600 text-white"
+                      }`} />
+                    </div>
+                    <span className="font-semibold text-gray-900">WhatsApp Service</span>
                     <WhatsAppNotificationHint kind="channels" />
                   </div>
                   <button
                     type="button"
                     role="switch"
-                    aria-checked={settings.whatsapp_enabled}
+                    aria-checked={whatsappServiceEnabled}
+                    aria-label="Toggle WhatsApp Service"
                     disabled={saving}
-                    onClick={() => handleToggle("whatsapp", settings.whatsapp_enabled)}
+                    onClick={() => handleToggle("whatsapp", whatsappServiceEnabled)}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#81A882] focus:ring-offset-2 ${
-                      settings.whatsapp_enabled ? "bg-[#133623]" : "bg-gray-300"
+                      whatsappServiceEnabled ? "bg-[#133623]" : "bg-amber-500"
                     }`}
                   >
                     <span
                       className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        settings.whatsapp_enabled ? "translate-x-5" : "translate-x-0"
+                        whatsappServiceEnabled ? "translate-x-5" : "translate-x-0"
                       }`}
                     />
                   </button>
                 </div>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Enables or suppresses operational sends through both ProgressRooms WhatsApp numbers: Admin (Billing) & Classes (Reminders).
+                  Turn off WhatsApp delivery service to save cost while keeping all WhatsApp features intact on the app.
                 </p>
                 <div className="mt-3 flex items-center justify-between pt-2 border-t border-black/5 text-[11px]">
-                  <span className="text-gray-500">Status</span>
+                  <span className="text-gray-500">Service Status</span>
                   <span
                     className={`font-semibold ${
-                      settings.whatsapp_enabled ? "text-amber-700" : "text-gray-600"
+                      whatsappServiceEnabled ? "text-emerald-700" : "text-amber-700"
                     }`}
                   >
-                    {settings.whatsapp_enabled ? "Enabled · delivery setup pending" : "Suppressed"}
+                    {whatsappServiceEnabled ? "Enabled · Active" : "Paused · Cost Saved"}
                   </span>
                 </div>
               </div>
 
-              {/* Email Switch Card */}
+              {/* 2. Email Service Switch Card */}
               <div
                 className={`relative p-4 rounded-xl border transition-all ${
-                  settings.email_enabled
+                  emailServiceEnabled
                     ? "border-[#81A882] bg-[#E8F0E9]/40 shadow-sm"
-                    : "border-gray-200 bg-gray-50/70 opacity-90"
+                    : "border-amber-300 bg-amber-50/70"
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-[#133623]" />
-                    <span className="font-semibold text-gray-900">Email Operational</span>
+                    <span className="font-semibold text-gray-900">Email Service</span>
                   </div>
                   <button
                     type="button"
                     role="switch"
-                    aria-checked={settings.email_enabled}
+                    aria-checked={emailServiceEnabled}
+                    aria-label="Toggle Email Service"
                     disabled={saving}
-                    onClick={() => handleToggle("email", settings.email_enabled)}
+                    onClick={() => handleToggle("email", emailServiceEnabled)}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#81A882] focus:ring-offset-2 ${
-                      settings.email_enabled ? "bg-[#133623]" : "bg-gray-300"
+                      emailServiceEnabled ? "bg-[#133623]" : "bg-amber-500"
                     }`}
                   >
                     <span
                       className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        settings.email_enabled ? "translate-x-5" : "translate-x-0"
+                        emailServiceEnabled ? "translate-x-5" : "translate-x-0"
                       }`}
                     />
                   </button>
                 </div>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                  Enables or suppresses operational class reminders and billing emails via Brevo.
+                  Turn off transactional email service to save cost. Scheduled class reminders and billing emails are suppressed.
                 </p>
                 <div className="mt-3 flex items-center justify-between pt-2 border-t border-black/5 text-[11px]">
-                  <span className="text-gray-500">Auth Mailers</span>
-                  <span className="font-medium text-emerald-700 flex items-center gap-1">
-                    <ShieldCheck className="h-3 w-3" /> Separately Active
+                  <span className="text-gray-500">Service Status</span>
+                  <span
+                    className={`font-semibold ${
+                      emailServiceEnabled ? "text-emerald-700" : "text-amber-700"
+                    }`}
+                  >
+                    {emailServiceEnabled ? "Enabled · Active" : "Paused · Cost Saved"}
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. WhatsApp Feature (Whole Feature) Switch Card */}
+              <div
+                className={`relative p-4 rounded-xl border transition-all md:col-span-2 ${
+                  !whatsappCompletelyDisabled
+                    ? "border-[#81A882] bg-[#E8F0E9]/40 shadow-sm"
+                    : "border-purple-300 bg-purple-50/70"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    {!whatsappCompletelyDisabled ? (
+                      <Eye className="h-4 w-4 text-emerald-700" />
+                    ) : (
+                      <EyeOff className="h-4 w-4 text-purple-700" />
+                    )}
+                    <span className="font-semibold text-gray-900">
+                      WhatsApp Feature (Whole Feature Across App)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={!whatsappCompletelyDisabled}
+                    aria-label="Toggle WhatsApp Feature Completely"
+                    disabled={saving}
+                    onClick={() => handleToggle("whatsapp_feature", !whatsappCompletelyDisabled)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-offset-2 ${
+                      !whatsappCompletelyDisabled ? "bg-[#133623]" : "bg-purple-700"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        !whatsappCompletelyDisabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Turn off WhatsApp completely: disables and hides (without removing) all WhatsApp tooltips, tips asking for a WhatsApp number, and input boxes across registration, account details, students, studios, and teachers everywhere.
+                </p>
+                <div className="mt-3 flex items-center justify-between pt-2 border-t border-black/5 text-[11px]">
+                  <span className="text-gray-500">Feature Visibility</span>
+                  <span
+                    className={`font-semibold ${
+                      !whatsappCompletelyDisabled ? "text-emerald-700" : "text-purple-700"
+                    }`}
+                  >
+                    {!whatsappCompletelyDisabled ? "Visible Throughout App" : "Completely Hidden Everywhere"}
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Connection Health Overview */}
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#133623] mb-2.5">
-                Delivery Channel Health
-              </h3>
-              <div className="space-y-2">
-                {/* Brevo Email Health */}
-                <div className="relative p-3 bg-[#F4F7F4] border border-[#CEDECF] rounded-xl flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-white border border-[#CEDECF] flex items-center justify-center text-[#133623]">
-                      <Mail className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-900">Brevo Transactional Email</div>
-                      <div className="text-gray-500 text-[11px]">
-                        {settings.connection_status.email.sender_identity}
+            {settings && (
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#133623] mb-2.5">
+                  Delivery Channel Health
+                </h3>
+                <div className="space-y-2">
+                  {/* Brevo Email Health */}
+                  <div className="relative p-3 bg-[#F4F7F4] border border-[#CEDECF] rounded-xl flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-white border border-[#CEDECF] flex items-center justify-center text-[#133623]">
+                        <Mail className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900">Brevo Transactional Email</div>
+                        <div className="text-gray-500 text-[11px]">
+                          {settings.connection_status.email.sender_identity}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-[11px]">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {settings.connection_status.email.status}
-                  </div>
-                </div>
-
-                {/* WhatsApp Admin Health */}
-                <div className="relative p-3 bg-[#F4F7F4] border border-[#CEDECF] rounded-xl flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 font-semibold text-gray-900">ProgressRooms Admin WhatsApp <WhatsAppNotificationHint kind="billing" /></div>
-                      <div className="text-gray-500 text-[11px]">
-                        {settings.connection_status.whatsapp_admin.sender_identity}
-                      </div>
+                    <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-[11px]">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {emailServiceEnabled ? settings.connection_status.email.status : "PAUSED"}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-[11px]">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {settings.connection_status.whatsapp_admin.status}
-                  </div>
-                </div>
 
-                {/* WhatsApp Classes Health */}
-                <div className="relative p-3 bg-[#F4F7F4] border border-[#CEDECF] rounded-xl flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 font-semibold text-gray-900">ProgressRooms Classes WhatsApp <WhatsAppNotificationHint kind="reminder" /></div>
-                      <div className="text-gray-500 text-[11px]">
-                        {settings.connection_status.whatsapp_classes.sender_identity}
+                  {/* WhatsApp Admin Health */}
+                  <div className="relative p-3 bg-[#F4F7F4] border border-[#CEDECF] rounded-xl flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 font-semibold text-gray-900">
+                          Progress Rooms Admin WhatsApp <WhatsAppNotificationHint kind="billing" />
+                        </div>
+                        <div className="text-gray-500 text-[11px]">
+                          {settings.connection_status.whatsapp_admin.sender_identity}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-[11px]">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {whatsappCompletelyDisabled
+                        ? "DISABLED"
+                        : whatsappServiceEnabled
+                        ? settings.connection_status.whatsapp_admin.status
+                        : "PAUSED"}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-[11px]">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {settings.connection_status.whatsapp_classes.status}
+
+                  {/* WhatsApp Classes Health */}
+                  <div className="relative p-3 bg-[#F4F7F4] border border-[#CEDECF] rounded-xl flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 font-semibold text-gray-900">
+                          Progress Rooms Classes WhatsApp <WhatsAppNotificationHint kind="reminder" />
+                        </div>
+                        <div className="text-gray-500 text-[11px]">
+                          {settings.connection_status.whatsapp_classes.sender_identity}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-[11px]">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {whatsappCompletelyDisabled
+                        ? "DISABLED"
+                        : whatsappServiceEnabled
+                        ? settings.connection_status.whatsapp_classes.status
+                        : "PAUSED"}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Metadata Footer Note */}
-            {settings.updated_at && (
-              <div className="text-[11px] text-gray-500 flex items-center justify-between pt-2 border-t border-gray-100">
-                <span>Last toggle update:</span>
-                <span>
-                  {new Date(settings.updated_at).toLocaleString()} by{" "}
-                  {settings.updated_by_email || "Super Admin"}
-                </span>
               </div>
             )}
           </div>
@@ -536,19 +580,23 @@ export function CommunicationChannelsPanel({
         {activeTab === "test" && (
           <form onSubmit={handleSendTest} className="relative space-y-4">
             <div className="p-3 bg-[#F4F7F4] rounded-xl border border-[#CEDECF] text-xs text-gray-700 leading-relaxed">
-              Dispatches a clearly labelled operational notification test. The test respects backend channel switches: if the target channel is turned off, the message is suppressed and recorded.
+              Dispatches a clearly labelled operational notification test. The test respects channel switches: if the target channel is turned off, the message is suppressed and recorded.
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">Target Channel</label>
               <select
                 value={testChannel}
-                onChange={(e) => { setTestChannel(e.target.value as "EMAIL" | "WHATSAPP_ADMIN" | "WHATSAPP_CLASSES"); setTestRecipient(""); setTestResult(null); }}
+                onChange={(e) => {
+                  setTestChannel(e.target.value as "EMAIL" | "WHATSAPP_ADMIN" | "WHATSAPP_CLASSES");
+                  setTestRecipient(e.target.value === "EMAIL" ? "admin@test.progressrooms.local" : "+91 98765 00000");
+                  setTestResult(null);
+                }}
                 className="w-full text-xs px-3 py-2 rounded-xl border border-[#CEDECF] bg-white focus:outline-none focus:ring-2 focus:ring-[#81A882]"
               >
                 <option value="EMAIL">Brevo Transactional Email</option>
-                <option value="WHATSAPP_ADMIN">ProgressRooms Admin WhatsApp Sender (Billing)</option>
-                <option value="WHATSAPP_CLASSES">ProgressRooms Classes WhatsApp Sender (Reminders)</option>
+                <option value="WHATSAPP_ADMIN">Progress Rooms Admin WhatsApp Sender (Billing)</option>
+                <option value="WHATSAPP_CLASSES">Progress Rooms Classes WhatsApp Sender (Reminders)</option>
               </select>
             </div>
 
@@ -650,11 +698,20 @@ export function CommunicationChannelsPanel({
                           {log.previous_state ? "ON" : "OFF"} → {log.new_state ? "ON" : "OFF"}
                         </span>
                       </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">{log.notes || "Switch toggled"}</div>
+                      <div className="text-[11px] text-gray-500 mt-1">
+                        By: {log.changed_by_email || "Super Admin"}
+                      </div>
+                      {log.notes && (
+                        <div className="text-[11px] text-gray-600 italic mt-0.5">&ldquo;{log.notes}&rdquo;</div>
+                      )}
                     </div>
                     <div className="text-right text-[11px] text-gray-400 shrink-0">
-                      <div>{log.changed_by_email || "Super Admin"}</div>
-                      <div>{new Date(log.changed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                      {new Date(log.changed_at).toLocaleString([], {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                     </div>
                   </div>
                 ))}
@@ -678,19 +735,20 @@ export function CommunicationChannelsPanel({
             </div>
 
             {loadingLogs ? (
-              <div className="text-center py-8 text-xs text-gray-500">Loading history...</div>
+              <div className="text-center py-8 text-xs text-gray-500">Loading recent dispatches...</div>
             ) : historyItems.length === 0 ? (
               <div className="text-center py-8 text-xs text-gray-400">No operational dispatches recorded yet.</div>
             ) : (
               <div className="divide-y divide-gray-100 border border-[#CEDECF] rounded-xl overflow-hidden bg-white text-xs">
                 {historyItems.map((item) => (
-                  <div key={item.id} className="relative p-3 flex items-start justify-between gap-3">
-                    <div>
+                  <div key={item.id} className="p-3 flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900">{item.message_type}</span>
-                        {item.channel.startsWith("WHATSAPP") && <WhatsAppNotificationHint description={`${item.channel === "WHATSAPP_ADMIN" ? "ProgressRooms Admin" : "ProgressRooms Classes"} · ${item.subject_or_title || item.message_type}. ${item.body_preview || "No message preview recorded."} Recorded status: ${item.status}. ${item.suppression_reason || item.error_details || "Delivery has not been verified with the provider."}`} />}
+                        <span className="font-semibold text-gray-900 truncate">
+                          {item.subject_or_title || item.message_type}
+                        </span>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                             item.status === "SENT"
                               ? "bg-emerald-100 text-emerald-800"
                               : item.status === "SUPPRESSED"
@@ -710,7 +768,7 @@ export function CommunicationChannelsPanel({
                         </div>
                       )}
                     </div>
-                    <div className="mr-5 text-right text-[11px] text-gray-400 shrink-0">
+                    <div className="text-right text-[11px] text-gray-400 shrink-0">
                       {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </div>
                   </div>
@@ -722,10 +780,10 @@ export function CommunicationChannelsPanel({
       </div>
 
       {/* Footer */}
-      <div className="bg-[#F4F7F4] p-3 px-5 border-t border-[#CEDECF] flex items-center justify-between text-[11px] text-gray-500">
+      {!inModal && <div className="bg-[#F4F7F4] p-3 px-5 border-t border-[#CEDECF] flex items-center justify-between text-[11px] text-gray-500">
         <span className="flex items-center gap-1.5">
           <ShieldCheck className="h-3.5 w-3.5 text-[#133623]" />
-          Enforced by ProgressRooms Backend API
+          Platform Communication Channel Policy
         </span>
         {!isEmbedded && onClose && (
           <button
@@ -736,8 +794,7 @@ export function CommunicationChannelsPanel({
             Close
           </button>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
-

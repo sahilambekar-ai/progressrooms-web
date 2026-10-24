@@ -1,4 +1,4 @@
-# ProgressNow email branding
+# Progress Rooms email branding
 
 Open `preview.html` in a browser for a local preview with the bundled logo and a sample code. It is a static QA copy, not the production template; keep its markup synchronized when editing `verification.html`.
 

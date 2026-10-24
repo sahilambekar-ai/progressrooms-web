@@ -10,8 +10,11 @@ import { PrivacyConsent } from "@/components/PrivacyPolicy";
 import { PRIVACY_POLICY_VERSION } from "@/lib/privacy/policy";
 import { DeveloperOnly } from "@/components/DeveloperModeProvider";
 import { BrandLogo } from "@/components/BrandLogo";
+import { useCommunicationSettings } from "@/components/CommunicationSettingsProvider";
+import { SAAS_TAX_NOTICE, SAAS_USAGE_NOTICE } from "@/lib/saas-pricing";
 
 function RegisterFormContent() {
+  const { whatsappCompletelyDisabled } = useCommunicationSettings();
   const router = useRouter();
   const searchParams = useSearchParams();
   const selectedPlan = searchParams.get("plan");
@@ -23,6 +26,7 @@ function RegisterFormContent() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [location, setLocation] = useState("");
+  const [billingCountry, setBillingCountry] = useState("");
   const [phone, setPhone] = useState("");
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [role, setRole] = useState<"STUDIO" | "STUDENT">(searchParams.get("role") === "STUDENT" ? "STUDENT" : "STUDIO");
@@ -37,7 +41,7 @@ function RegisterFormContent() {
   const canRegister = Boolean(
     fullName.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
     password.trim() && password.length >= 8 && password.length <= 128 &&
-    password === confirmPassword && phone.trim() && location.trim() &&
+    password === confirmPassword && phone.trim() && location.trim() && billingCountry &&
     (role !== "STUDIO" || studioName.trim()) && privacyAccepted
   );
 
@@ -51,7 +55,7 @@ function RegisterFormContent() {
       setPassword("");
       setConfirmPassword("");
       setPhone("");
-      setLocation("");
+      setLocation(""); setBillingCountry("");
       setStudioName("");
     } else {
       setRole("STUDIO");
@@ -60,8 +64,8 @@ function RegisterFormContent() {
       setPassword("sahil777");
       setConfirmPassword("sahil777");
       setPhone("7769953731");
-      setLocation("Rishikesh");
-      setStudioName("Rishi Yogi Studio");
+      setLocation("Rishikesh"); setBillingCountry("IN");
+      setStudioName("Rishi Learning Studio");
     }
   };
 
@@ -94,9 +98,16 @@ function RegisterFormContent() {
     }
 
     const validContact = (value: string) => /^\+?[0-9 ()-]+$/.test(value.trim()) && value.replace(/\D/g, "").length >= 7 && value.replace(/\D/g, "").length <= 15;
-    if (!validContact(phone) || (whatsappNumber.trim() && !validContact(whatsappNumber))) {
-      setError("Enter a valid phone number with 7–15 digits. WhatsApp is optional but must be valid if provided.");
-      return;
+    if (whatsappCompletelyDisabled) {
+      if (!validContact(phone)) {
+        setError("Enter a valid phone number with 7–15 digits.");
+        return;
+      }
+    } else {
+      if (!validContact(phone) || (whatsappNumber.trim() && !validContact(whatsappNumber))) {
+        setError("Enter a valid phone number with 7–15 digits. WhatsApp is optional but must be valid if provided.");
+        return;
+      }
     }
     setLoading(true);
     setError(null);
@@ -115,7 +126,9 @@ function RegisterFormContent() {
           privacy_accepted: privacyAccepted,
           privacy_policy_version: PRIVACY_POLICY_VERSION,
           location: location.trim() || null,
-          studio_name: role === "STUDIO" ? (studioName.trim() || `${fullName.trim()} Sanctuary`) : null,
+          billing_country: billingCountry,
+          studio_name: role === "STUDIO" ? (studioName.trim() || `${fullName.trim()} Studio`) : null,
+          selected_plan: role === "STUDIO" ? (selectedPlan || "starter") : "starter",
         }),
       });
 
@@ -141,7 +154,7 @@ function RegisterFormContent() {
     if (data.user?.role === "STUDENT") {
       router.push(next || "/student");
     } else {
-      router.push(next || "/dashboard");
+      router.push(next || (["core", "studio"].includes(selectedPlan || "") ? "/dashboard?tab=billing-saas" : "/dashboard"));
     }
   };
 
@@ -156,7 +169,7 @@ function RegisterFormContent() {
             setStep("FORM");
             setError(null);
           }}
-          title="Verify Your Sanctuary Account"
+          title="Verify Your Account"
           subtitle="We've dispatched a 6-digit verification code to your email. Enter it below to activate your account and access your dashboard."
           purpose="LOGIN_VERIFICATION"
         />
@@ -185,7 +198,7 @@ function RegisterFormContent() {
             </div>
             <h1 className="text-2xl font-serif font-bold text-[#0C2417]">{role === "STUDENT" ? "Student Registration" : "Studio Registration"}</h1>
             <p className="text-xs text-[#7E7970] mt-1">
-              Join ProgressRooms to manage your classes, teachers, student roster, or practitioner journey.
+              Join Progress Rooms to manage your classes, teachers, student roster, or practitioner journey.
             </p>
 
             {selectedPlan && (
@@ -194,6 +207,7 @@ function RegisterFormContent() {
                 <span>Selected Plan: <strong>{selectedPlan.toUpperCase()}</strong></span>
               </div>
             )}
+            {role === "STUDIO" && <div className="mt-3 space-y-2 rounded-xl border border-[#CEDECF] bg-white p-3 text-left text-xs leading-relaxed text-slate-600"><p>{SAAS_TAX_NOTICE}</p><p>{SAAS_USAGE_NOTICE}</p><Link href="/pricing-policy" target="_blank" className="inline-block font-semibold underline">Read pricing policy</Link></div>}
           </div>
 
           {error && (
@@ -221,8 +235,8 @@ function RegisterFormContent() {
                 >
                   <Building2 className={`w-4 h-4 ${role === "STUDIO" ? "text-[#133623]" : "text-slate-400"}`} />
                   <div>
-                    <p className="text-xs font-bold">Studio Sanctuary</p>
-                    <p className="text-[10px] text-slate-500">Academy / Studio Owner</p>
+                    <p className="text-xs font-bold">Studio Account</p>
+                    <p className="text-[10px] text-slate-500">Solo teacher / Academy / Studio</p>
                   </div>
                 </button>
 
@@ -237,7 +251,7 @@ function RegisterFormContent() {
                 >
                   <User className={`w-4 h-4 ${role === "STUDENT" ? "text-[#133623]" : "text-slate-400"}`} />
                   <div>
-                    <p className="text-xs font-bold">Student / Yogi</p>
+                    <p className="text-xs font-bold">Student</p>
                     <p className="text-[10px] text-slate-500">Practitioner Member</p>
                   </div>
                 </button>
@@ -268,7 +282,7 @@ function RegisterFormContent() {
                   type="email"
                   id="register-email" autoComplete="email"
                   required
-                  placeholder="name@sanctuary.com"
+                  placeholder="name@studio.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] text-sm bg-[#FAF7F2]"
@@ -333,7 +347,7 @@ function RegisterFormContent() {
                 </div>
               </div>
 
-              {role === "STUDENT" && <div>
+              {role === "STUDENT" && <div className={whatsappCompletelyDisabled ? "hidden" : ""}>
                 <label htmlFor="register-whatsapp" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">WhatsApp number (optional)</label>
                 <input id="register-whatsapp" type="tel" maxLength={50} value={whatsappNumber} onChange={e => setWhatsappNumber(e.target.value)} placeholder="+91 98765 43210" className="w-full px-4 py-2.5 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] text-sm bg-[#FAF7F2]" />
               </div>}
@@ -345,7 +359,7 @@ function RegisterFormContent() {
                   </label>
                   <input id="register-page-field-2" required
                     type="text"
-                    placeholder="e.g. Prana Movement Sanctuary"
+                    placeholder="e.g. Creative Learning Studio"
                     value={studioName}
                     onChange={(e) => setStudioName(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] text-sm bg-[#FAF7F2]"
@@ -356,6 +370,11 @@ function RegisterFormContent() {
 
             <label className="block text-xs font-bold">Location *
               <input required value={location} onChange={e => setLocation(e.target.value)} placeholder="City, state, country" className="block w-full border rounded-xl p-3 mt-2" />
+            </label>
+            <label className="block text-xs font-semibold text-[#133623]">{role === "STUDENT" ? "Country you pay from" : "Country your teaching business operates in"}
+              <select required value={billingCountry} onChange={e => setBillingCountry(e.target.value)} className="mt-2 block w-full rounded-xl border bg-white p-3">
+                <option value="">Select country</option>{[["IN", "India"], ["US", "United States"], ["GB", "United Kingdom"], ["CA", "Canada"], ["AU", "Australia"], ["AE", "United Arab Emirates"], ["SG", "Singapore"], ["NZ", "New Zealand"], ["DE", "Germany"], ["FR", "France"], ["ZZ", "Another country · Contact support for pricing"]].map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+              </select>
             </label>
             <PrivacyConsent audience={role} accepted={privacyAccepted} onChange={setPrivacyAccepted} />
             <button
@@ -368,7 +387,7 @@ function RegisterFormContent() {
 
             <p className="text-center text-xs text-[#618D63] pt-1">
               Already have an account?{" "}
-              <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="font-bold text-[#0C2417] hover:underline">
+              <Link href={next ? `/login?next=${encodeURIComponent(next)}${selectedPlan ? `&plan=${encodeURIComponent(selectedPlan)}` : ""}` : ["core", "studio"].includes(selectedPlan || "") ? `/login?next=${encodeURIComponent("/dashboard?tab=billing-saas")}&plan=${encodeURIComponent(selectedPlan!)}` : "/login"} className="font-bold text-[#0C2417] hover:underline">
                 Sign In
               </Link>
             </p>
@@ -394,7 +413,7 @@ export default function RegisterPage() {
       </Suspense>
 
       <footer className="max-w-lg w-full mx-auto py-4 text-center text-[11px] text-[#7E7970]">
-        ProgressRooms · <Link href="/privacy" className="underline underline-offset-2">Privacy Policy</Link>
+        Progress Rooms · <Link href="/privacy" className="underline underline-offset-2">Privacy Policy</Link>
       </footer>
     </div>
   );

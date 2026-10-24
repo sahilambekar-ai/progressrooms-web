@@ -1,17 +1,24 @@
 "use client";
+import { CollapsedDescription } from "@/components/RichDescription";
 
+import { BOOKING_CANCELLATION_TERMS } from "@/lib/purchase-policy";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Calendar, ArrowLeft, CheckCircle2, AlertCircle, MapPin, Video } from "lucide-react";
 import { PublicSessionDetailPayload } from "@/types";
-import { EnrollmentModal } from "@/components/EnrollmentModal";
+import { StoreCheckout, Purchase } from "@/components/StoreCheckout";
+import { ClassPackageOptions } from "@/components/ClassPackageOptions";
 import { BrandLogo } from "@/components/BrandLogo";
 
 const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export function SessionDetailClient({ session }: { session: PublicSessionDetailPayload }) {
-  const [modalOpen, setModalOpen] = useState(false);
-  useEffect(() => { if (new URLSearchParams(window.location.search).get('buy')) setModalOpen(true); }, []);
+  const [selected, setSelected] = useState<Purchase | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pkg = session.pricing?.packages?.find(p => p.id === params.get('package'));
+    if (params.get('buy') && session.pricing && (pkg || !session.pricing.packages?.length)) setSelected({ id: session.id, name: session.name, kind: 'class', ...session.pricing, ...(pkg ? { price: pkg.price, offer_price: pkg.offer_price, total_classes: pkg.total_classes, validity_days: pkg.validity_days } : {}), package_id: pkg?.id });
+  }, [session]);
 
   const nextDateFormatted = session.next_occurrence ? new Date(session.next_occurrence.start_time).toLocaleString("en-IN", {
     weekday: "short",
@@ -49,7 +56,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
                   {session.session_type}
                 </span>
                 <span className="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-900 border border-blue-200">
-                  {session.delivery_mode === "ONLINE_LIVE" ? "Online Live (Zoom)" : session.delivery_mode === "IN_STUDIO" ? "In-Studio Sanctuary" : "Hybrid Live & Studio"}
+                  {session.delivery_mode === "ONLINE_LIVE" ? "Online Live (Zoom)" : session.delivery_mode === "IN_STUDIO" ? "In-Studio" : "Hybrid Live & Studio"}
                 </span>
                 <span className="px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-slate-100 text-slate-700">
                   {session.skill_level}
@@ -59,9 +66,9 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
                 </span>
                 {session.availability && (
                   <span className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
-                    session.availability.remaining_spots > 3 ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
+                    (session.availability.remaining_spots == null || session.availability.remaining_spots > 3) ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
                   }`}>
-                    {session.availability.remaining_spots} spots left
+                    {session.availability.remaining_spots == null ? "No capacity limit" : `${session.availability.remaining_spots} spots left`}
                   </span>
                 )}
               </div>
@@ -70,9 +77,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
                 {session.name}
               </h1>
 
-              <p className="mt-4 text-base text-slate-600 leading-relaxed">
-                {session.full_description || session.short_description}
-              </p>
+              <CollapsedDescription text={session.full_description || session.short_description} />
 
               {nextDateFormatted && (
                 <div className="mt-5 p-3.5 rounded-2xl bg-[#E8F0E9] border border-[#CEDECF] text-xs flex flex-wrap items-center justify-between gap-3">
@@ -104,7 +109,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
                   <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px] block">Delivery Format</span>
                   <span className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                     {session.delivery_mode === "ONLINE_LIVE" ? <Video className="h-4 w-4 text-blue-600" /> : <MapPin className="h-4 w-4 text-emerald-600" />}
-                    {session.delivery_mode === "ONLINE_LIVE" ? "Online Live (Zoom)" : session.delivery_mode === "IN_STUDIO" ? "In-Studio Sanctuary" : "Hybrid Live & In-Studio"}
+                    {session.delivery_mode === "ONLINE_LIVE" ? "Online Live (Zoom)" : session.delivery_mode === "IN_STUDIO" ? "In-Studio" : "Hybrid Live & In-Studio"}
                   </span>
                   <p className="text-slate-600 text-[11px] pt-1">
                     {session.meeting_readiness || "Live Zoom meeting room link activates in your Student Portal 15 minutes before scheduled start time."}
@@ -166,25 +171,14 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
           {/* Checkout Card Sidebar */}
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm lg:sticky lg:top-24 space-y-5">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Pricing Tier</span>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-3xl font-black text-slate-900">
-                    {session.pricing?.currency === "INR" ? "₹" : "$"}
-                    {session.pricing?.price?.toLocaleString()}
-                  </span>
-                  <span className="text-sm text-slate-500 font-medium">
-                    / {session.pricing?.pricing_type?.toLowerCase()}
-                  </span>
-                </div>
-              </div>
+              {session.pricing && <ClassPackageOptions id={session.id} name={session.name} pricing={session.pricing} disabled={session.availability?.remaining_spots === 0} onBuy={offering => { window.history.replaceState(null, '', `?buy=1${offering.package_id ? `&package=${offering.package_id}` : ''}`); setSelected(offering); }} />}
 
               {/* Policy & Buying Information Breakdown */}
               <div className="bg-[#FAF7F2] p-4 rounded-2xl border border-[#CEDECF] text-xs space-y-2.5 text-slate-700">
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-semibold text-slate-500">Seat Capacity:</span>
                   <span className="font-bold text-[#0C2417]">
-                    {session.availability ? `${session.availability.remaining_spots} of ${session.availability.capacity} spots left` : `${session.capacity} spots`}
+                    {session.capacity == null ? "No capacity limit" : session.availability ? `${session.availability.remaining_spots} of ${session.availability.capacity} spots left` : `${session.capacity} spots`}
                   </span>
                 </div>
 
@@ -193,7 +187,7 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
                     <span className="font-semibold text-slate-500 block">Cancellation:</span>
                     <span className="text-[10px] text-emerald-800 font-medium">Inherited studio policy</span>
                   </div>
-                  <span className="text-slate-700 text-right">{session.cancellation_terms || "Free cancellation up to 2 hours before start."}</span>
+                  <span className="text-slate-700 text-right">{BOOKING_CANCELLATION_TERMS}</span>
                 </div>
 
                 <div className="flex items-start justify-between gap-2 border-t border-[#E1E9E2] pt-2">
@@ -222,28 +216,13 @@ export function SessionDetailClient({ session }: { session: PublicSessionDetailP
                 </div>
               </div>
 
-              <button
-                onClick={() => { window.history.replaceState(null,'','?buy=1'); setModalOpen(true); }}
-                className="w-full py-3.5 rounded-2xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold text-sm shadow-md transition"
-              >
-                Buy class
-              </button>
             </div>
           </div>
         </div>
       </main>
-      <footer className="flex justify-center border-t bg-white py-6"><Link href="/" aria-label="ProgressNow home"><BrandLogo size={28} showText /></Link></footer>
+      <footer className="flex justify-center border-t bg-white py-6"><Link href="/" aria-label="Progress Rooms home"><BrandLogo size={28} showText /></Link></footer>
 
-      <EnrollmentModal
-        isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); window.history.replaceState(null,'',window.location.pathname); }}
-        sessionId={session.id}
-        sessionName={session.name}
-        price={session.pricing?.price || 0}
-        currency={session.pricing?.currency || "INR"}
-        totalClasses={session.pricing?.total_classes}
-        validityDays={session.pricing?.validity_days}
-      />
+      {selected && <StoreCheckout offering={selected} onClose={() => { setSelected(null); window.history.replaceState(null, '', window.location.pathname); }} />}
     </div>
   );
 }

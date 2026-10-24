@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Sparkles, ArrowRight, Check, Lock, ChevronRight, X as XIcon } from "lucide-react";
 import { DeveloperOnly } from "@/components/DeveloperModeProvider";
 import { BrandLogo } from "@/components/BrandLogo";
+import { SAAS_INTERNATIONAL_NOTICE, SAAS_SUPPORT_EMAIL, SAAS_TAX_NOTICE, SAAS_USAGE_NOTICE } from "@/lib/saas-pricing";
 
 export default function HomePage() {
   return (
@@ -39,7 +40,7 @@ export default function HomePage() {
             </Link>
           </div>
         </div>
-        <nav aria-label="Explore ProgressNow" className="xl:hidden flex gap-5 overflow-x-auto whitespace-nowrap border-t border-[#E1E9E2] px-4 py-2 text-xs font-semibold text-[#40514E]">
+        <nav aria-label="Explore Progress Rooms" className="xl:hidden flex gap-5 overflow-x-auto whitespace-nowrap border-t border-[#E1E9E2] px-4 py-2 text-xs font-semibold text-[#40514E]">
           <a className="py-2" href="#features">Features</a>
           <a className="py-2" href="#how-it-works">How it works</a>
           <a className="py-2" href="#pricing">Pricing</a>
@@ -54,7 +55,7 @@ export default function HomePage() {
 
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E8F0E9] border border-[#CEDECF] text-[#1b4332] text-xs font-semibold mb-6">
           <span>🌿</span>
-          <span>All-in-One Platform for Yoga, Aerial, Dance & Fitness Teachers</span>
+          <span>One Platform for Independent Teachers, Academies & Studios</span>
         </div>
 
         <h1 className="text-4xl sm:text-6xl lg:text-7xl font-serif font-bold text-[#0C2417] tracking-tight leading-[1.15]">
@@ -64,7 +65,7 @@ export default function HomePage() {
 
         <p className="mt-6 text-lg sm:text-xl text-[#40514E] max-w-3xl mx-auto leading-relaxed">
           The operating system for independent instructors and multi-teacher academies.
-          Automate class schedules, student attendance, protected Zoom links, and recurring payments in one tranquil sanctuary.
+          Automate class schedules, student attendance, protected Zoom links, and recurring payments in one workspace.
         </p>
 
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -182,13 +183,13 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Comparison: Old Way vs ProgressNow Sanctuary */}
+      {/* Comparison: Old Way vs Progress Rooms Studio */}
       <section id="how-it-works" className="py-20 bg-[#F4F7F4]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <span className="text-xs uppercase font-bold tracking-widest text-[#81A882]">The Comparison</span>
             <h2 className="text-3xl font-serif font-bold text-[#0C2417] mt-1">
-              Why Instructors Choose ProgressNow
+              Why Instructors Choose Progress Rooms
             </h2>
           </div>
 
@@ -221,7 +222,7 @@ export default function HomePage() {
             <div className="p-8 rounded-3xl bg-white border-2 border-[#81A882] shadow-md space-y-4">
               <div className="flex items-center gap-2 text-[#1b4332] font-bold text-base">
                 <span>🌿</span>
-                <span>The ProgressNow Sanctuary Way</span>
+                <span>The Progress Rooms Studio Way</span>
               </div>
               <ul className="space-y-3 text-sm text-[#275539]">
                 <li className="flex items-start gap-2">
@@ -257,7 +258,7 @@ export default function HomePage() {
               Choose the Plan That Fits Your Studio
             </h2>
             <p className="text-slate-600 mt-3 text-base">
-              Try Starter risk-free for 30 days. Upgrade anytime as your student base grows.
+              Try the subscription for 30 days at no subscription cost. Active-student usage is billed separately.
             </p>
           </div>
 
@@ -321,6 +322,7 @@ export default function HomePage() {
                   <span className="text-3xl font-black text-[#0C2417]">₹1,499</span>
                   <span className="text-xs font-semibold text-slate-500">/ Month</span>
                 </div>
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">+18% GST · ₹1,768.82 total per month. Usage billed separately.</p>
 
                 <div className="mt-6 space-y-2.5 text-xs text-[#275539] border-t border-[#CEDECF] pt-5">
                   <div className="flex items-center gap-2">
@@ -375,6 +377,7 @@ export default function HomePage() {
                   <span className="text-3xl font-black text-[#0C2417]">₹3,999</span>
                   <span className="text-xs font-semibold text-slate-500">/ Month</span>
                 </div>
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">+18% GST · ₹4,718.82 total per month. Usage billed separately.</p>
 
                 <div className="mt-6 space-y-2.5 text-xs text-[#275539] border-t border-[#E1E9E2] pt-5">
                   <div className="flex items-center gap-2">
@@ -459,6 +462,13 @@ export default function HomePage() {
             </div>
           </div>
 
+          <div className="mt-6 space-y-3 rounded-2xl border border-[#CEDECF] bg-[#F4F7F4] p-5 text-sm text-[#40514E]">
+            <p>{SAAS_TAX_NOTICE}</p>
+            <p>{SAAS_USAGE_NOTICE}</p>
+            <p>{SAAS_INTERNATIONAL_NOTICE}</p>
+            <div className="flex flex-wrap gap-5 font-semibold text-[#133623]"><Link href="/pricing-policy" className="underline">Pricing policy</Link><a href={`mailto:${SAAS_SUPPORT_EMAIL}?subject=International%20studio%20pricing`} className="underline">Contact support for international pricing</a></div>
+          </div>
+
           {/* In-Depth Feature Comparison Matrix Table */}
           <div className="mt-16 bg-white rounded-3xl border border-[#CEDECF] shadow-lg overflow-hidden">
             <div className="p-6 sm:p-8 bg-[#F4F7F4] border-b border-[#CEDECF]">
@@ -466,7 +476,7 @@ export default function HomePage() {
                 Compare Plan Features In-Depth
               </h3>
               <p className="text-sm text-[#40514E] mt-1">
-                Everything you need to know about what is included across each ProgressNow plan.
+                Everything you need to know about what is included across each Progress Rooms plan.
               </p>
             </div>
 
@@ -504,10 +514,10 @@ export default function HomePage() {
                   </tr>
                   <tr>
                     <td className="p-4 sm:p-5 font-medium text-[#212121]">Max Enrolled Students Directory</td>
-                    <td className="p-4 sm:p-5 text-center text-slate-700">50 Yogis</td>
-                    <td className="p-4 sm:p-5 text-center text-slate-700">250 Yogis</td>
-                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">Unlimited Yogis</td>
-                    <td className="p-4 sm:p-5 text-center text-slate-400">Unlimited Yogis</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">50 Students</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-700">250 Students</td>
+                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">Unlimited Students</td>
+                    <td className="p-4 sm:p-5 text-center text-slate-400">Unlimited Students</td>
                   </tr>
                   <tr>
                     <td className="p-4 sm:p-5 font-medium text-[#212121]">Automated Zoom & Google Meet Links</td>
@@ -541,7 +551,7 @@ export default function HomePage() {
                     <td className="p-4 sm:p-5 font-medium text-[#212121]">Website Design Templates</td>
                     <td className="p-4 sm:p-5 text-center text-slate-700">Default Minimal</td>
                     <td className="p-4 sm:p-5 text-center text-slate-700">Standard Nature</td>
-                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">3 Advanced Sanctuary Themes</td>
+                    <td className="p-4 sm:p-5 text-center font-bold text-[#133623] bg-[#F9FAF9]">3 Advanced Studio Themes</td>
                     <td className="p-4 sm:p-5 text-center text-slate-400">AI Generative Themes</td>
                   </tr>
                   <tr>
@@ -627,8 +637,8 @@ export default function HomePage() {
           <div className="flex items-center gap-1 sm:gap-3">
             <BrandLogo size={36} variant="tile-dark" />
             <div>
-              <p className="font-serif font-bold text-base text-[#F4F7F4]">ProgressNow</p>
-              <p className="text-[11px] text-[#81A882]">The Sanctuary Operating System for Instructors</p>
+              <p className="font-serif font-bold text-base text-[#F4F7F4]">Progress Rooms</p>
+              <p className="text-[11px] text-[#81A882]">The Studio Operating System for Instructors</p>
             </div>
           </div>
 
@@ -640,7 +650,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 pt-6 border-t border-white/10 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} ProgressNow. All rights reserved. Built with love for instructors worldwide.
+          © {new Date().getFullYear()} Progress Rooms. All rights reserved. Built with love for instructors worldwide.
         </div>
       </footer>
     </div>
