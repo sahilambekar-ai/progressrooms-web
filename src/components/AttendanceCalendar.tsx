@@ -1,17 +1,20 @@
 'use client';
+import { CollapsedDescription } from './RichDescription';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Loader2, CalendarDays } from 'lucide-react';
 import { WhatsAppNotificationHint } from '@/components/WhatsAppNotificationHint';
 
-export type CalendarAttendanceStatus = 'PRESENT' | 'ABSENT' | 'CANCELLED' | 'UNMARKED' | 'SCHEDULED' | 'EXCUSED';
+export type CalendarAttendanceStatus = 'PRESENT' | 'ABSENT' | 'SCHEDULED' | 'EXCUSED';
 export interface CalendarSessionEvent {
   id: string;
   occurrenceId?: string;
   enrollmentId?: string;
   date: string;
   time?: string;
+  startAt?: string;
   sessionTitle: string;
+  description?: string | null;
   studentName?: string;
   studentEmail?: string;
   teacherName?: string;
@@ -39,10 +42,8 @@ const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth()+
 const statusLabel = (status: CalendarAttendanceStatus) => ({
   PRESENT: 'Present',
   ABSENT: 'Absent',
-  CANCELLED: 'Cancelled',
   EXCUSED: 'Excused',
-  UNMARKED: 'Completed, Not Marked',
-  SCHEDULED: 'Scheduled / Upcoming',
+  SCHEDULED: 'Upcoming',
 })[status] || status;
 
 const statusColor = (status: CalendarAttendanceStatus) => {
@@ -54,17 +55,25 @@ const statusColor = (status: CalendarAttendanceStatus) => {
     case 'SCHEDULED':
       return '#2563eb'; // Blue - Upcoming / Scheduled
     case 'EXCUSED':
-      return '#64748b'; // Slate Gray - Excused
-    case 'CANCELLED':
-      return '#991b1b'; // Dark Red
-    case 'UNMARKED':
+      return '#ca8a04'; // Yellow - Excused
     default:
-      return '#d97706'; // Amber - Unmarked / Pending Review
+      return '#15803d';
   }
 };
 
-export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToast, readOnly = false, personLabel = 'Attendance', view = 'month', selectedDate, onSelectDate, onMonthChange, loading, onEditClass }: AttendanceCalendarProps) {
+export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSaveEvent, onToast, readOnly = false, personLabel = 'Attendance', view = 'month', selectedDate, onSelectDate, onMonthChange, loading, onEditClass }: AttendanceCalendarProps) {
+  const [now, setNow] = useState(() => Date.now());
+  // Switch an upcoming class as soon as its start time arrives, even while the calendar stays open.
+  useEffect(() => {
+    const nextStart = Math.min(...sourceEvents.map(event => event.startAt ? Date.parse(event.startAt) : Infinity).filter(start => start > now));
+    if (!Number.isFinite(nextStart)) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(Math.max(0, nextStart - Date.now()) + 10, 2_147_483_647));
+    return () => clearTimeout(timer);
+  }, [sourceEvents, now]);
+  const events = sourceEvents.map(event => event.status === 'SCHEDULED' && event.startAt && Date.parse(event.startAt) <= now
+    ? { ...event, status: 'PRESENT' as const } : event);
   const [date, setDate] = useState(selectedDate || dateKey(new Date()));
+  const [hasSelectedDate, setHasSelectedDate] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [dayPickerOpen, setDayPickerOpen] = useState(false);
   const chosen = selectedDate || date;
@@ -89,6 +98,7 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
   }, [dayPickerOpen]);
 
   const selectDate = (next: string) => {
+    setHasSelectedDate(true);
     setDate(next);
     onSelectDate?.(next);
     setTimeout(() => {
@@ -358,35 +368,33 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
             {Array.from({ length: days }, (_, index) => {
               const key = `${month}-${String(index + 1).padStart(2, '0')}`;
               const entries = events.filter((event) => event.date === key);
-              const isSelected = chosen === key;
+              const todayKey = dateKey(new Date());
+              const isSelected = chosen === key && (hasSelectedDate || key !== todayKey);
 
               // Group counts for mobile view legend icons
               const presentCount = entries.filter((e) => e.status === 'PRESENT').length;
               const absentCount = entries.filter((e) => e.status === 'ABSENT').length;
-              const yellowCount = entries.filter((e) => e.status === 'CANCELLED' || e.status === 'UNMARKED').length;
+              const yellowCount = entries.filter((e) => e.status === 'EXCUSED').length;
               const scheduledCount = entries.filter((e) => e.status === 'SCHEDULED').length;
 
               const mobileDots = [
                 { key: 'present', count: presentCount, color: '#15803d', label: 'Present' },
                 { key: 'absent', count: absentCount, color: '#dc2626', label: 'Absent' },
-                { key: 'yellow', count: yellowCount, color: '#ca8a04', label: 'Excused / Unmarked' },
-                { key: 'scheduled', count: scheduledCount, color: '#2563eb', label: 'Scheduled / Upcoming' },
+                { key: 'yellow', count: yellowCount, color: '#ca8a04', label: 'Excused' },
+                { key: 'scheduled', count: scheduledCount, color: '#2563eb', label: 'Upcoming' },
               ].filter((item) => item.count > 0);
 
               // Desktop view: show up to 2 entries, then "+N more"
               const MAX_DESKTOP_ENTRIES = 2;
               const visibleDesktopEntries = entries.slice(0, MAX_DESKTOP_ENTRIES);
               const desktopOverflow = entries.length - MAX_DESKTOP_ENTRIES;
-              const todayKey = dateKey(new Date());
               const isToday = key === todayKey;
               return (
                 <div
                   key={key}
                   onClick={() => selectDate(key)}
                   className={`calendar-day cursor-pointer min-w-0 min-h-[58px] sm:min-h-[110px] border-t border-r border-[#E1E9E2] p-1 sm:p-2 transition ${
-                    isToday
-                      ? 'bg-[#F0FDF4] ring-2 ring-inset ring-[#2D7A58]'
-                      : isSelected
+                    isSelected
                       ? 'bg-[#E8F0E9] ring-2 ring-inset ring-[#2D7A58]/60'
                       : 'bg-white hover:bg-[#F9FAF9]'
                   }`}
@@ -402,9 +410,7 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
                         aria-pressed={isSelected}
                         aria-label={`${key}, ${entries.length} attendance entries`}
                         className={`h-6 w-6 sm:h-7 sm:w-7 rounded-full text-[11px] sm:text-xs font-bold flex items-center justify-center transition ${
-                          isToday
-                            ? 'bg-[#133623] text-white font-black ring-2 ring-[#2D7A58] shadow-sm'
-                            : isSelected
+                          isSelected
                             ? 'bg-[#2D7A58] text-white shadow-sm'
                             : 'text-slate-700 hover:bg-[#E8F0E9]'
                         }`}
@@ -505,7 +511,7 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
                 const dEntries = events.filter((e) => e.date === dayStr);
                 const hasPresent = dEntries.some((e) => e.status === 'PRESENT');
                 const hasAbsent = dEntries.some((e) => e.status === 'ABSENT');
-                const hasYellow = dEntries.some((e) => e.status === 'CANCELLED' || e.status === 'UNMARKED');
+                const hasYellow = dEntries.some((e) => e.status === 'EXCUSED');
                 const hasScheduled = dEntries.some((e) => e.status === 'SCHEDULED');
                 return (
                   <button
@@ -552,15 +558,15 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
             </div>
             <div className="rounded-xl border border-[#ca8a04]/30 bg-[#ca8a04]/10 p-3 text-center">
               <span className="block text-lg font-extrabold text-[#ca8a04]">
-                {dayEvents.filter((e) => e.status === 'CANCELLED' || e.status === 'UNMARKED').length}
+                {dayEvents.filter((e) => e.status === 'EXCUSED').length}
               </span>
-              <span className="text-xs font-semibold text-[#ca8a04]">Excused/Unmarked (Yellow)</span>
+              <span className="text-xs font-semibold text-[#ca8a04]">Excused (Yellow)</span>
             </div>
             <div className="rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/10 p-3 text-center">
               <span className="block text-lg font-extrabold text-[#2563eb]">
                 {dayEvents.filter((e) => e.status === 'SCHEDULED').length}
               </span>
-              <span className="text-xs font-semibold text-[#2563eb]">Scheduled (Blue)</span>
+              <span className="text-xs font-semibold text-[#2563eb]">Upcoming (Blue)</span>
             </div>
           </div>
         </div>
@@ -579,11 +585,11 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-[#ca8a04]" />
-          <span>Excused / Unmarked (Yellow)</span>
+          <span>Excused (Yellow)</span>
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-[#2563eb]" />
-          <span>Scheduled / Upcoming (Blue)</span>
+          <span>Upcoming (Blue)</span>
         </span>
       </div>
 
@@ -631,7 +637,7 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
                       className="h-2.5 w-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: statusColor(entry.status) }}
                     />
-                    <h4 className="font-bold text-sm text-[#0C2417]">{entry.sessionTitle}</h4>
+                    <h4 className="font-bold text-sm text-[#0C2417]">{entry.sessionTitle}</h4><CollapsedDescription text={entry.description} />
                     {entry.status === 'SCHEDULED' && <WhatsAppNotificationHint kind="reminder" />}
                     <span
                       className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
@@ -701,16 +707,16 @@ export function AttendanceCalendar({ events, onUpdateEvents, onSaveEvent, onToas
                         </button>
                         <button
                           type="button"
-                          title="Mark Cancelled / Excused"
+                          title="Mark Excused"
                           disabled={Boolean(isUpdatingThis)}
-                          onClick={() => quickUpdateStatus(entry, 'CANCELLED')}
+                          onClick={() => quickUpdateStatus(entry, 'EXCUSED')}
                           className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1 ${
-                            entry.status === 'CANCELLED'
+                            entry.status === 'EXCUSED'
                               ? 'bg-[#ca8a04] text-white shadow-xs'
                               : 'text-slate-600 hover:text-[#ca8a04] hover:bg-white'
                           }`}
                         >
-                          {isUpdatingThis && entry.status !== 'CANCELLED' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                          {isUpdatingThis && entry.status !== 'EXCUSED' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                           <span>Excused</span>
                         </button>
                       </div>

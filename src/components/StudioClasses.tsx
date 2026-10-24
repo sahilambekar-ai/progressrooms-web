@@ -1,23 +1,33 @@
 "use client";
 
+import { PurchasePolicyNotice } from "./PurchasePolicyNotice";
+import { BOOKING_CANCELLATION_TERMS } from "@/lib/purchase-policy";
+import { ClassPackageEditor, PackageDraft, newPackage } from "@/components/ClassPackageEditor";
 import { ScheduleInput } from "@/components/ScheduleInput";
 
 import { useEffect, useState } from "react";
 import { staffApi } from "@/lib/staff-api";
+import { ClassPackageSummary } from "./ClassPackageSummary";
+import { RichTextEditor, CollapsedDescription } from "./RichDescription";
+import { AdvancedOptions } from "@/components/AdvancedOptions";
 import { Modal } from "@/components/Modal";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { CatalogHistoryTabs } from "@/components/CatalogHistoryTabs";
 import { LiveStatusToggle } from "@/components/LiveStatusToggle";
+import { TeacherZoomControl } from "./TeacherZoomControl";
 import { WhatsAppNotificationHint } from "@/components/WhatsAppNotificationHint";
 import { Video, Calendar, Clock, Plus, RefreshCw, CheckCircle2, Pencil, Trash2, X, Users, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
 
 type ClassItem = {
   id: string;
   name: string;
+  description?: string;
   start_at: string;
   end_at: string;
   status: string;
   meeting_url: string | null;
+  host_email?: string;
+  zoom_status?: string;
   is_current: boolean;
 };
 
@@ -36,6 +46,8 @@ export function StudioClasses({
   focusedClassTitle = null,
   onClearFocusedClass,
 }: StudioClassesProps) {
+  const [selfZoom, setSelfZoom] = useState<any>(null);
+  const [acknowledgeZoomHostImpact, setAcknowledgeZoomHostImpact] = useState(false);
   const [org, setOrg] = useState(orgId || "");
   const [classes, setClasses] = useState<any[]>([]);
   const [historyItems, setHistoryItems] = useState<any[]>([]);
@@ -95,15 +107,16 @@ export function StudioClasses({
 
   // Class Batch Modal & Form State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pricingOnly, setPricingOnly] = useState(false);
   const [editingClass, setEditingClass] = useState<any | null>(null);
   const [name, setName] = useState("");
   const [teacher, setTeacher] = useState("");
-  const [start, setStart] = useState("09:00");
-  const [end, setEnd] = useState("10:00");
-  const [days, setDays] = useState<number[]>([0]);
-  const [date, setDate] = useState(new Date().toLocaleDateString("en-CA"));
-  const [price, setPrice] = useState("0");
-  const [capacity, setCapacity] = useState("20");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [days, setDays] = useState<number[]>([]);
+  const [date, setDate] = useState("");
+  const [packages, setPackages] = useState<PackageDraft[]>([]);
+  const [capacity, setCapacity] = useState("");
   // A new class stays private until the owner explicitly publishes it.
   const [isActive, setIsActive] = useState(false);
 
@@ -111,7 +124,7 @@ export function StudioClasses({
   const [shortDescription, setShortDescription] = useState("");
   const [fullDescription, setFullDescription] = useState("");
   const [skillLevel, setSkillLevel] = useState("ALL_LEVELS");
-  const [sessionType, setSessionType] = useState("REGULAR");
+  const [sessionType, setSessionType] = useState("GROUP");
   const [prerequisites, setPrerequisites] = useState("");
   const [requiredEquipment, setRequiredEquipment] = useState("");
   const [preparationInstructions, setPreparationInstructions] = useState("");
@@ -126,6 +139,9 @@ export function StudioClasses({
   const [oneOnOneEnd, setOneOnOneEnd] = useState("11:00");
   const [oneOnOnePrice, setOneOnOnePrice] = useState("0");
 
+  const [oneOnOneDescription, setOneOnOneDescription] = useState("");
+  const [oneOnOneOfferPrice, setOneOnOneOfferPrice] = useState("");
+
   // Teacher Agenda state
   const [agendaClasses, setAgendaClasses] = useState<ClassItem[]>([]);
   const [agendaDay, setAgendaDay] = useState("today");
@@ -134,16 +150,18 @@ export function StudioClasses({
 
   const refresh = async (id: string) => {
     try {
-      const [current, history] = await Promise.all([
-        staffApi(`/organizations/${id}/classes`),
-        staffApi(`/organizations/${id}/classes?history=true`),
-      ]);
+      const current = await staffApi(`/organizations/${id}/classes`);
+      const history = await staffApi(`/organizations/${id}/classes?history=true`);
       setClasses(current);
       setHistoryItems(history);
     } catch (e: any) {
       console.warn("Could not fetch classes", e);
     }
   };
+
+  useEffect(() => { if (!org) return; const timer = window.setInterval(() => { void refresh(org); }, 60000); return () => window.clearInterval(timer); }, [org]);
+
+  useEffect(() => { if (isTeacher && org) void staffApi(`/auth/context?studio_id=${org}`).then(setSelfZoom).catch(() => {}); }, [isTeacher, org]);
 
   const refreshAgenda = async (id: string) => {
     setAgendaLoading(true);
@@ -203,7 +221,7 @@ export function StudioClasses({
     setOneOnOneDate(new Date().toLocaleDateString("en-CA"));
     setOneOnOneStart("10:00");
     setOneOnOneEnd("11:00");
-    setOneOnOnePrice("0");
+    setOneOnOnePrice("0"); setOneOnOneDescription(""); setOneOnOneOfferPrice("");
     setIsOneOnOneModalOpen(true);
     if (org && students.length === 0) {
       try {
@@ -216,20 +234,21 @@ export function StudioClasses({
   };
 
   const resetForm = () => {
+    setPricingOnly(false);
     setEditingClass(null);
     setName("");
     setTeacher(teachers[0]?.id || "");
-    setStart("09:00");
-    setEnd("10:00");
-    setDays([0]);
-    setDate(new Date().toLocaleDateString("en-CA"));
-    setPrice("0");
-    setCapacity("20");
+    setStart("");
+    setEnd("");
+    setDays([]);
+    setDate("");
+    setPackages([1, 7, 30].map(newPackage));
+    setCapacity("");
     setIsActive(false);
     setShortDescription("");
     setFullDescription("");
     setSkillLevel("ALL_LEVELS");
-    setSessionType("REGULAR");
+    setSessionType("GROUP");
     setPrerequisites("");
     setRequiredEquipment("");
     setPreparationInstructions("");
@@ -241,17 +260,18 @@ export function StudioClasses({
   };
 
   const openEditModal = (c: any) => {
+    setPricingOnly(isTeacher && !canCreateClass);
     setEditingClass(c);
     setName(c.name || "");
     const teacherId = c.instructors?.[0]?.member_id || c.instructors?.[0]?.id || "";
     setTeacher(teacherId);
-    setCapacity(String(c.capacity || 20));
-    setPrice(String(c.pricing?.price ?? 0));
+    setCapacity(c.capacity == null ? "" : String(c.capacity));
+    setPackages(c.pricing?.packages?.length ? c.pricing.packages.map((p: any) => ({ ...p, total_classes: String(p.total_classes), price: String(p.price), offer_price: p.offer_price == null ? "" : String(p.offer_price), validity_days: String(p.validity_days) })) : [{ ...newPackage(c.pricing?.total_classes || 1), price: String(c.pricing?.price ?? 0), validity_days: String(c.pricing?.validity_days || 30) }]);
     setIsActive(c.is_active !== false);
     setShortDescription(c.short_description || "");
     setFullDescription(c.full_description || "");
     setSkillLevel(c.skill_level || "ALL_LEVELS");
-    setSessionType(c.session_type || "REGULAR");
+    setSessionType(c.session_type === "REGULAR" ? "GROUP" : c.session_type || "GROUP");
     setPrerequisites(c.requirements?.prerequisites || "");
     setRequiredEquipment(c.requirements?.required_equipment || "");
     setPreparationInstructions(c.requirements?.preparation_instructions || "");
@@ -262,10 +282,10 @@ export function StudioClasses({
       setDays(c.schedule_rules.map((r: any) => r.day_of_week));
       setDate(c.schedule_rules[0].effective_start_date || new Date().toLocaleDateString("en-CA"));
     } else {
-      setStart("09:00");
-      setEnd("10:00");
-      setDays([0]);
-      setDate(new Date().toLocaleDateString("en-CA"));
+      setStart("");
+      setEnd("");
+      setDays([]);
+      setDate("");
     }
     setIsModalOpen(true);
   };
@@ -316,10 +336,16 @@ export function StudioClasses({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!days.length || end <= start) {
-      notify("Choose at least one day and an end time after the start time.", "error");
+    const scheduling = !!(start || end || date || days.length);
+    if (!pricingOnly && scheduling && (!start || !end || !days.length || end <= start)) {
+      notify("To set a schedule, choose days, a first session date, and start/end times. Leave all schedule fields empty to arrange sessions later.", "error");
       return;
     }
+    if (!packages.length || new Set(packages.map(p => Number(p.total_classes))).size !== packages.length) {
+      notify("Add at least one package with a unique session count.", "error");
+      return;
+    }
+    const packagePayload = packages.map(p => ({ id: p.id, total_classes: Number(p.total_classes), price: Number(p.price), offer_price: p.offer_price === "" ? null : Number(p.offer_price), validity_days: Number(p.validity_days) }));
     setBusy(true);
 
     try {
@@ -339,28 +365,28 @@ export function StudioClasses({
         await staffApi(`/organizations/${org}/classes/${editingClass.id}`, {
           method: "PUT",
           body: JSON.stringify({
+            ...(pricingOnly ? {} : {
             name,
             short_description: shortDescription.trim() || undefined,
-            full_description: fullDescription.trim() || undefined,
+            full_description: fullDescription.trim() || null,
             skill_level: skillLevel,
             session_type: sessionType,
             requirements: requirementsPayload,
-            capacity: Number(capacity),
+            capacity: capacity.trim() ? Number(capacity) : null,
             duration_minutes: duration_minutes > 0 ? duration_minutes : 60,
             instructor_member_ids: teacher ? [teacher] : [],
+            acknowledge_zoom_host_impact: acknowledgeZoomHostImpact,
             is_active: isActive,
+            schedule_rules: scheduling ? days.map(day => ({ day_of_week: day, start_time: start, end_time: end, effective_start_date: date || new Date().toLocaleDateString("en-CA") })) : [],
+            }),
             pricing: {
-              pricing_type: "MONTHLY",
-              price: Number(price),
+              pricing_type: "PACKAGE",
+              packages: packagePayload,
+              total_classes: packagePayload[0].total_classes,
+              price: packagePayload[0].price,
               currency: "INR",
-              validity_days: 30,
+              validity_days: packagePayload[0].validity_days,
             },
-            schedule_rules: days.map((day) => ({
-              day_of_week: day,
-              start_time: start,
-              end_time: end,
-              effective_start_date: date,
-            })),
           }),
         });
         notify("🌿 Class batch updated successfully.", "success");
@@ -380,21 +406,22 @@ export function StudioClasses({
             name,
             slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${crypto.randomUUID().slice(0, 8)}`,
             short_description: shortDescription.trim() || undefined,
-            full_description: fullDescription.trim() || undefined,
+            full_description: fullDescription.trim() || null,
             skill_level: skillLevel,
             session_type: sessionType,
             requirements: requirementsPayload,
             class_type_id: type.id,
             instructor_member_ids: teacher ? [teacher] : [],
-            capacity: Number(capacity),
+            acknowledge_zoom_host_impact: acknowledgeZoomHostImpact,
+            capacity: capacity.trim() ? Number(capacity) : null,
             duration_minutes: duration_minutes > 0 ? duration_minutes : 60,
-            pricing: { pricing_type: "MONTHLY", price: Number(price), currency: "INR", validity_days: 30 },
-            schedule_rules: days.map((day) => ({
+            pricing: { pricing_type: "PACKAGE", packages: packagePayload, total_classes: packagePayload[0].total_classes, price: packagePayload[0].price, currency: "INR", validity_days: packagePayload[0].validity_days },
+            schedule_rules: scheduling ? days.map((day) => ({
               day_of_week: day,
               start_time: start,
               end_time: end,
-              effective_start_date: date,
-            })),
+              effective_start_date: date || new Date().toLocaleDateString("en-CA"),
+            })) : [],
             is_active: isActive,
           }),
         });
@@ -429,6 +456,8 @@ export function StudioClasses({
         method: "POST",
         body: JSON.stringify({
           title: oneOnOneTitle.trim() || "1-on-1 Private Session",
+          full_description: oneOnOneDescription || null,
+          offer_price: oneOnOneOfferPrice === "" ? null : Number(oneOnOneOfferPrice),
           teacher_member_id: oneOnOneTeacher,
           student_user_id: oneOnOneStudent,
           date: oneOnOneDate,
@@ -542,7 +571,8 @@ export function StudioClasses({
                           <CheckCircle2 className="h-3 w-3" /> Live Now
                         </span>
                       )}
-                      <h3 className="text-lg font-bold text-[#0C2417]">{item.name}</h3>
+                      <h3 className="text-lg font-bold text-[#0C2417]">{item.name}</h3><CollapsedDescription text={item.description} />
+                      <p className="mt-1 text-xs text-slate-600">{item.host_email ? `Hosted by ${item.host_email}; that account holder must start the meeting` : "Zoom host is resolved when this class is provisioned"}</p>
                       {item.status !== "COMPLETED" && item.status !== "CANCELLED" && new Date(item.end_at) > new Date() && <WhatsAppNotificationHint kind="reminder" />}
                       <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                         <Clock className="h-3.5 w-3.5 text-[#81A882]" />
@@ -554,25 +584,18 @@ export function StudioClasses({
                   <div className="mt-4 pt-3 border-t border-[#E1E9E2] flex items-center justify-between">
                     {item.status === "COMPLETED" || new Date(item.end_at) < new Date() ? (
                       <span className="text-xs font-semibold text-slate-400">Class completed</span>
-                    ) : item.meeting_url ? (
-                      <a
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        href={item.meeting_url}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#133623] hover:bg-[#0C2417] text-white text-xs font-bold rounded-xl transition shadow-sm"
-                      >
-                        <Video className="h-4 w-4" />
-                        <span>Join Live Class</span>
-                      </a>
                     ) : (
                       <button
                         disabled={busy}
                         onClick={async () => {
                           setBusy(true);
                           try {
-                            await staffApi(`/organizations/${org}/occurrences/${item.id}/join-link`, { method: "POST" });
+                            const res = await staffApi(`/organizations/${org}/occurrences/${item.id}/join-link`, { method: "POST" });
                             await refreshAgenda(org);
-                            notify("🌿 Meeting link created successfully!", "success");
+                            notify(res.start_responsibility || "Class link is ready", "info");
+                            if (res.is_simulated) notify("Development simulation — no real Zoom meeting", "info");
+                            if (res.restricted_settings?.length) notify(`Zoom account policy restricts: ${res.restricted_settings.join(", ")}`, "info");
+                            window.open(res.meeting_url, "_blank", "noopener,noreferrer");
                           } catch (err: any) {
                             notify(err.message || "Failed to create meeting link", "error");
                           } finally {
@@ -582,7 +605,7 @@ export function StudioClasses({
                         className="inline-flex items-center gap-2 px-4 py-2 bg-[#2D7A58] hover:bg-[#133623] text-white text-xs font-bold rounded-xl transition shadow-sm"
                       >
                         <Video className="h-4 w-4" />
-                        <span>Create Join Link</span>
+                        <span>Open class meeting</span>
                       </button>
                     )}
                   </div>
@@ -592,6 +615,7 @@ export function StudioClasses({
         </div>
       )}
 
+      {isTeacher && selfZoom?.member_id && <div className="my-4 rounded-xl border bg-white p-4"><TeacherZoomControl org={org} member={selfZoom.member_id} name="My account" userId={selfZoom.user_id} currentUserId={selfZoom.user_id} /></div>}
       <CatalogHistoryTabs history={showHistory} onChange={setShowHistory} label="Classes" panelId="class-catalog" />
       {/* CLASSES LIST MAIN CONTENT VIEW (RENDERED BELOW HEADER) */}
       <div id="class-catalog" role="tabpanel" aria-labelledby={`class-catalog-${showHistory ? "history" : "current"}`} className="space-y-3">
@@ -736,7 +760,7 @@ export function StudioClasses({
 
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-serif font-bold text-[#0C2417]">
-            {showHistory ? "Deleted class batches" : isTeacher ? "All Studio Classes" : "Studio Batches & Sessions"}
+            {showHistory ? "Class history" : isTeacher ? "All Studio Classes" : "Studio Batches & Sessions"}
           </h2>
           <span className="text-xs text-slate-500 font-medium">
             {displayedItems.length} {displayedItems.length === 1 ? "class batch" : "class batches"} {showHistory ? "in history" : "configured"}
@@ -745,8 +769,8 @@ export function StudioClasses({
 
         {!displayedItems.length && (
           <div className="p-8 bg-white rounded-3xl border border-[#CEDECF] text-center text-slate-500 text-sm space-y-2">
-            <p className="font-semibold text-[#0C2417]">{showHistory ? "No deleted class batches yet." : "No classes created yet in this studio."}</p>
-            <p className="text-xs text-slate-400">{showHistory ? "Deleted class batches will appear here. Classes that are not live stay in Current." : "Create a class batch to schedule your first batch."}</p>
+            <p className="font-semibold text-[#0C2417]">{showHistory ? "No past classes yet." : "No classes created yet in this studio."}</p>
+            <p className="text-xs text-slate-400">{showHistory ? "Class history will appear here. Classes that are not live stay in Current." : "Create a class batch to schedule your first batch."}</p>
           </div>
         )}
 
@@ -771,18 +795,11 @@ export function StudioClasses({
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              {c.session_type === "ONE_TO_ONE" ? (
-                                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full">
-                                  1-on-1 Class
-                                </span>
-                              ) : (
-                                <span className="text-[11px] font-semibold text-[#1b4332] bg-[#E8F0E9] px-2 py-0.5 rounded-full">
-                                  Capacity: {c.capacity}
-                                </span>
-                              )}
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <span className="rounded-full bg-[#E8F0E9] px-2.5 py-1 text-[11px] font-bold text-[#133623]">Capacity: {c.capacity ?? "No limit"}</span>
+                              {c.session_type === "ONE_TO_ONE" && <span className="text-[11px] font-semibold text-slate-500">1-on-1 Class</span>}
                             </div>
-                            <h3 className="font-bold text-base text-[#0C2417] leading-tight">{c.name}</h3>
+                            <h3 className="font-bold text-lg text-[#0C2417] leading-snug break-words">{c.name}</h3>
                             {!showHistory && isLive && <WhatsAppNotificationHint kind="changes" />}
                           </div>
 
@@ -797,14 +814,7 @@ export function StudioClasses({
                               onChange={() => void handleToggleStatus(c.id, isLive)}
                             />
                             )}
-                            {c.pricing && (
-                              <div className="text-right">
-                                <span className="text-xs font-bold text-[#0C2417]">₹{c.pricing.price}</span>
-                                <span className="text-[10px] text-slate-400 block">
-                                  {c.session_type === "ONE_TO_ONE" ? "/ session" : "/ month"}
-                                </span>
-                              </div>
-                            )}
+
                           </div>
                         </div>
 
@@ -816,39 +826,43 @@ export function StudioClasses({
                           · {c.duration_minutes || 60} mins
                         </p>
 
-                        <div className="text-[11px] text-slate-500 border-t border-[#E1E9E2] pt-2 flex flex-wrap gap-1">
-                          {c.session_type === "ONE_TO_ONE" ? (
-                            c.occurrences && c.occurrences.length > 0 ? (
-                              <div className="space-y-1">
-                                <span className="inline-block bg-[#E8F0E9] border border-[#CEDECF] px-2.5 py-1 rounded-lg text-[#133623] font-semibold">
-                                  Single Session · {new Date(c.occurrences[0].start_at).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · {new Date(c.occurrences[0].start_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}–{new Date(c.occurrences[0].end_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                                </span>
-                                <span className="text-[10px] text-slate-400 block">Auto-concludes and logs attendance when finished</span>
-                              </div>
-                            ) : (
-                              <span className="inline-block bg-[#E8F0E9] border border-[#CEDECF] px-2 py-0.5 rounded-lg text-[#133623]">
-                                Single 1-on-1 Session
-                              </span>
-                            )
-                          ) : c.schedule_rules && c.schedule_rules.length > 0 ? (
-                            c.schedule_rules.map((rule: any) => (
-                              <span
-                                key={rule.id || `${rule.day_of_week}-${rule.start_time}`}
-                                className="inline-block bg-[#F9FAF9] border border-[#CEDECF] px-2 py-0.5 rounded-lg text-slate-600"
-                              >
-                                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][rule.day_of_week]}{" "}
-                                {rule.start_time?.slice(0, 5)}–{rule.end_time?.slice(0, 5)}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-slate-400 italic">No schedule rules configured</span>
-                          )}
-                        </div>
+                        <div className="border-t border-[#E1E9E2] pt-3"><ClassPackageSummary pricing={c.pricing} /></div>
+                        <CollapsedDescription text={c.full_description || c.short_description}>
+                          <div className="space-y-2"><p className="font-semibold text-[#133623]">Schedule</p>
+                            {c.schedule_rules?.map((rule: any) => <p key={rule.id || `${rule.day_of_week}-${rule.start_time}`}>
+                              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][rule.day_of_week]} · {rule.start_time?.slice(0, 5)}–{rule.end_time?.slice(0, 5)}{rule.timezone ? ` · ${rule.timezone}` : ""}
+                              {rule.effective_start_date && <span className="block text-slate-400">From {rule.effective_start_date}{rule.effective_end_date ? ` until ${rule.effective_end_date}` : ""}</span>}
+                            </p>)}
+                            {c.session_type === "ONE_TO_ONE" && c.occurrences?.map((occ: any) => <p key={occ.id || occ.start_at}>{new Date(occ.start_at).toLocaleString()}–{new Date(occ.end_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {occ.status?.replaceAll("_", " ")}</p>)}
+                            {!c.schedule_rules?.length && !(c.session_type === "ONE_TO_ONE" && c.occurrences?.length) && <p>Flexible schedule · arrange dates and times with your teacher.</p>}
+                          </div>
+                          <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                            {c.class_type && <div><dt className="mb-0.5 font-semibold text-[#133623]">Class type</dt><dd>{c.class_type}</dd></div>}
+                            <div><dt className="mb-0.5 font-semibold text-[#133623]">Format</dt><dd>{c.session_type?.replaceAll("_", " ") || "Group"}</dd></div>
+                            <div><dt className="mb-0.5 font-semibold text-[#133623]">Skill level</dt><dd>{c.skill_level?.replaceAll("_", " ") || "All levels"}</dd></div>
+                            <div><dt className="mb-0.5 font-semibold text-[#133623]">Language</dt><dd>{c.language || "English"}</dd></div>
+                            <div><dt className="mb-0.5 font-semibold text-[#133623]">Catalog visibility</dt><dd>{c.is_public ? "Public" : "Private"}</dd></div>
+                          </dl>
+                          {c.short_description && c.full_description && <p>{c.short_description}</p>}
+                          {c.requirements && Object.entries(c.requirements).filter(([key, value]) => value && ["prerequisites", "required_equipment", "preparation_instructions", "additional_notes"].includes(key)).map(([key, value]) => <div key={key}><p className="font-semibold capitalize text-[#133623]">{key.replaceAll("_", " ")}</p><p className="mt-1 whitespace-pre-wrap">{String(value)}</p></div>)}
+                          {c.pricing?.packages?.length > 0 && <div className="space-y-3 border-t border-[#E1E9E2] pt-3">
+                            <p className="font-semibold text-[#133623]">Session packages</p>
+                            {c.pricing.packages.map((option: any) => {
+                              const hasOffer = option.offer_price != null && option.offer_price < option.price;
+                              const money = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: c.pricing.currency || "INR" }).format(amount);
+                              return <div key={option.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                                <div><p className="font-semibold text-[#133623]">{option.total_classes} {option.total_classes === 1 ? "session" : "sessions"}</p><p className="mt-0.5 text-slate-500">Valid for {option.validity_days} days</p></div>
+                                <div className="flex flex-wrap items-baseline gap-2">{hasOffer && <><span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">Offer</span><span className="text-slate-400 line-through" aria-label={`Regular price ${money(option.price)}`}>{money(option.price)}</span></>}<span className="font-bold text-[#133623]" aria-label={`${hasOffer ? "Offer" : "Regular"} price ${money(option.offer_price ?? option.price)}`}>{money(option.offer_price ?? option.price)}</span></div>
+                              </div>;
+                            })}
+                          </div>}
+                        </CollapsedDescription>
                       </div>
 
                       {/* CARD ACTION CONTROLS: GO LIVE / INACTIVE TOGGLE + EDIT BUTTON */}
                       <div className={`pt-3 border-t border-[#E1E9E2] items-center justify-end gap-2 ${showHistory ? "hidden" : "flex"}`}>
                         {/* Edit Button */}
+                        {!showHistory && isTeacher && !canCreateClass && c.session_type !== "ONE_TO_ONE" && <button type="button" onClick={() => openEditModal(c)} className="rounded-xl border border-[#CEDECF] bg-white px-3 py-2 text-xs font-semibold text-[#133623]">Edit packages</button>}
                         {!showHistory && canCreateClass && (
                           <>
                             <button
@@ -968,9 +982,29 @@ export function StudioClasses({
         })()}
       </div>
 
+      {isModalOpen && pricingOnly && <Modal footer={<div className="flex justify-end"><button form="modal-src-components-StudioClasses-tsx-1" type="submit" disabled={busy} className="rounded-xl bg-[#133623] px-5 py-3 text-sm font-bold text-white">{busy ? 'Saving…' : 'Save packages'}</button></div>} title={`Session packages · ${name}`} subtitle="Edit the packages students can buy for your class." onClose={() => { setIsModalOpen(false); resetForm(); }} confirmDiscard><form id="modal-src-components-StudioClasses-tsx-1" onSubmit={handleSubmit} className="p-6 space-y-4"><ClassPackageEditor packages={packages} setPackages={setPackages} /></form></Modal>}
       {/* CREATE / EDIT CLASS POP-UP MODAL */}
-      {isModalOpen && (
-        <Modal
+      {isModalOpen && !pricingOnly && (
+        <Modal footer={<div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E1E9E2]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    resetForm();
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button form="modal-src-components-StudioClasses-tsx-2"
+                  type="submit"
+                  disabled={busy}
+                  className="bg-[#133623] hover:bg-[#0C2417] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
+                >
+                  {busy ? "Saving…" : editingClass ? "Update Class Batch" : "Save Class Batch"}
+                </button>
+                <WhatsAppNotificationHint kind={editingClass ? "changes" : "reminder"} />
+              </div>}
           title={editingClass ? "Edit Class Batch" : "Create Class Batch"}
           subtitle={
             editingClass
@@ -984,7 +1018,7 @@ export function StudioClasses({
           confirmDiscard
         >
           <div className="p-6 space-y-5">
-            <form onSubmit={handleSubmit} className="relative space-y-4">
+            <form id="modal-src-components-StudioClasses-tsx-2" onSubmit={handleSubmit} className="relative space-y-4">
               <div className="space-y-1">
                 <p className="text-xs font-semibold">Class status</p>
                 <LiveStatusToggle live={isActive} onChange={setIsActive} name="Class status" />
@@ -997,7 +1031,7 @@ export function StudioClasses({
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Sunrise Vinyasa Flow"
+                    placeholder="e.g. Sunrise Performing Arts"
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
@@ -1020,9 +1054,8 @@ export function StudioClasses({
                 </label>
 
                 <label className="font-semibold text-slate-700">
-                  Start Time *
+                  Start Time (optional)
                   <ScheduleInput
-                    required
                     type="time"
                     value={start}
                     onValueChange={setStart}
@@ -1031,9 +1064,8 @@ export function StudioClasses({
                 </label>
 
                 <label className="font-semibold text-slate-700">
-                  End Time *
+                  End Time (optional)
                   <ScheduleInput
-                    required
                     type="time"
                     value={end}
                     onValueChange={setEnd}
@@ -1042,9 +1074,8 @@ export function StudioClasses({
                 </label>
 
                 <label className="font-semibold text-slate-700">
-                  First Session Date *
+                  First Session Date (optional)
                   <ScheduleInput
-                    required
                     type="date"
                     value={date}
                     onValueChange={setDate}
@@ -1053,9 +1084,9 @@ export function StudioClasses({
                 </label>
 
                 <label className="font-semibold text-slate-700">
-                  Student Capacity *
+                  Student Capacity (optional)
                   <input
-                    required
+                    placeholder="No capacity limit"
                     type="number"
                     min="1"
                     value={capacity}
@@ -1064,22 +1095,14 @@ export function StudioClasses({
                   />
                 </label>
 
-                <label className="font-semibold text-slate-700 sm:col-span-2">
-                  Monthly Price (₹) *
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
-                  />
-                </label>
               </div>
 
+              <p className="text-xs text-slate-600">Schedule fields are optional. Leave them empty to agree session times later. Each student’s package starts when payment is confirmed and lasts for the selected validity period.</p>
+              <button type="button" onClick={() => { setStart(""); setEnd(""); setDate(""); setDays([]); }} className="rounded-lg border px-3 py-2 text-xs">Clear schedule · arrange sessions later</button>
+              <ClassPackageEditor packages={packages} setPackages={setPackages} />
+
               <fieldset className="space-y-1">
-                <legend className="text-xs font-semibold text-slate-700 mb-1">Teaching Days *</legend>
+                <legend className="text-xs font-semibold text-slate-700 mb-1">Teaching Days (optional)</legend>
                 <div className="flex flex-wrap gap-2">
                   {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, i) => (
                     <label key={day} className="teaching-day-choice">
@@ -1097,6 +1120,9 @@ export function StudioClasses({
                 </div>
               </fieldset>
 
+{sessionType !== "ONE_TO_ONE" && <RichTextEditor label="Class description" value={fullDescription} onChange={setFullDescription} />}
+<AdvancedOptions description="Description, format, skill level, preparation, and studio policies">
+{sessionType === "ONE_TO_ONE" && <RichTextEditor label="Class description" value={fullDescription} onChange={setFullDescription} />}
               {/* Public Class Information & Requirements */}
               <div className="space-y-3 pt-3 border-t border-[#E1E9E2]">
                 <p className="text-xs font-bold uppercase tracking-wider text-[#133623]">
@@ -1125,7 +1151,7 @@ export function StudioClasses({
                       onChange={(e) => setSessionType(e.target.value)}
                       className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                     >
-                      <option value="REGULAR">Group Batch (Regular)</option>
+                      <option value="GROUP">Group Batch (Regular)</option>
                       <option value="ONE_TO_ONE">1-on-1 Private Session</option>
                       <option value="WORKSHOP">Workshop / Intensive</option>
                     </select>
@@ -1137,21 +1163,12 @@ export function StudioClasses({
                   <input
                     value={shortDescription}
                     onChange={(e) => setShortDescription(e.target.value)}
-                    placeholder="e.g. Grounding morning practice integrating dynamic pranayama."
+                    placeholder="e.g. A practical class with guided exercises and individual feedback."
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
 
-                <label className="block text-xs font-semibold text-slate-700">
-                  Full Class Description
-                  <textarea
-                    rows={3}
-                    value={fullDescription}
-                    onChange={(e) => setFullDescription(e.target.value)}
-                    placeholder="Provide detailed description of practices, philosophy, benefits, and schedule expectations…"
-                    className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
-                  />
-                </label>
+
 
                 <div className="grid sm:grid-cols-2 gap-3 text-xs">
                   <label className="font-semibold text-slate-700">
@@ -1169,7 +1186,7 @@ export function StudioClasses({
                     <input
                       value={requiredEquipment}
                       onChange={(e) => setRequiredEquipment(e.target.value)}
-                      placeholder="e.g. Yoga mat, two foam blocks, strap."
+                      placeholder="e.g. Notebook, instrument, or other class materials."
                       className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                     />
                   </label>
@@ -1198,40 +1215,24 @@ export function StudioClasses({
                 </div>
                 <div className="grid sm:grid-cols-2 gap-3 text-xs">
                   <div className="p-3 bg-[#FAF7F2] border border-[#CEDECF] rounded-xl space-y-1">
-                    <span className="font-bold text-[#0C2417] block">Sanctuary Venue & Live Link</span>
+                    <span className="font-bold text-[#0C2417] block">Studio Venue & Live Link</span>
                     <p className="text-slate-600 text-[11px]">
-                      Inherited from studio profile: Main Sanctuary location with automated Zoom live meeting integration.
+                      Inherited from studio profile: Main Studio location with automated Zoom live meeting integration.
                     </p>
                   </div>
                   <div className="p-3 bg-[#FAF7F2] border border-[#CEDECF] rounded-xl space-y-1">
-                    <span className="font-bold text-[#0C2417] block">Cancellation & Refund Rules</span>
+                    <span className="font-bold text-[#0C2417] block">Booking Cancellation Rules</span>
                     <p className="text-slate-600 text-[11px]">
-                      Inherited studio policy: Free cancellation up to 2 hours prior to start; session credit preserved.
+                      {BOOKING_CANCELLATION_TERMS}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E1E9E2]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    resetForm();
-                  }}
-                  className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="bg-[#133623] hover:bg-[#0C2417] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
-                >
-                  {busy ? "Saving…" : editingClass ? "Update Class Batch" : "Save Class Batch"}
-                </button>
-                <WhatsAppNotificationHint kind={editingClass ? "changes" : "reminder"} />
-              </div>
+
+</AdvancedOptions>
+              {editingClass && <label className="flex flex-nowrap items-start gap-2 text-xs text-slate-600"><input className="mt-0.5 shrink-0" type="checkbox" checked={acknowledgeZoomHostImpact} onChange={event => setAcknowledgeZoomHostImpact(event.target.checked)} /><span className="min-w-0 flex-1">Keep the saved Zoom host for existing meetings when changing teachers. I will reconcile host changes separately in Zoom Settings.</span></label>}
+
             </form>
           </div>
         </Modal>
@@ -1239,7 +1240,26 @@ export function StudioClasses({
 
       {/* CREATE 1-ON-1 CLASS POP-UP MODAL */}
       {isOneOnOneModalOpen && (
-        <Modal
+        <Modal footer={<div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E1E9E2]">
+                <button
+                  type="button"
+                  onClick={() => setIsOneOnOneModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button form="modal-src-components-StudioClasses-tsx-3"
+                  type="submit"
+                  disabled={busy}
+                  aria-disabled={!oneOnOneStudent || !oneOnOneTeacher || !oneOnOneTitle.trim() || !oneOnOneDate || !oneOnOneStart || !oneOnOneEnd || oneOnOneEnd <= oneOnOneStart}
+                  title={[!oneOnOneStudent && "Select a student", !oneOnOneTeacher && "Select a teacher", !oneOnOneTitle.trim() && "Enter a title", !oneOnOneDate && "Choose a date", (!oneOnOneStart || !oneOnOneEnd || oneOnOneEnd <= oneOnOneStart) && "Choose valid start and end times"].filter(Boolean).join("; ")}
+                  onClick={event => { const missing = [!oneOnOneStudent && "Select a student", !oneOnOneTeacher && "Select a teacher", !oneOnOneTitle.trim() && "Enter a title", !oneOnOneDate && "Choose a date", (!oneOnOneStart || !oneOnOneEnd || oneOnOneEnd <= oneOnOneStart) && "Choose valid start and end times"].filter(Boolean); if (missing.length) { event.preventDefault(); notify(missing.join("; "), "error"); } }}
+                  className="bg-[#2D7A58] hover:bg-[#1f563d] disabled:opacity-50 aria-disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
+                >
+                  {busy ? "Scheduling…" : "Create 1-on-1 Class"}
+                </button>
+                <WhatsAppNotificationHint kind="reminder" />
+              </div>}
           title="Create 1-on-1 Class"
           subtitle="Schedule a private 1-on-1 class session. This class is non-recurring and will automatically conclude and record attendance once complete."
           onClose={() => {
@@ -1248,7 +1268,9 @@ export function StudioClasses({
           confirmDiscard
         >
           <div className="p-6 space-y-5">
-            <form onSubmit={handleOneOnOneSubmit} className="relative space-y-4">
+            <button type="button" className="rounded-xl border border-emerald-800 p-3 text-sm text-emerald-900" onClick={() => { setIsOneOnOneModalOpen(false); resetForm(); setSessionType("ONE_TO_ONE"); setName("1-on-1 Session Package"); setIsModalOpen(true); }}>Create a flexible 1-on-1 package instead · no fixed dates or times</button>
+            <p className="text-xs text-slate-500">Use this form for a single appointment assigned to a student. Use a flexible package to sell several sessions that can be arranged later.</p>
+            <form id="modal-src-components-StudioClasses-tsx-3" onSubmit={handleOneOnOneSubmit} className="relative space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700">
                   Class Title *
@@ -1346,6 +1368,10 @@ export function StudioClasses({
                 </label>
               </div>
 
+<PurchasePolicyNotice />
+<AdvancedOptions description="Description, promotional pricing, and appointment history">
+              <RichTextEditor value={oneOnOneDescription} onChange={setOneOnOneDescription} />
+              <label className="block text-xs font-semibold">Offer price (optional)<input type="number" min="0" max={oneOnOnePrice || "0"} step="0.01" value={oneOnOneOfferPrice} onChange={event => setOneOnOneOfferPrice(event.target.value)} className="mt-1 block w-full rounded-xl border p-3" /></label>
               {/* Lifecycle notification info box */}
               <div className="p-3.5 bg-[#F4F7F4] border border-[#CEDECF] rounded-2xl flex items-start gap-2.5 text-xs text-[#1b4332]">
                 <CheckCircle2 className="h-4 w-4 text-[#2D7A58] shrink-0 mt-0.5" />
@@ -1357,23 +1383,10 @@ export function StudioClasses({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E1E9E2]">
-                <button
-                  type="button"
-                  onClick={() => setIsOneOnOneModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy || !oneOnOneStudent}
-                  className="bg-[#2D7A58] hover:bg-[#1f563d] disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
-                >
-                  {busy ? "Scheduling…" : "Create 1-on-1 Class"}
-                </button>
-                <WhatsAppNotificationHint kind="reminder" />
-              </div>
+
+</AdvancedOptions>
+              {editingClass && <label className="flex flex-nowrap items-start gap-2 text-xs text-slate-600"><input className="mt-0.5 shrink-0" type="checkbox" checked={acknowledgeZoomHostImpact} onChange={event => setAcknowledgeZoomHostImpact(event.target.checked)} /><span className="min-w-0 flex-1">Keep the saved Zoom host for existing meetings when changing teachers. I will reconcile host changes separately in Zoom Settings.</span></label>}
+
             </form>
           </div>
         </Modal>

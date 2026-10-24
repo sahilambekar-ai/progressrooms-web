@@ -370,7 +370,7 @@ function LoginFormContent() {
                 </DeveloperOnly>
               </div>
             </div>
-            <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Sign In to ProgressNow</h1>
+            <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Sign In to Progress Rooms</h1>
             <p className="text-xs text-[#7E7970] mt-1">
               Access your studio operations, teacher schedule, or student studio portal.
             </p>
@@ -408,7 +408,7 @@ function LoginFormContent() {
                   type="email"
                   id="login-email" autoComplete="email"
                   required
-                  placeholder="teacher@yogastudio.com"
+                  placeholder="teacher@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] text-sm bg-[#FAF7F2]"
@@ -457,8 +457,8 @@ function LoginFormContent() {
 
             <p className="text-center text-xs text-[#618D63] pt-2">
               Don&apos;t have an account yet?{" "}
-              <Link href={next ? `/register?role=STUDENT&next=${encodeURIComponent(next)}` : "/register"} className="font-bold text-[#0C2417] hover:underline">
-                Create a student account
+              <Link href={next ? `/register?role=${next.startsWith("/dashboard") ? "STUDIO" : "STUDENT"}&next=${encodeURIComponent(next)}${["starter", "core", "studio"].includes(searchParams.get("plan") || "") ? `&plan=${encodeURIComponent(searchParams.get("plan")!)}` : ""}` : "/register"} className="font-bold text-[#0C2417] hover:underline">
+                Create an Account
               </Link>
             </p>
           </form>
@@ -493,9 +493,9 @@ function LoginFormContent() {
               >
                 <div>
                   <p className="text-xs font-bold text-[#0C2417]">Studio Owner Login</p>
-                  <p className="text-[10px] text-slate-500">Studio Operations & Billing • owner@yogastudio.test</p>
+                  <p className="text-[10px] text-slate-500">Studio operations and billing</p>
                 </div>
-                <span className="text-[11px] bg-[#133623] text-white px-2.5 py-1 rounded-lg font-semibold">Studio Sanctuary →</span>
+                <span className="text-[11px] bg-[#133623] text-white px-2.5 py-1 rounded-lg font-semibold">Studio →</span>
               </button>
 
               {/* 3. Teacher Login */}
@@ -506,7 +506,7 @@ function LoginFormContent() {
               >
                 <div>
                   <p className="text-xs font-bold text-[#0C2417]">Teacher Login</p>
-                  <p className="text-[10px] text-slate-500">Classes, assigned students & attendance • ananya@yogastudio.test</p>
+                  <p className="text-[10px] text-slate-500">Classes, assigned students and attendance</p>
                 </div>
                 <span className="text-[11px] bg-[#2D7A58] text-white px-2.5 py-1 rounded-lg font-semibold">Teacher Portal →</span>
               </button>
@@ -542,12 +542,12 @@ export default function LoginPage() {
         <Suspense fallback={<Link href="/register">Create New Account</Link>}><AuthFlowLink destination="register">Create New Account</AuthFlowLink></Suspense>
       </div>
 
-      <Suspense fallback={<div className="text-center p-8 text-xs text-slate-500">Loading sanctuary sign in...</div>}>
+      <Suspense fallback={<div className="text-center p-8 text-xs text-slate-500">Loading studio sign in...</div>}>
         <LoginFormContent />
       </Suspense>
 
       <footer className="max-w-md w-full mx-auto py-4 text-center text-[11px] text-[#7E7970]">
-        ProgressNow Sanctuary Multi-Tenant Platform • Secure Brevo OTP & Encrypted Auth
+        Progress Rooms Studio Multi-Tenant Platform • Secure Brevo OTP & Encrypted Auth
       </footer>
     </div>
   );

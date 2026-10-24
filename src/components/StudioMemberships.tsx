@@ -1,7 +1,11 @@
 "use client";
 
+import { PurchasePolicyNotice } from "./PurchasePolicyNotice";
 import { useEffect, useState, useMemo } from "react";
+import { membershipSelection } from "@/lib/membership-selection";
 import { staffApi } from "@/lib/staff-api";
+import { RichTextEditor, CollapsedDescription } from "./RichDescription";
+import { AdvancedOptions } from "@/components/AdvancedOptions";
 import { Modal } from "@/components/Modal";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { CatalogHistoryTabs } from "@/components/CatalogHistoryTabs";
@@ -21,11 +25,17 @@ interface MembershipTier {
   description: string | null;
   is_active: boolean;
   deleted_at?: string | null;
+  class_packages?: { session_id: string; package_id: string; total_classes: number; class_name: string }[];
   attached_class_ids: string[];
   attached_classes: { id: string; name: string }[];
 }
 
 interface StudioClass {
+  session_id: string;
+  package_id?: string;
+  total_classes?: number;
+  package_price?: number;
+  validity_days?: number;
   id: string;
   name: string;
   capacity?: number;
@@ -102,6 +112,9 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
   const [isActive, setIsActive] = useState(true);
   const [selectedClassIds, setSelectedClassIds] = useState<string[]>([]);
   const [classFilter, setClassFilter] = useState("");
+  const [selectionMode, setSelectionMode] = useState<"CLASS" | "PACKAGE">("PACKAGE");
+  const [classOptionsLoading, setClassOptionsLoading] = useState(false);
+  const [classOptionsError, setClassOptionsError] = useState(false);
 
   const refreshTiers = async (orgId: string) => {
     try {
@@ -116,13 +129,24 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
     }
   };
 
-  const refreshClasses = async (orgId: string) => {
+  const refreshClasses = async (orgId: string, savedPackages: NonNullable<MembershipTier["class_packages"]> = []) => {
+    setClassOptionsLoading(true); setClassOptionsError(false);
     try {
       const data = await staffApi(`/organizations/${orgId}/classes`);
-      setClasses(data);
+      const options: StudioClass[] = data.flatMap((cls: any) => cls.pricing?.packages?.length
+        ? [{ ...cls, session_id: cls.id }, ...cls.pricing.packages.map((pkg: any) => ({ ...cls, id: `${cls.id}:${pkg.id}`, session_id: cls.id, package_id: pkg.id, total_classes: pkg.total_classes, package_price: pkg.offer_price ?? pkg.price, validity_days: pkg.validity_days }))]
+        : [{ ...cls, session_id: cls.id }]);
+      for (const saved of savedPackages) {
+        const id = `${saved.session_id}:${saved.package_id}`;
+        const existing = options.find(option => option.id === id);
+        if (existing) existing.total_classes = saved.total_classes;
+        else options.push({ id, session_id: saved.session_id, package_id: saved.package_id, total_classes: saved.total_classes, name: saved.class_name });
+      }
+      setClasses(options);
     } catch (e: any) {
       console.warn("Could not fetch classes", e);
-    }
+      setClassOptionsError(true);
+    } finally { setClassOptionsLoading(false); }
   };
 
   useEffect(() => {
@@ -153,6 +177,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
 
   const resetForm = () => {
     setEditingTier(null);
+    setSelectionMode("PACKAGE");
     setName("");
     setTierType("MONTHLY");
     setPrice("2500");
@@ -172,8 +197,9 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
   };
 
   const openEditModal = (tier: MembershipTier) => {
-    void refreshClasses(org);
+    void refreshClasses(org, tier.class_packages || []);
     setEditingTier(tier);
+    setSelectionMode(tier.class_packages?.length ? "PACKAGE" : "CLASS");
     setName(tier.name);
     setTierType(tier.tier_type);
     setPrice(String(tier.price));
@@ -182,7 +208,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
     setTotalClasses(tier.total_classes !== null ? String(tier.total_classes) : "");
     setDescription(tier.description || "");
     setIsActive(tier.is_active);
-    setSelectedClassIds(tier.attached_class_ids || []);
+    setSelectedClassIds(tier.class_packages?.length ? tier.class_packages.map(p => `${p.session_id}:${p.package_id}`) : tier.attached_class_ids || []);
     setClassFilter("");
     setIsModalOpen(true);
   };
@@ -237,12 +263,14 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
     );
   };
 
-  const handleSelectAllClasses = () => {
-    setSelectedClassIds(classes.map((c) => c.id));
-  };
+  const { selectableClasses, selectedOptions, selectedPackages, includedSessions } = membershipSelection(classes, selectedClassIds, selectionMode);
 
+  const handleSelectAllClasses = () => {
+    setSelectedClassIds(previous => Array.from(new Set([...previous, ...selectableClasses.map(c => c.id)])));
+  };
   const handleDeselectAllClasses = () => {
-    setSelectedClassIds([]);
+    const activeIds = new Set(selectableClasses.map(c => c.id));
+    setSelectedClassIds(previous => previous.filter(id => !activeIds.has(id)));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -252,23 +280,27 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
       notify("Offer price must be between zero and the regular price.", "error");
       return;
     }
+    if (classOptionsLoading || classOptionsError) {
+      notify("Wait for the included classes to load, or retry loading them before saving.", "error"); return;
+    }
     setBusy(true);
 
     try {
       const payload = {
         name,
-        tier_type: tierType,
+        tier_type: selectedPackages.length ? "PACKAGE" : tierType,
         price: Number(price),
         offer_price: offerPrice === "" ? null : Number(offerPrice),
         currency: "INR",
         validity_days: Number(validityDays) || 30,
-        total_classes:
+        total_classes: selectedPackages.length ? includedSessions :
           tierType === "PACKAGE" || tierType === "DROP_IN"
             ? Number(totalClasses) || 1
             : totalClasses ? Number(totalClasses) : null,
         description: description.trim() || null,
         is_active: isActive,
-        class_ids: selectedClassIds,
+        class_ids: Array.from(new Set(selectedOptions.map(c => c.session_id))),
+        class_packages: selectedPackages.map(c => ({ session_id: c.session_id, package_id: c.package_id })),
       };
 
       if (editingTier) {
@@ -297,14 +329,11 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
   };
 
   const filteredClasses = useMemo(() => {
-    if (!classFilter.trim()) return classes;
+    const eligible = classes.filter(c => selectionMode === "PACKAGE" ? !!c.package_id : !c.package_id);
+    if (!classFilter.trim()) return eligible;
     const q = classFilter.toLowerCase();
-    return classes.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.instructors?.some((i) => i.full_name.toLowerCase().includes(q))
-    );
-  }, [classes, classFilter]);
+    return eligible.filter(c => c.name.toLowerCase().includes(q) || c.instructors?.some(i => i.full_name.toLowerCase().includes(q)));
+  }, [classes, classFilter, selectionMode]);
 
   const tierTypeBadge = (type: string) => {
     switch (type) {
@@ -404,6 +433,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                           <h3 className="text-lg font-bold text-[#0C2417] leading-tight">{tier.name}</h3>
 
                           <div>
+                            {tier.class_packages && tier.class_packages.length > 0 && <div className="mb-3 space-y-1">{tier.class_packages.map(p => <p key={`${p.session_id}:${p.package_id}`} className="text-[11px] text-[#133623]">{p.class_name} · {p.total_classes} sessions</p>)}</div>}
                             {tier.offer_price != null && tier.offer_price < tier.price && <p className="text-sm text-slate-500"><span className="line-through">₹{tier.price.toLocaleString()}</span> <span className="ml-2 text-emerald-800">Offer price</span></p>}
                             <p className="text-3xl font-black text-[#0C2417]">
                               ₹{(tier.offer_price ?? tier.price).toLocaleString()}{" "}
@@ -423,7 +453,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                           </div>
 
                           {tier.description && (
-                            <p className="text-xs text-slate-600 leading-relaxed">{tier.description}</p>
+                            <CollapsedDescription text={tier.description} />
                           )}
 
                           {/* ATTACHED CLASSES DISPLAY */}
@@ -585,7 +615,25 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
 
       {/* CREATE / EDIT MEMBERSHIP TIER POP-UP MODAL */}
       {isModalOpen && (
-        <Modal
+        <Modal footer={<div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E1E9E2]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    resetForm();
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button form="modal-src-components-StudioMemberships-tsx-1"
+                  type="submit"
+                  disabled={busy || classOptionsLoading || classOptionsError}
+                  className="disabled:opacity-50 bg-[#133623] hover:bg-[#0C2417] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
+                >
+                  {busy ? "Saving…" : editingTier ? "Update Membership Tier" : "Save Membership Tier"}
+                </button>
+              </div>}
           title={editingTier ? "Edit Membership Tier" : "Create Membership Tier"}
           subtitle="Configure pricing, credit rules, live status, and attach included class batches."
           onClose={() => {
@@ -595,7 +643,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
           confirmDiscard
         >
           <div className="p-6 space-y-5">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form id="modal-src-components-StudioMemberships-tsx-1" onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1">
                 <p className="text-xs font-semibold">Membership status</p>
                 <LiveStatusToggle live={isActive} onChange={setIsActive} name="Membership status" />
@@ -608,7 +656,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Morning Hatha Unlimited, 10-Class Aerial Pack"
+                    placeholder="e.g. Monthly Music Pass, 10-Class Learning Pack"
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
@@ -616,7 +664,8 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                 <label className="font-semibold text-slate-700 sm:col-span-2">
                   Plan Type *
                   <select
-                    value={tierType}
+                    value={selectedPackages.length ? "PACKAGE" : tierType}
+                    disabled={selectedPackages.length > 0}
                     onChange={(e) => setTierType(e.target.value as any)}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   >
@@ -639,20 +688,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                   />
                 </label>
 
-                <label className="font-semibold text-slate-700">
-                  Offer Price (₹) (Optional)
-                  <input
-                    type="number"
-                    min="0"
-                    max={price || "0"}
-                    step="0.01"
-                    value={offerPrice}
-                    onChange={(e) => setOfferPrice(e.target.value)}
-                    placeholder="Leave blank for regular price"
-                    className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
-                  />
-                  <span className="mt-1 block text-[11px] font-normal text-slate-500">Must not exceed the regular price. Clear to remove the offer.</span>
-                </label>
+
 
                 <label className="font-semibold text-slate-700">
                   Validity Period (Days) *
@@ -667,39 +703,41 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                 </label>
 
                 <label className="font-semibold text-slate-700">
-                  Total Class Credits {tierType === "PACKAGE" ? "*" : "(Optional for Monthly)"}
+                  Total Class Credits {selectedPackages.length || tierType === "PACKAGE" ? "*" : "(Optional for Monthly)"}
                   <input
                     type="number"
                     min="1"
-                    required={tierType === "PACKAGE"}
+                    required={tierType === "PACKAGE" && !selectedPackages.length}
                     placeholder={tierType === "MONTHLY" ? "Unlimited (Leave blank)" : "e.g. 10"}
-                    value={totalClasses}
+                    value={selectedPackages.length ? includedSessions : totalClasses}
+                    readOnly={selectedPackages.length > 0}
                     onChange={(e) => setTotalClasses(e.target.value)}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   />
                 </label>
 
-                <label className="font-semibold text-slate-700 sm:col-span-2">
-                  Description / Features
-                  <textarea
-                    rows={2}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="e.g. Access to morning sessions with high-speed Zoom unlock and attendance recording."
-                    className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
-                  />
-                </label>
+
               </div>
 
+              <fieldset className="space-y-2">
+                <legend className="mb-2 text-xs font-bold text-[#133623]">How this pass includes classes</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {([{ value: "CLASS", title: "Shared class access", detail: "Share the pass’s credits across included classes." }, { value: "PACKAGE", title: "Session packages", detail: "Give each class its selected package allowance." }] as const).map(mode => <label key={mode.value} className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 ${selectionMode === mode.value ? "border-[#133623] bg-[#E8F0E9]" : "border-[#CEDECF]"}`}>
+                    <input type="radio" name="membership-selection-mode" checked={selectionMode === mode.value} onChange={() => setSelectionMode(mode.value)} className="mt-0.5 accent-[#133623]" />
+                    <span><span className="block text-xs font-semibold text-[#133623]">{mode.title}</span><span className="mt-1 block text-[11px] text-slate-500">{mode.detail}</span></span>
+                  </label>)}
+                </div>
+                <p className="text-[11px] text-slate-500">Only selections in the chosen type are saved. Switching back restores your choices while this editor is open.</p>
+              </fieldset>
               {/* ATTACH CLASSES CHECKLIST SECTION */}
               <div className="space-y-2 pt-2 border-t border-[#E1E9E2]">
                 <div className="flex items-center justify-between">
                   <div>
                     <label className="text-xs font-bold text-[#0C2417] block">
-                      Attach Included Classes ({selectedClassIds.length} selected)
+                      {selectionMode === "PACKAGE" ? "Included session packages" : "Included classes"} ({selectedOptions.length} selected)
                     </label>
                     <span className="text-[11px] text-slate-500">
-                      Select which studio classes can be booked using this membership or pass.
+                      {selectionMode === "PACKAGE" ? "Each selected package adds its session allowance to this pass." : "Students share the pass’s total class credits across the selected classes."}
                     </span>
                   </div>
 
@@ -735,22 +773,27 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                   </div>
                 )}
 
-                <div className="max-h-48 overflow-y-auto space-y-1.5 p-2 bg-[#F9FAF9] border border-[#CEDECF] rounded-2xl">
+                {classOptionsLoading && <p role="status" className="text-xs text-slate-500">Loading included classes…</p>}
+                {classOptionsError && <p role="alert" className="text-xs text-red-700">Could not load included classes. <button type="button" className="font-semibold underline" onClick={() => void refreshClasses(org, editingTier?.class_packages || [])}>Retry loading</button></p>}
+                {selectionMode === "CLASS" && selectedOptions.length > 0 && <p className="text-xs text-slate-600">{selectedOptions.length} classes selected · {totalClasses || "Unlimited"} shared session credits</p>}
+                {selectedPackages.length > 0 && <div className="rounded-xl border border-[#CEDECF] bg-[#E8F0E9] px-4 py-3"><p className="text-sm font-bold text-[#133623]">{includedSessions} sessions included</p><p className="text-[11px] text-slate-600">{selectedPackages.length} selected packages · Students buy this pass once. Each class keeps its selected session allowance.</p></div>}
+                <div className="max-h-80 overflow-y-auto space-y-1.5 p-2 bg-[#F9FAF9] border border-[#CEDECF] rounded-2xl">
                   {!classes.length ? (
                     <p className="text-xs text-slate-400 text-center py-3">
-                      No classes found. You can still save this tier and attach classes later.
+                      No classes found. You can save this tier and attach classes later.
                     </p>
                   ) : !filteredClasses.length ? (
                     <p className="text-xs text-slate-400 text-center py-3">
-                      No classes match &ldquo;{classFilter}&rdquo;
+                      {classFilter ? <>No classes match &ldquo;{classFilter}&rdquo;</> : <>No session packages are available. Add packages to a class or choose Shared class access.</>}
                     </p>
                   ) : (
-                    filteredClasses.map((cls) => {
+                    filteredClasses.map((cls, index) => {
                       const isChecked = selectedClassIds.includes(cls.id);
                       return (
+                        <div key={cls.id}>
+                        {(index === 0 || filteredClasses[index - 1].session_id !== cls.session_id) && <h4 className="px-2 pt-3 pb-2 text-xs font-bold text-[#0C2417]">{cls.name}</h4>}
                         <label
-                          key={cls.id}
-                          className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
+                          className={`ml-2 flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
                             isChecked
                               ? "bg-white border-[#133623] shadow-xs"
                               : "bg-white/60 border-transparent hover:bg-white"
@@ -764,7 +807,8 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                               className="rounded text-[#133623] focus:ring-[#133623] h-4 w-4"
                             />
                             <div>
-                              <p className="text-xs font-bold text-[#0C2417]">{cls.name}</p>
+                              <p className="text-xs font-bold text-[#0C2417]">{cls.package_id ? `${cls.total_classes} ${cls.total_classes === 1 ? "session" : "sessions"}` : "Class access"}</p>
+                              {cls.package_id && <p className="mt-1 text-xs text-[#133623] font-semibold"><span className="font-normal text-slate-500">{cls.package_price != null ? `· ₹${cls.package_price.toLocaleString()} · ${cls.validity_days} days` : "· Saved pass allowance"}</span></p>}
                               {cls.instructors && cls.instructors.length > 0 && (
                                 <p className="text-[10px] text-slate-500">
                                   Guide: {cls.instructors.map((i) => i.full_name).join(", ")}
@@ -777,32 +821,34 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                             {isChecked && <span className="text-[10px] font-bold text-[#1b4332]">Attached</span>}
                           </div>
                         </label>
+                        </div>
                       );
                     })
                   )}
                 </div>
               </div>
 
+              <RichTextEditor value={description} onChange={setDescription} label="Membership description" />
+              <PurchasePolicyNotice />
+              <AdvancedOptions description="Promotional pricing and plan descriptions">
+<div className="grid gap-4 sm:grid-cols-2">                <label className="font-semibold text-slate-700">
+                  Offer Price (₹) (Optional)
+                  <input
+                    type="number"
+                    min="0"
+                    max={price || "0"}
+                    step="0.01"
+                    value={offerPrice}
+                    onChange={(e) => setOfferPrice(e.target.value)}
+                    placeholder="Leave blank for regular price"
+                    className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
+                  />
+                  <span className="mt-1 block text-[11px] font-normal text-slate-500">Must not exceed the regular price. Clear to remove the offer.</span>
+                </label>
+</div>
+</AdvancedOptions>
               {/* MODAL ACTION BUTTONS */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E1E9E2]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    resetForm();
-                  }}
-                  className="px-4 py-2.5 rounded-xl border border-[#CEDECF] text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="bg-[#133623] hover:bg-[#0C2417] text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
-                >
-                  {busy ? "Saving…" : editingTier ? "Update Membership Tier" : "Save Membership Tier"}
-                </button>
-              </div>
+
             </form>
           </div>
         </Modal>

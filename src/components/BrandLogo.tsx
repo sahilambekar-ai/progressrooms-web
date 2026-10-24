@@ -57,7 +57,7 @@ export function BrandLogo({
         >
           <Image
             src="/brand/logo-white.png"
-            alt="ProgressNow Emblem"
+            alt="Progress Rooms Emblem"
             width={px}
             height={px}
             className="w-full h-full object-contain"
@@ -75,7 +75,7 @@ export function BrandLogo({
         >
           <Image
             src="/brand/logo-transparent.png"
-            alt="ProgressNow Emblem"
+            alt="Progress Rooms Emblem"
             width={px}
             height={px}
             className="w-full h-full object-contain"
@@ -89,7 +89,7 @@ export function BrandLogo({
       <div style={{ width: px, height: px }} className={`relative shrink-0 ${className}`}>
         <Image
           src={src}
-          alt="ProgressNow Emblem"
+          alt="Progress Rooms Emblem"
           width={px}
           height={px}
           className="w-full h-full object-contain"
@@ -112,7 +112,7 @@ export function BrandLogo({
             textColor || "text-[#0C2417]"
           }`}
         >
-          ProgressNow
+          Progress Rooms
         </span>
         <span className="block text-[10px] sm:text-[11px] uppercase font-bold tracking-widest text-[#81A882] mt-0.5">
           {subtitle || "Virtual Studio OS"}

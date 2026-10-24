@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  /* Color Palette matching aerial yoga reference aesthetic */
+  /* Color Palette matching aerial teaching reference aesthetic */
   --color-white: #FAF7F2;      /* Cream */
   --color-sand: #E0D6C8;       /* Sand */
   --color-sage: #818E77;       /* Sage Green */
@@ -12,7 +12,7 @@
   --color-gray-light: #F4EFE7; /* Light cream for subtle contrasts */
   --color-gray-muted: #7E7970; /* Muted brown-gray for text */
 
-  /* Dark Emerald Sanctuary Sidebar */
+  /* Dark Emerald Studio Sidebar */
   --theme-sidebar-bg: linear-gradient(180deg, #0C2417 0%, #133623 50%, #0D291A 100%);
   --theme-sidebar-active-bg: #2D7A58;
   --theme-sidebar-text: #FFFFFF;
@@ -71,12 +71,12 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: -0.01em;
 }
 
-/* Custom Nature Sidebar Styles from Aerial Yoga Client Reference */
+/* Custom Nature Sidebar Styles from Dance Client Reference */
 .nature-sidebar {
   width: 280px;
   flex-shrink: 0;
   position: relative;
-  z-index: 99;
+  z-index: 20;
   background: var(--theme-sidebar-bg);
 }
 
@@ -613,17 +613,17 @@ p, h1, h2, h3, h4, h5, label { overflow-wrap: anywhere; }
 /* Dialogs fit both short landscape viewports and on-screen keyboards. */
 .app-dialog {
   border: 0;
-  padding: 1.5rem;
+  padding: 2rem;
   background: transparent;
   width: 100vw;
   height: 100dvh;
   max-width: 100vw;
   max-height: 100dvh;
-  margin: 0;
+  margin: 0 !important;
   inset: 0;
   position: fixed;
   color: #212121;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   box-sizing: border-box;
   z-index: 100;
@@ -638,20 +638,27 @@ p, h1, h2, h3, h4, h5, label { overflow-wrap: anywhere; }
   backdrop-filter: blur(5px);
 }
 .dialog-surface {
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
+  max-height: calc(100dvh - 4rem);
+  min-height: 0;
   margin: auto;
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
   border-radius: 1.5rem;
 }
-.dialog-surface > div,
-.dialog-surface > form {
-  max-width: 100%;
-}
+.dialog-header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.dialog-header > div { min-width: 0; flex: 1; }
+.dialog-scroll-region { position: relative; display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.dialog-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.dialog-body:focus-visible { outline: 2px solid #81A882; outline-offset: -2px; }
+.dialog-content { display: flow-root; }
+.dialog-footer { flex: 0 0 auto; padding: 1rem 1.5rem; border-top: 1px solid #E1E9E2; background: white; position: relative; z-index: 1; }
+.dialog-footer > :is(div, footer) { margin: 0; padding: 0; border: 0; flex-wrap: wrap; }
+.dialog-scroll-hint { position: absolute; bottom: 1rem; right: 1rem; z-index: 2; display: flex; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; border: 1px solid #CEDECF; border-radius: 999px; background: #133623; color: white; box-shadow: 0 4px 14px rgb(12 36 23 / .24); }
+.dialog-scroll-hint:hover { background: #1b4332; }
+.dialog-scroll-hint:focus-visible { outline: 2px solid #81A882; outline-offset: 3px; }
 .dialog-panel { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: min(46rem, calc(100dvh - 3rem)); max-height: calc(100dvh - 3rem); overflow: hidden; }
 .dialog-panel-header, .dialog-panel-footer { flex-shrink: 0; background: white; }
 .dialog-panel-header { border-radius: 1.5rem 1.5rem 0 0; background: linear-gradient(135deg, #0C2417, #1b4332); color: white; }
@@ -687,19 +694,23 @@ p, h1, h2, h3, h4, h5, label { overflow-wrap: anywhere; }
   min-height: 34px;
 }
 .dialog-surface button:has(> svg:only-child) { min-width: 44px; flex-shrink: 0; }
-.dialog-surface form > .flex:last-child { flex-wrap: wrap; }
+.dialog-surface form > div.flex:last-child { flex-wrap: wrap; }
 .mobile-navigation { width: min(320px, calc(100vw - 2rem)); border-radius: 1.5rem; overflow: hidden; position: relative; }
 .mobile-navigation .sidebar-content { height: calc(100dvh - 2rem); max-height: 850px; }
 .mobile-navigation .nature-sidebar { width: 100%; padding-top: 4rem; }
 .navigation-close { position: absolute; right: 1rem; top: .75rem; z-index: 100; color: white; background: #ffffff20; border-radius: 50%; padding: .5rem; }
 
-.toast-region { position: fixed; top: auto; left: auto; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; bottom: max(1rem, env(safe-area-inset-bottom)); right: max(1rem, env(safe-area-inset-right)); z-index: 200; display: grid; gap: .75rem; width: min(420px, calc(100vw - 2rem)); pointer-events: none; }
-.app-toast { display: flex; align-items: flex-start; gap: .75rem; padding: 1rem; border: 1px solid; border-radius: 1rem; box-shadow: 0 12px 40px #0c241726; pointer-events: auto; }
-.toast-success { background: #f0fdf4; border-color: #86b59a; color: #14532d; }
-.toast-error { background: #fff7f7; border-color: #f2b5b5; color: #991b1b; }
-.toast-info { background: #f8fafc; border-color: #cbd5e1; color: #334155; }
-.toast-dismiss { display: grid; place-items: center; min-height: 44px; min-width: 44px; border-radius: .5rem; }
-.toast-dismiss:hover { background: #00000008; }
+.toast-region { position: fixed; top: auto; left: auto; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; bottom: max(1rem, env(safe-area-inset-bottom)); right: max(1rem, env(safe-area-inset-right)); z-index: 200; display: grid; gap: .5rem; width: min(380px, calc(100vw - 2rem)); pointer-events: none; }
+.app-toast { --toast-accent: #475569; --toast-tint: #f1f5f9; display: flex; align-items: center; gap: .625rem; min-height: 48px; padding: .5rem .625rem; border: 1px solid #e2e8e4; border-left: 3px solid var(--toast-accent); border-radius: .75rem; background: #fff; color: #26372e; box-shadow: 0 4px 6px #0c241708, 0 8px 24px #0c241714; pointer-events: auto; animation: toast-arrive 180ms ease-out; }
+.toast-success { --toast-accent: #258052; --toast-tint: #eaf6ee; }
+.toast-error { --toast-accent: #c43e3e; --toast-tint: #fff0f0; }
+.toast-info { --toast-accent: #3670b5; --toast-tint: #edf4fc; }
+.toast-icon { display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; color: var(--toast-accent); background: var(--toast-tint); }
+.toast-message { flex: 1; min-width: 0; margin: 0; font-size: 13px; font-weight: 500; line-height: 1.4; }
+.toast-region .toast-dismiss { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; min-height: 28px; min-width: 28px; padding: 0; border-radius: .375rem; color: #7b877f; transition: background 150ms, color 150ms; }
+.toast-region .toast-dismiss:hover { background: #f1f5f2; color: #26372e; }
+@keyframes toast-arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
 .calendar-day { min-height: 110px; }
 .calendar-events { display: grid; gap: .25rem; overflow: visible; }
 .calendar-event { width: 100%; min-width: 0; text-align: left; }
@@ -725,13 +736,15 @@ p, h1, h2, h3, h4, h5, label { overflow-wrap: anywhere; }
   .dashboard-content .flex.items-center.justify-between { flex-wrap: wrap; }
   .dashboard-content .card-nature, .dashboard-content .p-6 { padding: 1rem; }
   .dashboard-content .grid-cols-3:not(.calendar-grid), .dashboard-content .grid-cols-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .app-dialog { width: 100vw; height: 100dvh; padding: .75rem; }
-  .dialog-surface > .p-6 { padding: 1rem; }
+  .app-dialog { width: 100vw; height: 100dvh; padding: 2rem; }
+  .dialog-content > .p-6 { padding: 1rem; }
+  .dialog-footer { padding: .75rem 1rem; }
+  .dialog-header { padding: 1rem; }
   .calendar-day { min-height: 80px; padding: .25rem; }
   .calendar-day > div:first-child > button:first-child { width: 100%; max-width: 44px; }
   .calendar-events { display: none !important; }
   .toast-region { bottom: max(.75rem, env(safe-area-inset-bottom)); right: .75rem; width: calc(100vw - 1.5rem); }
-  .app-toast { padding: .75rem; }
+  .app-toast { padding: .5rem .625rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -828,3 +841,37 @@ input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
 .schedule-picker .picker-link { color: #245d40; font-size: .75rem; font-weight: 600; padding: .25rem; }
 .schedule-picker select { display: block; margin-top: .4rem; width: 100%; min-height: 42px; padding: .5rem; border: 1px solid #cedecf; border-radius: .6rem; background: #f7faf7; color: #173c28; font-size: .9rem; }
 .schedule-picker .picker-apply { padding: .55rem 1rem; border-radius: .6rem; background: #245d40; color: #fff; font-size: .8rem; font-weight: 600; }
+
+/* Developer controls overlay the page without reserving layout space. */
+.developer-channel-tray {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-3rem);
+  transition: transform 220ms ease, opacity 220ms ease, visibility 0s linear 220ms;
+}
+.developer-channel-tray.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
+  transition-delay: 0s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .developer-channel-tray { transition: none; }
+}
+
+/* Roster columns retain readable widths; narrow screens scroll inside the table. */
+.dashboard-content table.roster-table {
+  min-width: 1350px;
+  table-layout: fixed;
+}
+.dashboard-content table.roster-table th,
+.dashboard-content table.roster-table td {
+  overflow-wrap: anywhere;
+}
+
+.rich-description ul { list-style: disc; padding-left: 1.5rem; }
+.rich-description ol { list-style: decimal; padding-left: 1.5rem; }
+.rich-description p, .rich-description div { margin-bottom: .5rem; }
+.rich-description mark { background: #fff2a8; color: inherit; }

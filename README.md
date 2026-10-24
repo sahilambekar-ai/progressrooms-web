@@ -1,6 +1,6 @@
-# ProgressRooms Web (Frontend Application)
+# Progress Rooms Web (Frontend Application)
 
-Production-grade Next.js 14 application for ProgressRooms multi-tenant platform.
+Production-grade Next.js 14 application for Progress Rooms multi-tenant platform.
 
 ## Tech Stack
 - **Framework**: Next.js 14.2.35 (App Router, Server-Side Rendering)

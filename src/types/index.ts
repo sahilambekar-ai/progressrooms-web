@@ -39,7 +39,16 @@ export interface ScheduleRule {
   end_time: string;
 }
 
+export interface ClassPackage {
+  id: string;
+  total_classes: number;
+  price: number;
+  offer_price?: number | null;
+  validity_days: number;
+}
+
 export interface Pricing {
+  packages?: ClassPackage[];
   pricing_type: 'ONE_TIME' | 'MONTHLY' | 'PACKAGE' | 'PER_SESSION';
   price: number;
   currency: string;
@@ -48,14 +57,17 @@ export interface Pricing {
 }
 
 export interface PublicSession {
+  instructor_name?: string;
+  instructor_names?: string[];
   id: string;
   name: string;
   slug: string;
+  full_description?: string;
   short_description?: string;
   session_type: string;
   skill_level: string;
   duration_minutes: number;
-  capacity: number;
+  capacity: number | null;
   remaining_spots?: number;
   delivery_mode?: string;
   pricing?: Pricing;
@@ -78,7 +90,7 @@ export interface PublicSessionDetailPayload {
   short_description?: string;
   full_description?: string;
   session_type: string;
-  capacity: number;
+  capacity: number | null;
   min_age?: number;
   max_age?: number;
   skill_level: string;
@@ -106,9 +118,9 @@ export interface PublicSessionDetailPayload {
     end_time: string;
   } | null;
   availability?: {
-    capacity: number;
+    capacity: number | null;
     enrolled_count: number;
-    remaining_spots: number;
+    remaining_spots: number | null;
     is_full: boolean;
   };
   cancellation_terms?: string;
@@ -121,5 +133,28 @@ export interface PublicSessionDetailPayload {
 export interface PublicPass {
   id: string; name: string; description?: string; price: number; offer_price?: number | null; currency: string;
   tier_type: string; validity_days: number; total_classes?: number;
-  classes: { id: string; name: string }[];
+  class_packages?: { session_id: string; package_id: string; total_classes: number; class_name: string }[];
+  classes: { id: string; name: string; total_classes?: number | null }[];
+}
+
+export interface ZoomConnectionSummary {
+  zoom_host_id?: string | null;
+  connection_id: string;
+  member_id: string;
+  email: string | null;
+  display_name: string | null;
+  status: string;
+  version: number;
+  is_simulated: boolean;
+  production_ready: boolean;
+}
+export interface TeacherZoomState {
+  zoom_connection_status: string;
+  zoom_connection: ZoomConnectionSummary | null;
+  zoom_verified_email: string | null;
+  is_default_zoom_host: boolean;
+  effective_zoom_host: ZoomConnectionSummary | null;
+  zoom_ready: boolean;
+  production_ready: boolean;
+  start_responsibility: string;
 }
