@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 export const dynamic = "force-dynamic";
 
 async function forward(request: NextRequest, { params }: { params: { path: string[] } }) {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  const base = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
   const url = `${base.replace(/\/$/, "")}/admin/communication/${params.path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
   const headers = new Headers();
   for (const name of ["authorization", "content-type"]) {

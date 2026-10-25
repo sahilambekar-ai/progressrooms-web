@@ -5,6 +5,11 @@ const nextConfig = {
   distDir,
   output: "standalone",
   reactStrictMode: true,
+  async rewrites() {
+    // Local target modes use a same-origin proxy, avoiding VPS CORS changes.
+    const api = process.env.API_PROXY_TARGET;
+    return api ? [{ source: "/api/v1/:path*", destination: `${api.replace(/\/$/, "")}/:path*` }] : [];
+  },
   async redirects() {
     return [
       { source: "/logo.png", destination: "/brand/logo-transparent.png", permanent: true },

@@ -47,6 +47,16 @@ export function AdminStudios({ mode, onViewMore }: { mode: "directory" | "billin
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
+  const [busy, setBusy] = useState(false);
+  async function changeStudio(studio: {id: string; name: string; status: string}, action: "status" | "delete") {
+    const next = studio.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    if (!window.confirm(action === "delete" ? `Delete ${studio.name}? Studio access and its website will be disabled. Historical and billing records are retained.` : `${next === "ACTIVE" ? "Restore" : "Suspend"} access to ${studio.name}? This affects all studio staff and operations.`)) return;
+    setBusy(true); setError("");
+    try {
+      await staffApi(`/admin/organizations/${studio.id}${action === "status" ? "/status" : ""}`, {method: action === "status" ? "PATCH" : "DELETE", ...(action === "status" ? {body: JSON.stringify({status: next})} : {})});
+      setDetailId(""); setRevision(v => v+1);
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
   const pageSize = 10;
 
   useEffect(() => {
@@ -102,7 +112,7 @@ export function AdminStudios({ mode, onViewMore }: { mode: "directory" | "billin
           <td className="px-3 py-4 text-right"><span className="inline-flex rounded-lg bg-[#EDF5EF] px-2.5 py-1.5 font-bold tabular-nums text-[#28613D]" title={`Current month in ${studio.timezone}`}>{studio.active_students.toLocaleString("en-IN")}</span></td>
           <td className="px-3 py-4 text-right"><p className="font-bold text-[#173F2A]">{studio.estimated_platform_fee === null ? "Quote required" : money(studio.estimated_platform_fee)}</p><p className="mt-1 text-[10px] text-slate-400">{studio.estimated_platform_fee === null ? "Country review" : studio.estimated_platform_fee === 0 ? "Free usage tier" : "Before tax"}</p></td>
           <td className="px-3 py-4"><Status status={studio.status} /><p className={`mt-1.5 text-[10px] ${studio.account_completed ? "text-slate-400" : "text-amber-700"}`}>{studio.account_completed ? "Setup complete" : "Setup incomplete"}</p></td>
-          <td className="whitespace-nowrap px-3 py-4 text-[10px] text-slate-500">{dateLabel(studio.created_at)}</td><td className="sticky right-0 border-l border-[#E9EEE9] bg-white px-3 py-4"><button onClick={() => openStudio(studio.id)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#D8E3DA] px-3 py-2 text-[11px] font-semibold text-[#244B34] hover:bg-[#F1F6F2]">View studio<ArrowRight size={12} /></button></td>
+          <td className="whitespace-nowrap px-3 py-4 text-[10px] text-slate-500">{dateLabel(studio.created_at)}</td><td className="sticky right-0 border-l border-[#E9EEE9] bg-white px-3 py-4"><button onClick={() => openStudio(studio.id)} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#D8E3DA] px-3 py-2 text-[11px] font-semibold text-[#244B34] hover:bg-[#F1F6F2]">View studio<ArrowRight size={12} /></button><button disabled={busy} onClick={() => changeStudio(studio, "status")} className="mt-2 block text-[11px] font-semibold text-amber-800 disabled:opacity-40">{studio.status === "ACTIVE" ? "Suspend login" : "Restore login"}</button><button disabled={busy} onClick={() => changeStudio(studio, "delete")} className="mt-2 block text-[11px] font-semibold text-red-700 disabled:opacity-40">Delete studio</button></td>
         </tr>)}</tbody></table>{loading ? <p role="status" className="p-10 text-center text-sm text-slate-400">Loading studios…</p> : !filtered.length && <p className="p-10 text-center text-sm text-slate-400">No studios match your search.</p>}</div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#E7EDE8] bg-[#FCFDFC] px-4 py-3 text-[11px] text-slate-500"><span>Showing {filtered.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} studios</span><div className="flex items-center gap-3"><button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Previous</button><span>{currentPage} / {totalPages}</span><button disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Next</button></div></div>
       </div><p className="text-[10px] leading-relaxed text-slate-400">Scroll the table horizontally to see all columns. Monthly activity uses each studio’s timezone. Up to 20 active students is free; above 20, every active student costs ₹30. Fees shown are current-month estimates in INR.</p>

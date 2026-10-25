@@ -3,14 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/start-environment.mjs dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node scripts/start-environment.mjs",
     "lint": "next lint",
     "check": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "build:standalone": "next build && node scripts/prepare-standalone.mjs",
-    "start:standalone": "node .next/standalone/server.js"
+    "start:standalone": "node .next/standalone/server.js",
+    "start:dev": "node scripts/start-environment.mjs dev",
+    "start:uat": "node scripts/start-environment.mjs uat",
+    "start:prod": "node scripts/start-environment.mjs prod"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
