@@ -2038,6 +2038,7 @@ function AdminDashboardPage() {
 
       {/* Main Studio Dashboard Viewport */}
       <main id="main-content" className="dashboard-content min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 xl:p-8">
+        {!isSuperAdmin && studioPlanLabel && <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#CEDECF] bg-[#F4F7F4] px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-wide text-[#275539]">Current plan</p><p className="mt-1 text-sm font-bold text-[#133623]">{studioPlanLabel}</p></div>{isStudioOwner && <button type="button" onClick={() => navigateToTab("billing-saas")} className="rounded-xl border border-[#275539] bg-white px-4 py-2 text-sm font-semibold text-[#133623]">View plans & billing</button>}</div>}
         {!isSuperAdmin && currentUser?.organization_id && <StudioAccessNotice orgId={currentUser.organization_id} isOwner={isStudioOwner} onBilling={() => navigateToTab("billing-saas")} onRestricted={setStudioRestricted} onPlanLabel={setStudioPlanLabel} />}
         {isTeacher && currentUser?.teacher_code && (
           <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-[#CEDECF] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">

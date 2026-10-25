@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { staffApi } from "@/lib/staff-api";
 import { SAAS_INTERNATIONAL_NOTICE, SAAS_PRICING_POLICY_VERSION, SAAS_SUPPORT_EMAIL, SAAS_TAX_NOTICE, SAAS_USAGE_NOTICE } from "@/lib/saas-pricing";
 
@@ -43,12 +43,19 @@ export function SaaSBilling({ orgId }: { orgId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const countrySelect = useRef<HTMLSelectElement>(null);
   const path = `/organizations/${orgId}/saas-billing`;
   const refresh = useCallback(async () => { const result = await staffApi(path); setData(result); }, [path]);
   useEffect(() => { setData(null); setQuote(null); setConsent(false); setError(""); refresh().catch(e => setError(e.message)); }, [refresh]);
   const post = (url: string, body: unknown = {}) => staffApi(url, { method: "POST", body: JSON.stringify(body) });
 
   async function review(planId: string) {
+    if (country !== "IN") {
+      setMessage(country ? SAAS_INTERNATIONAL_NOTICE : "Select your billing location to review this plan’s total.");
+      countrySelect.current?.focus();
+      countrySelect.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     setError(""); setMessage(""); setConsent(false); setQuote(null); setBusy(true);
     try { setQuote(await post(`${path}/quote`, { plan_id: planId, billing_country: country })); }
     catch (e) { setError(e instanceof Error ? e.message : "Could not load price"); }
@@ -105,22 +112,24 @@ export function SaaSBilling({ orgId }: { orgId: string }) {
     {message && <p role="status" className="rounded-xl bg-blue-50 p-4 text-sm text-blue-800">{message}</p>}
     {!data && !error && <p role="status">Loading your subscription…</p>}
     {data && <>
-      <section className="rounded-2xl border border-[#CEDECF] bg-[#F4F7F4] p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[#275539]">{data.access.state === "LEGACY" ? "Existing account" : data.access.state.replaceAll("_", " ")}</p>
+      <section aria-label="Current plan" className="rounded-2xl border border-[#CEDECF] bg-[#F4F7F4] p-6">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#275539]">Current plan · {data.access.state === "LEGACY" ? "Existing account" : data.access.state.replaceAll("_", " ")}</p>
         <h2 className="mt-2 text-xl font-bold">{data.plan_name || "Choose your subscription"}</h2>
         {["TRIAL", "TRIAL_ENDING", "GRACE"].includes(data.access.state) ? <><p className="mt-2 text-sm">Subscription trial ends {formatDate(data.access.trial_ends_at)}. Access restriction date: {formatDate(data.access.restriction_at)}.</p><p className="mt-2 text-sm">The trial waives the subscription price. Active-student usage remains chargeable.</p></> :
           ["ACTIVE", "PAID_ENDING", "PAID_GRACE"].includes(data.access.state) ? <p className="mt-2 text-sm">Paid access through {formatDate(data.access.paid_through)}. Renew before {formatDate(data.access.restriction_at)} to avoid restrictions. Renewals extend your existing coverage.</p> :
           data.access.state === "RESTRICTED" ? <p className="mt-2 text-sm">{data.enforcement_enabled ? "Choose a plan to restore your studio. Your data is saved; Billing and Settings remain available." : "Your subscription has ended. Contact support to activate your subscription."}</p> :
-          <p className="mt-2 text-sm">Review the available plans below. Contact support if your existing subscription needs to be linked.</p>}
+          <p className="mt-2 text-sm">Your existing plan provides access outside online subscription billing. You can review plans below; contact support to move this account to a paid subscription.</p>}
       </section>
+      {!data.checkout_available && <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><p className="font-semibold">Online payments are currently unavailable</p><p className="mt-1">{data.checkout_message || "Payment setup is in progress. You can still review plans and pricing."}</p><a className="mt-2 inline-block font-semibold underline" href={`mailto:${SAAS_SUPPORT_EMAIL}`}>Contact billing support</a></div>}
       <section className="space-y-3 rounded-2xl border bg-white p-5">
-        <label className="block text-sm font-semibold">Where does your studio or teaching business operate?<select value={country} onChange={e => { setCountry(e.target.value); setQuote(null); setConsent(false); }} className="mt-2 block w-full rounded-xl border bg-white p-3 sm:max-w-sm"><option value="">Select location</option><option value="IN">India</option><option value="OTHER">Outside India</option></select></label>
+        <label className="block text-sm font-semibold">Where does your studio or teaching business operate?<select ref={countrySelect} value={country} onChange={e => { setCountry(e.target.value); setQuote(null); setConsent(false); setMessage(""); }} className="mt-2 block w-full rounded-xl border bg-white p-3 sm:max-w-sm"><option value="">Select location</option><option value="IN">India</option><option value="OTHER">Outside India</option></select></label>
+        {!country && <p className="text-sm text-slate-600">Choose your billing location to review the final total. You can browse plans at any time.</p>}
         {country === "OTHER" && <p className="text-sm text-slate-600">{SAAS_INTERNATIONAL_NOTICE} <a href={`mailto:${SAAS_SUPPORT_EMAIL}`} className="font-semibold underline">Contact support</a></p>}
       </section>
       <div className="grid gap-5 md:grid-cols-2">{data.plans.map(plan => <section key={plan.id} className="rounded-2xl border border-[#CEDECF] bg-white p-6">
-        <h2 className="text-xl font-bold text-[#133623]">{plan.name}</h2><p className="mt-3 text-3xl font-bold">{formatMoney(plan.base_paise)}<span className="text-sm font-normal text-slate-500"> / month</span></p>
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-bold text-[#133623]">{plan.name}</h2>{plan.name === data.plan_name && <span className="rounded-full bg-[#E8F0E9] px-3 py-1 text-xs font-semibold text-[#133623]">Current plan</span>}</div><p className="mt-3 text-3xl font-bold">{formatMoney(plan.base_paise)}<span className="text-sm font-normal text-slate-500"> / month</span></p>
         <p className="mt-2 text-sm text-slate-500">Before GST · Active-student usage billed separately</p>
-        <button disabled={busy || country !== "IN"} onClick={() => review(plan.id)} className="mt-5 rounded-xl bg-[#133623] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">Review {plan.name} plan</button>
+        <button disabled={busy} onClick={() => review(plan.id)} className="mt-5 rounded-xl bg-[#133623] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Please wait…" : `Review ${plan.name} plan`}</button>
       </section>)}</div>
       {quote && <section aria-label="Review payment" className="space-y-4 rounded-2xl border-2 border-[#275539] bg-white p-6">
         <h2 className="text-xl font-bold">Review your {quote.plan_name} purchase</h2>
@@ -128,7 +137,9 @@ export function SaaSBilling({ orgId }: { orgId: string }) {
         <p className="text-xs text-slate-500">Early purchase preserves your remaining trial. Your paid month follows the trial; after the trial, it starts when payment is verified. Active-student usage is excluded from this payment.</p>
         <label className="flex items-start gap-3 text-sm"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} className="mt-1"/><span>I have reviewed the total and the <Link href="/pricing-policy" target="_blank" className="underline">pricing policy</Link>, including separate usage charges during the trial.</span></label>
         {!data.checkout_available && <p role="status" className="text-sm text-amber-800">{data.checkout_message}</p>}
-        <button disabled={busy || !consent || !data.checkout_available} onClick={pay} className="rounded-xl bg-[#133623] px-5 py-3 font-semibold text-white disabled:opacity-40">{busy ? "Processing…" : `Pay ${formatMoney(quote.total_paise)} with Razorpay`}</button>
+        {data.access.state === "LEGACY" && <p className="text-sm text-amber-800">An existing subscription may need support review before online purchase. <a href={`mailto:${SAAS_SUPPORT_EMAIL}`} className="font-semibold underline">Contact billing support</a>.</p>}
+        {!consent && <p id="payment-consent-help" className="text-sm text-slate-600">Accept the pricing policy above to continue to payment.</p>}
+        <button aria-describedby={!consent ? "payment-consent-help" : undefined} disabled={busy || !consent || !data.checkout_available} onClick={pay} className="rounded-xl bg-[#133623] px-5 py-3 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Processing…" : !data.checkout_available ? "Online payment unavailable" : `Pay ${formatMoney(quote.total_paise)} with Razorpay`}</button>
       </section>}
       <section className="space-y-3 rounded-2xl border bg-white p-5 text-sm text-slate-600"><p>{SAAS_TAX_NOTICE}</p><p>{SAAS_USAGE_NOTICE}</p><p>{SAAS_INTERNATIONAL_NOTICE}</p><Link href="/pricing-policy" className="inline-block font-semibold underline">Read pricing policy</Link></section>
       <section className="rounded-2xl border bg-white p-5"><h2 className="text-xl font-bold">Payment history</h2><div className="mt-4 space-y-3">{data.purchases.length ? data.purchases.map(p => <article key={p.id} className="flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4"><div><p className="font-semibold">{p.quote.plan_name} · {formatMoney(p.quote.total_paise)}</p><p className="mt-1 text-xs text-slate-500">{p.status} {p.receipt_number && `· ${p.receipt_number}`}</p>{p.service_starts_at && <p className="mt-1 text-xs text-slate-500">{formatDate(p.service_starts_at)} – {formatDate(p.service_ends_at)}</p>}</div>{p.status !== "PAID" && <button disabled={busy} onClick={() => checkPayment(p)} className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40">Check payment</button>}</article>) : <p className="text-sm text-slate-500">No subscription payments yet.</p>}</div></section>
