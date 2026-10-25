@@ -1,4 +1,6 @@
 "use client";
+import { AdminPeople } from "@/components/AdminPeople";
+import { AdminHealth } from "@/components/AdminHealth";
 
 import { rosterCsv } from "@/lib/roster-export";
 import { PurchasePolicyNotice } from "@/components/PurchasePolicyNotice";
@@ -65,6 +67,9 @@ type AdminTab =
   | "zoom-settings"
   | "zoom-host-key"
   // Super Admin Platform Tabs
+  | "superadmin-teachers"
+  | "superadmin-students"
+  | "superadmin-health"
   | "superadmin-instructors"
   | "superadmin-billing"
   | "superadmin-analytics"
@@ -147,16 +152,7 @@ interface StudioTeacher extends Partial<import("@/types").TeacherZoomState> {
 }
 
 
-interface PlatformMetrics {
-  total_organizations: number;
-  total_instructors: number;
-  total_students: number;
-  total_users: number;
-  total_platform_revenue: number;
-  active_subscriptions: number;
-  status: string;
-  system_status: string;
-}
+
 
 interface ClassBatch {
   id: string;
@@ -299,7 +295,7 @@ function AdminDashboardPage() {
         "settings",
         "zoom-settings",
         "zoom-host-key",
-        "superadmin-instructors",
+        "superadmin-instructors", "superadmin-teachers", "superadmin-students", "superadmin-health",
         "superadmin-billing",
         "superadmin-analytics",
         "superadmin-settings"
@@ -619,8 +615,6 @@ function AdminDashboardPage() {
   const [isAddingStudent, setIsAddingStudent] = useState(false);
 
   // Super Admin Platform States (with Live API)
-  const [adminMetrics, setAdminMetrics] = useState<PlatformMetrics | null>(null);
-  const [adminOrgs, setAdminOrgs] = useState<any[]>([]);
 
   // Attendance states (Calendar vs Checklist)
   const [attendanceType, setAttendanceType] = useState<"teacher" | "student">(() => {
@@ -1177,30 +1171,6 @@ function AdminDashboardPage() {
     }
   };
 
-  // Fetch Super Admin Metrics
-  const fetchAdminMetrics = async () => {
-    try {
-      const token = localStorage.getItem("pr_access_token") || "dev_test_token_usr-superadmin";
-      const res = await fetch(`${API_BASE_URL}/admin/metrics`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAdminMetrics(data);
-      }
-
-      const orgRes = await fetch(`${API_BASE_URL}/admin/organizations`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (orgRes.ok) {
-        const orgs = await orgRes.json();
-        setAdminOrgs(orgs);
-      }
-    } catch (e) {
-      console.warn("Error fetching admin metrics");
-    }
-  };
-
   // Fetch Studio Profile & Settings from FastAPI
   const fetchStudioProfile = async (orgId?: string, overrideRole?: string) => {
     try {
@@ -1463,7 +1433,7 @@ function AdminDashboardPage() {
           "subscriptions-manager", "attendance-tracker", "my-website", "queries-manager",
           "analytics", "billing-dashboard", "billing-saas", "billing-progressrooms", "billing-downloads", "settings",
           "zoom-settings", "zoom-host-key",
-          "superadmin-instructors", "superadmin-billing", "superadmin-analytics", "superadmin-settings"
+          "superadmin-instructors", "superadmin-teachers", "superadmin-students", "superadmin-health", "superadmin-billing", "superadmin-analytics", "superadmin-settings"
         ];
 
         if (requestedTab && validTabs.includes(requestedTab)) {
@@ -1593,17 +1563,6 @@ function AdminDashboardPage() {
       controller.abort();
     };
   }, [activeTab, attendanceType, attendancePersonSearch, attendanceSuggestionsOpen, isTeacher, currentUser?.organization_id]);
-
-  // Trigger Admin API queries when Super Admin browses platform tabs
-  useEffect(() => {
-    if (currentUser?.role === "SUPER_ADMIN") {
-      if (activeTab === "superadmin-instructors") {
-        fetchAdminMetrics();
-      } else if (activeTab === "superadmin-analytics") {
-        fetchAdminMetrics();
-      }
-    }
-  }, [activeTab, currentUser]);
 
   // Check double-booking conflicts whenever instructor, days, or time range changes
   useEffect(() => {
@@ -1777,7 +1736,7 @@ function AdminDashboardPage() {
         "my-website",
         "zoom-settings",
         "zoom-host-key",
-        "superadmin-instructors",
+        "superadmin-instructors", "superadmin-teachers", "superadmin-students", "superadmin-health",
         "superadmin-billing",
         "superadmin-analytics",
         "superadmin-settings",
@@ -1875,6 +1834,10 @@ function AdminDashboardPage() {
                 >
                   <span>Manage Studios</span>
                 </button>
+
+                <button onClick={() => navigateToTab("superadmin-teachers")} className={`nav-item ${activeTab === "superadmin-teachers" ? "active" : ""}`}>Manage Teachers</button>
+                <button onClick={() => navigateToTab("superadmin-students")} className={`nav-item ${activeTab === "superadmin-students" ? "active" : ""}`}>Manage Students</button>
+                <button onClick={() => navigateToTab("superadmin-health")} className={`nav-item ${activeTab === "superadmin-health" ? "active" : ""}`}>Server Health</button>
 
                 <button onClick={() => navigateToTab("superadmin-billing")} className={`nav-item ${activeTab === "superadmin-billing" ? "active" : ""}`}>
                   <span>Studio Billing & Activity</span>
@@ -2130,55 +2093,8 @@ function AdminDashboardPage() {
         )}
 
         {/* SUPER ADMIN TAB 2: PLATFORM OVERVIEW & METRICS */}
-        {activeTab === "superadmin-analytics" && (
-          <div className="space-y-6">
-            <div>
-              <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Platform Overview & Subscriptions</h1>
-              <p className="text-xs text-[#40514E] mt-0.5">Real-time health, subscriber retention, and tenancy metrics across Progress Rooms OS.</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Studios</span>
-                <p className="text-3xl font-black text-[#0C2417]">{adminMetrics?.total_organizations ?? 6}</p>
-                <p className="text-[11px] text-emerald-600 font-semibold">Active Tenant Hubs</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Platform Gross MRR</span>
-                <p className="text-3xl font-black text-[#0C2417]">₹{(adminMetrics?.total_platform_revenue ?? 2500).toLocaleString()}</p>
-                <p className="text-[11px] text-slate-500 font-semibold">Processed via Razorpay & Stripe</p>
-              </div>
-
-              <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Platform Infrastructure</span>
-                <p className="text-xl font-bold text-emerald-700 flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Healthy</span>
-                </p>
-                <p className="text-[11px] text-slate-500">PostgreSQL (progressrooms_db) • Port 5432</p>
-              </div>
-            </div>
-
-            {/* Registered Studios Directory */}
-            <div className="bg-white rounded-3xl border border-[#E1E9E2] shadow-sm overflow-hidden p-6 space-y-4">
-              <h3 className="text-base font-serif font-bold text-[#0C2417]">Registered Tenant Studios</h3>
-              <div className="divide-y divide-[#E1E9E2]">
-                {adminOrgs.map((org) => (
-                  <div key={org.id} className="py-3.5 flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-sm text-[#0C2417]">{org.name}</p>
-                      <p className="text-[11px] text-slate-500 font-mono">progressrooms.com/{org.slug}</p>
-                    </div>
-                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">
-                      {org.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+        {isSuperAdmin && (activeTab === "superadmin-analytics" || activeTab === "superadmin-health") && <AdminHealth />}
+        {isSuperAdmin && (activeTab === "superadmin-teachers" || activeTab === "superadmin-students") && <AdminPeople key={activeTab} role={activeTab === "superadmin-teachers" ? "TEACHER" : "STUDENT"} />}
 
         {/* SUPER ADMIN TAB 3: PLATFORM SETTINGS */}
         {activeTab === "superadmin-settings" && (

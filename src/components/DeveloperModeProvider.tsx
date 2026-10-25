@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Code2 } from "lucide-react";
 
 const STORAGE_KEY = "pr_developer_mode";
-const DeveloperModeContext = createContext({ enabled: false, toggle: () => {} });
+const DeveloperModeContext = createContext({ available: false, enabled: false, toggle: () => {} });
 
 export function useDeveloperMode() {
   return useContext(DeveloperModeContext).enabled;
@@ -16,8 +16,13 @@ export function DeveloperOnly({ children }: { children: ReactNode }) {
 
 export function DeveloperModeProvider({ children }: { children: ReactNode }) {
   const [enabled, setEnabled] = useState(false);
+  const [available, setAvailable] = useState(false);
 
   useEffect(() => {
+    const localHost = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+    const localBuild = process.env.NODE_ENV === "development" && (!process.env.NEXT_PUBLIC_APP_ENV || process.env.NEXT_PUBLIC_APP_ENV === "dev");
+    if (!localHost || !localBuild) return;
+    setAvailable(true);
     try {
       setEnabled(localStorage.getItem(STORAGE_KEY) === "on");
     } catch {
@@ -33,6 +38,7 @@ export function DeveloperModeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggle = () => {
+    if (!available) return;
     const next = !enabled;
     setEnabled(next);
     try {
@@ -42,11 +48,11 @@ export function DeveloperModeProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  return <DeveloperModeContext.Provider value={{ enabled, toggle }}>{children}</DeveloperModeContext.Provider>;
+  return <DeveloperModeContext.Provider value={{ available, enabled: available && enabled, toggle }}>{children}</DeveloperModeContext.Provider>;
 }
 
 export function DeveloperControls({ children }: { children: ReactNode }) {
-  const { enabled, toggle } = useContext(DeveloperModeContext);
+  const { available, enabled, toggle } = useContext(DeveloperModeContext);
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -61,6 +67,7 @@ export function DeveloperControls({ children }: { children: ReactNode }) {
       document.removeEventListener("keydown", escape);
     };
   }, []);
+  if (!available) return null;
   return <div ref={box} data-developer-mode
     className="fixed bottom-4 left-4 z-[60] flex items-center gap-2"
     onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}

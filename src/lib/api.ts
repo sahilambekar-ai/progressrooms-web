@@ -1,6 +1,7 @@
 import { PublicWebsitePayload, PublicSessionDetailPayload } from '@/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+// Used by server-rendered tenant pages; remote preview modes need an absolute backend URL.
+const API_BASE_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 export async function fetchPublicOrganization(orgSlug: string): Promise<PublicWebsitePayload | null> {
   try {
