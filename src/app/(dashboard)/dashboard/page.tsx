@@ -40,6 +40,7 @@ const SaaSBilling = dynamic(() => import("@/components/SaaSBilling").then(module
 const ProgressRoomsBilling = dynamic(() => import("@/components/ProgressRoomsBilling").then(module => module.ProgressRoomsBilling), { loading: PanelLoading });
 const BillingCenter = dynamic(() => import("@/components/BillingCenter").then(module => module.BillingCenter), { loading: PanelLoading });
 const StudioAnalytics = dynamic(() => import("@/components/StudioAnalytics").then(module => module.StudioAnalytics), { loading: PanelLoading });
+import { studioToday } from "@/lib/meeting-window";
 import { TeacherZoomControl, zoomLabel } from "@/components/TeacherZoomControl";
 
 const InitialZoomSetup = dynamic(() => import("@/components/InitialZoomSetup").then(module => module.InitialZoomSetup), { loading: PanelLoading });
@@ -79,6 +80,7 @@ type SettingsSection = "profile" | "dashboard";
 type DashboardTheme = "forest" | "sage" | "sand" | "midnight" | "obsidian" | "plum";
 
 interface StudioProfile {
+  timezone?: string;
   organization_id?: string;
   name?: string;
   slug?: string;
@@ -657,7 +659,21 @@ function AdminDashboardPage() {
   const [rosterSearch, setRosterSearch] = useState("");
   const [rosterFilter, setRosterFilter] = useState<"ALL" | "ATTENDED" | "ABSENT" | "EXCUSED" | "SCHEDULED">("ALL");
   const [markingEnrollmentId, setMarkingEnrollmentId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(() => studioToday());
+  const [attendanceTimezone, setAttendanceTimezone] = useState("Asia/Kolkata");
+  useEffect(() => {
+    const org = currentUser?.organization_id;
+    if (!org) return;
+    const controller = new AbortController();
+    void staffApi(`/auth/context?studio_id=${org}`, { signal: controller.signal }).then(context => {
+      if (context.timezone) setAttendanceTimezone(context.timezone);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [currentUser?.organization_id]);
+  useEffect(() => {
+    const today = studioToday(attendanceTimezone);
+    setSelectedDate(today); setAttendanceMonth(today.slice(0, 7));
+  }, [attendanceTimezone]);
 
   const openAttendanceFor = async (type: "teacher" | "student", person?: StudioTeacher | Student) => {
     if (zoomNavigationGuard.current && !await zoomNavigationGuard.current()) return;
@@ -3798,6 +3814,8 @@ function AdminDashboardPage() {
                 readOnly={attendanceType === "teacher" && isTeacher}
                 personLabel={selectedAttendancePerson.name}
                 view={attendancePeriod}
+                timezone={attendanceTimezone}
+                onJoinClass={async event => (await staffApi(`/organizations/${currentUser?.organization_id}/occurrences/${event.occurrenceId}/join-link`, { method: "POST" })).meeting_url}
                 selectedDate={selectedDate}
                 onSelectDate={setSelectedDate}
                 onMonthChange={setAttendanceMonth}

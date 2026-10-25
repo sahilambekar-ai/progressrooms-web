@@ -1,4 +1,7 @@
 'use client';
+import { MeetingAction } from './MeetingAction';
+import { Modal } from './Modal';
+import { studioToday } from '@/lib/meeting-window';
 import { CollapsedDescription } from './RichDescription';
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -13,6 +16,8 @@ export interface CalendarSessionEvent {
   date: string;
   time?: string;
   startAt?: string;
+  endAt?: string;
+  meetingAvailable?: boolean;
   sessionTitle: string;
   description?: string | null;
   studentName?: string;
@@ -36,6 +41,8 @@ interface AttendanceCalendarProps {
   onSelectDate?: (date: string) => void;
   onMonthChange?: (month: string) => void;
   loading?: boolean;
+  timezone?: string;
+  onJoinClass?: (event: CalendarSessionEvent) => Promise<string>;
   onEditClass?: (event: CalendarSessionEvent) => void;
 }
 const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
@@ -61,7 +68,7 @@ const statusColor = (status: CalendarAttendanceStatus) => {
   }
 };
 
-export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSaveEvent, onToast, readOnly = false, personLabel = 'Attendance', view = 'month', selectedDate, onSelectDate, onMonthChange, loading, onEditClass }: AttendanceCalendarProps) {
+export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSaveEvent, onToast, readOnly = false, personLabel = 'Attendance', view = 'month', selectedDate, onSelectDate, onMonthChange, loading, onEditClass, onJoinClass, timezone = 'Asia/Kolkata' }: AttendanceCalendarProps) {
   const [now, setNow] = useState(() => Date.now());
   // Switch an upcoming class as soon as its start time arrives, even while the calendar stays open.
   useEffect(() => {
@@ -72,8 +79,9 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
   }, [sourceEvents, now]);
   const events = sourceEvents.map(event => event.status === 'SCHEDULED' && event.startAt && Date.parse(event.startAt) <= now
     ? { ...event, status: 'PRESENT' as const } : event);
-  const [date, setDate] = useState(selectedDate || dateKey(new Date()));
-  const [hasSelectedDate, setHasSelectedDate] = useState(false);
+  const [detail, setDetail] = useState<CalendarSessionEvent | null>(null);
+  const [date, setDate] = useState(selectedDate || studioToday(timezone));
+  useEffect(() => { setDate(studioToday(timezone)); }, [timezone]);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [dayPickerOpen, setDayPickerOpen] = useState(false);
   const chosen = selectedDate || date;
@@ -98,7 +106,6 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
   }, [dayPickerOpen]);
 
   const selectDate = (next: string) => {
-    setHasSelectedDate(true);
     setDate(next);
     onSelectDate?.(next);
     setTimeout(() => {
@@ -181,7 +188,7 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
             </button>
             <button
               type="button"
-              onClick={() => selectDate(dateKey(new Date()))}
+              onClick={() => selectDate(studioToday(timezone))}
               className="rounded-xl border border-[#CEDECF] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-[#F4F7F4] text-[#0C2417] transition"
             >
               Today
@@ -207,7 +214,7 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
             </button>
             <button
               type="button"
-              onClick={() => selectDate(dateKey(new Date()))}
+              onClick={() => selectDate(studioToday(timezone))}
               className="rounded-xl border border-[#CEDECF] bg-white px-3.5 py-2 text-xs font-semibold hover:bg-[#F4F7F4] text-[#0C2417] transition"
             >
               Today
@@ -323,7 +330,7 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
                     <button
                       type="button"
                       onClick={() => {
-                        selectDate(dateKey(new Date()));
+                        selectDate(studioToday(timezone));
                         setDayPickerOpen(false);
                       }}
                       className="text-[11px] font-bold text-[#2D7A58] hover:text-[#133623] hover:underline"
@@ -368,8 +375,8 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
             {Array.from({ length: days }, (_, index) => {
               const key = `${month}-${String(index + 1).padStart(2, '0')}`;
               const entries = events.filter((event) => event.date === key);
-              const todayKey = dateKey(new Date());
-              const isSelected = chosen === key && (hasSelectedDate || key !== todayKey);
+              const todayKey = studioToday(timezone);
+              const isSelected = chosen === key;
 
               // Group counts for mobile view legend icons
               const presentCount = entries.filter((e) => e.status === 'PRESENT').length;
@@ -637,7 +644,7 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
                       className="h-2.5 w-2.5 rounded-full shrink-0"
                       style={{ backgroundColor: statusColor(entry.status) }}
                     />
-                    <h4 className="font-bold text-sm text-[#0C2417]">{entry.sessionTitle}</h4><CollapsedDescription text={entry.description} />
+                    <button type="button" onClick={() => setDetail(entry)} className="font-bold text-sm text-[#0C2417] underline decoration-dotted">{entry.sessionTitle}</button><CollapsedDescription text={entry.description} />
                     {entry.status === 'SCHEDULED' && <WhatsAppNotificationHint kind="reminder" />}
                     <span
                       className="text-[11px] font-bold px-2.5 py-0.5 rounded-full"
@@ -650,7 +657,7 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 mt-1 pl-4.5">
-                    {entry.time || 'Scheduled session'}
+                    <button type="button" onClick={() => setDetail(entry)} className="underline decoration-dotted">{entry.time || 'Scheduled session'}</button>
                     {entry.organizationName ? ` · Studio: ${entry.organizationName}` : ''}
                     {entry.teacherName ? ` · Teacher: ${entry.teacherName}` : ''}
                     {entry.studentName ? ` · Student: ${entry.studentName}` : ''}
@@ -662,6 +669,7 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
                   )}
                 </div>
 
+                {onJoinClass && entry.occurrenceId && entry.meetingAvailable !== false && <MeetingAction endAt={entry.endAt} load={() => onJoinClass(entry)} onError={onToast} />}
                 {/* Direct inline actions for studio owner */}
                 {!readOnly && (
                   <div className="flex items-center gap-2 sm:self-center shrink-0 flex-wrap pt-2 sm:pt-0 border-t sm:border-t-0 border-[#E1E9E2]">
@@ -728,6 +736,13 @@ export function AttendanceCalendar({ events: sourceEvents, onUpdateEvents, onSav
           })}
         </div>
       </section>
+      {detail && <Modal title={detail.sessionTitle} onClose={() => setDetail(null)}>
+        <div className="space-y-4 p-6 text-sm">
+          <p>{detail.date} · {detail.time}</p>
+          <CollapsedDescription text={detail.description} />
+          {onJoinClass && detail.occurrenceId && detail.meetingAvailable !== false && <MeetingAction endAt={detail.endAt} load={() => onJoinClass(detail)} onError={onToast} />}
+        </div>
+      </Modal>}
     </section>
   );
 }

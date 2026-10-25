@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { openMeetingTab } from "@/lib/meeting-window";
+import { useZoomRefresh } from "@/lib/zoom-refresh";
 import { staffApi } from "@/lib/staff-api";
 
 export function InitialZoomSetup({ org, onConnected }: { org: string; onConnected: (connected: boolean, email: string) => void }) {
@@ -13,7 +15,7 @@ export function InitialZoomSetup({ org, onConnected }: { org: string; onConnecte
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  useEffect(() => {
+  const refresh = () => {
     if (!org) return;
     void Promise.all([staffApi(`/organizations/${org}/zoom/settings`), staffApi(`/organizations/${org}/zoom/host-key`)]).then(([prefs, keyStatus]) => {
       setHostKeySaved(keyStatus.host_key_configured);
@@ -24,16 +26,16 @@ export function InitialZoomSetup({ org, onConnected }: { org: string; onConnecte
       onConnected(ready, owner?.zoom_verified_email || "");
       if (owner?.zoom_connection_status === "SIMULATED") setMessage("Development simulation: reconnect with live Zoom before hosting real classes.");
     }).catch(error => { setMessage(error.message); onConnected(false, ""); });
-  }, [org]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
+  useEffect(refresh, [org]); // eslint-disable-line react-hooks/exhaustive-deps
+  useZoomRefresh(refresh);
   return <div className="space-y-4">
     <h3 className="text-xl font-bold text-[#0C2417]">Initial Zoom account · Required</h3>
     <p className="text-sm text-slate-600">Enter your Zoom Host ID, then authorize the matching Zoom account to connect Progress Rooms and complete Studio setup.</p>
     <form className="space-y-3" onSubmit={async event => {
       event.preventDefault(); setBusy(true); setMessage("");
       try {
-        const response = await staffApi(`/organizations/${org}/teachers/${member}/zoom/connect?zoom_host_id=${encodeURIComponent(hostId.trim())}`, { method: "POST" });
-        sessionStorage.setItem("pr_zoom_onboarding", org);
-        window.location.assign(response.authorization_url);
+        await openMeetingTab(async () => (await staffApi(`/organizations/${org}/teachers/${member}/zoom/connect?zoom_host_id=${encodeURIComponent(hostId.trim())}`, { method: "POST" })).authorization_url);
       } catch (error) { setMessage((error as Error).message); } finally { setBusy(false); }
     }}>
       <label className="block text-xs font-semibold text-[#133623]">Zoom Host ID<input required type="text" maxLength={255} pattern="[A-Za-z0-9_-]+" value={hostId} onChange={event => setHostId(event.target.value)} className="mt-2 block w-full rounded-xl border border-[#CEDECF] p-3 text-sm" /></label>

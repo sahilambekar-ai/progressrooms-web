@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Video, CalendarDays, ArrowRight, MessageSquare, Plus, Search, AlertCircle, Loader2, CheckCircle2, Copy, Share2, User, Clock, MapPin, Check, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
+import { MeetingAction } from '@/components/MeetingAction';
 import type { CalendarSessionEvent } from '@/components/AttendanceCalendar';
 import { Modal } from '@/components/Modal';
 import type { Purchase } from '@/components/StoreCheckout';
@@ -54,7 +55,7 @@ type Class = {
   eligibility_reason?: string | null;
 };
 
-type Studio = { id: string; name: string; slug: string };
+type Studio = { id: string; name: string; slug: string; timezone?: string };
 
 type TeacherOfferingClass = {
   instructor_names?: string[];
@@ -516,7 +517,6 @@ export default function StudentPortalPage() {
   const [attendanceStudio, setAttendanceStudio] = useState('ALL');
 
   // Joining
-  const [joining, setJoining] = useState('');
 
   // Studios & Explore
   const [studios, setStudios] = useState<Studio[]>([]);
@@ -942,18 +942,6 @@ export default function StudentPortalPage() {
   const nextClass = scheduled[0];
   const isNewStudent = !loading && enrollments.length === 0 && classes.length === 0;
 
-  async function join(id: string) {
-    setJoining(id);
-    setError('');
-    try {
-      const data = await get(`/student/classes/${id}/meeting-url`);
-      window.location.assign(data.meeting_url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not open class.');
-    } finally {
-      setJoining('');
-    }
-  }
 
   return (
     <div className="min-h-screen bg-[#F4F7F4] text-[#133623]">
@@ -1110,18 +1098,7 @@ export default function StudentPortalPage() {
                 </p>
                 <p className="text-[#b7e4c7] mt-1 text-sm">With {nextClass.instructor_name}</p>
                 <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <button
-                    disabled={!nextClass.can_join || joining === nextClass.id}
-                    onClick={() => void join(nextClass.id)}
-                    className="inline-flex items-center gap-2 bg-white text-[#0C2417] rounded-xl px-6 py-3 font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition"
-                  >
-                    <Video size={18} />
-                    {joining === nextClass.id
-                      ? 'Opening live class…'
-                      : nextClass.can_join
-                      ? 'Join live class'
-                      : nextClass.eligibility_reason || 'Join opens 15 minutes before class'}
-                  </button>
+                  <MeetingAction endAt={nextClass.end_at} load={async () => (await get(`/student/classes/${nextClass.id}/meeting-url`)).meeting_url} onError={setError} />
                   <button
                     onClick={() => void openRescheduleModal(nextClass)}
                     className="text-xs font-semibold text-[#b7e4c7] hover:text-white hover:underline transition px-3 py-2"
@@ -1216,17 +1193,7 @@ export default function StudentPortalPage() {
                       <p className="text-sm mt-2 text-[#0C2417] font-medium">{date(c.start_at)}</p>
                     </div>
                     <div className="flex flex-col sm:items-end gap-2">
-                      <button
-                        disabled={!c.can_join || joining === c.id}
-                        onClick={() => void join(c.id)}
-                        className="rounded-xl bg-[#133623] text-white px-5 py-2.5 text-sm font-semibold disabled:bg-[#E8F0E9] disabled:text-[#526755] disabled:cursor-not-allowed transition"
-                      >
-                        {joining === c.id
-                          ? 'Opening live class…'
-                          : c.can_join
-                          ? 'Join class'
-                          : c.eligibility_reason || 'Opens 15 minutes before class'}
-                      </button>
+                      <MeetingAction endAt={c.end_at} load={async () => (await get(`/student/classes/${c.id}/meeting-url`)).meeting_url} onError={setError} />
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => void openRescheduleModal(c)}
@@ -1714,7 +1681,9 @@ export default function StudentPortalPage() {
               events={attendanceEvents}
               readOnly
               personLabel={name || 'Student'}
-              onToast={() => {}}
+              timezone={studios.find(studio => studio.id === attendanceStudio)?.timezone || studios[0]?.timezone}
+              onJoinClass={async event => (await get(`/student/classes/${event.occurrenceId}/meeting-url`)).meeting_url}
+              onToast={setError}
               loading={attendanceLoading}
               onMonthChange={(m) => setAttendanceMonth(m)}
             />

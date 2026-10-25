@@ -1,5 +1,6 @@
 "use client";
 
+import { MeetingAction } from "./MeetingAction";
 import { PurchasePolicyNotice } from "./PurchasePolicyNotice";
 import { BOOKING_CANCELLATION_TERMS } from "@/lib/purchase-policy";
 import { ClassPackageEditor, PackageDraft, newPackage } from "@/components/ClassPackageEditor";
@@ -16,7 +17,7 @@ import { CatalogHistoryTabs } from "@/components/CatalogHistoryTabs";
 import { LiveStatusToggle } from "@/components/LiveStatusToggle";
 import { TeacherZoomControl } from "./TeacherZoomControl";
 import { WhatsAppNotificationHint } from "@/components/WhatsAppNotificationHint";
-import { Video, Calendar, Clock, Plus, RefreshCw, CheckCircle2, Pencil, Trash2, X, Users, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
+import { Calendar, Clock, Plus, RefreshCw, CheckCircle2, Pencil, Trash2, X, Users, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
 
 type ClassItem = {
   id: string;
@@ -27,6 +28,7 @@ type ClassItem = {
   status: string;
   meeting_url: string | null;
   host_email?: string;
+  can_start?: boolean;
   zoom_status?: string;
   is_current: boolean;
 };
@@ -161,7 +163,7 @@ export function StudioClasses({
 
   useEffect(() => { if (!org) return; const timer = window.setInterval(() => { void refresh(org); }, 60000); return () => window.clearInterval(timer); }, [org]);
 
-  useEffect(() => { if (isTeacher && org) void staffApi(`/auth/context?studio_id=${org}`).then(setSelfZoom).catch(() => {}); }, [isTeacher, org]);
+  useEffect(() => { if (org) void staffApi(`/auth/context?studio_id=${org}`).then(setSelfZoom).catch(() => {}); }, [isTeacher, org]);
 
   const refreshAgenda = async (id: string) => {
     setAgendaLoading(true);
@@ -201,9 +203,7 @@ export function StudioClasses({
           }
         }
         await refresh(activeOrgId);
-        if (isTeacher) {
-          await refreshAgenda(activeOrgId);
-        }
+        await refreshAgenda(activeOrgId);
       } catch (error) {
         notify((error as Error).message, "error");
       }
@@ -499,7 +499,7 @@ export function StudioClasses({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {isTeacher && !showHistory && (
+          {!showHistory && (
             <button
               type="button"
               onClick={() => org && refreshAgenda(org)}
@@ -538,7 +538,7 @@ export function StudioClasses({
 
 
       {/* TEACHER LIVE AGENDA CARD */}
-      {isTeacher && (
+      {(
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-serif font-bold text-[#0C2417] capitalize">
@@ -582,32 +582,10 @@ export function StudioClasses({
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-[#E1E9E2] flex items-center justify-between">
-                    {item.status === "COMPLETED" || new Date(item.end_at) < new Date() ? (
-                      <span className="text-xs font-semibold text-slate-400">Class completed</span>
-                    ) : (
-                      <button
-                        disabled={busy}
-                        onClick={async () => {
-                          setBusy(true);
-                          try {
-                            const res = await staffApi(`/organizations/${org}/occurrences/${item.id}/join-link`, { method: "POST" });
-                            await refreshAgenda(org);
-                            notify(res.start_responsibility || "Class link is ready", "info");
-                            if (res.is_simulated) notify("Development simulation — no real Zoom meeting", "info");
-                            if (res.restricted_settings?.length) notify(`Zoom account policy restricts: ${res.restricted_settings.join(", ")}`, "info");
-                            window.open(res.meeting_url, "_blank", "noopener,noreferrer");
-                          } catch (err: any) {
-                            notify(err.message || "Failed to create meeting link", "error");
-                          } finally {
-                            setBusy(false);
-                          }
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#2D7A58] hover:bg-[#133623] text-white text-xs font-bold rounded-xl transition shadow-sm"
-                      >
-                        <Video className="h-4 w-4" />
-                        <span>Open class meeting</span>
-                      </button>
-                    )}
+                    <MeetingAction endAt={item.end_at} canStart={item.can_start} onError={message => notify(message, "error")} load={async () => {
+                      const res = await staffApi(`/organizations/${org}/occurrences/${item.id}/join-link`, { method: "POST" });
+                      return res.meeting_url;
+                    }} />
                   </div>
                 </article>
               ))}
@@ -615,7 +593,7 @@ export function StudioClasses({
         </div>
       )}
 
-      {isTeacher && selfZoom?.member_id && <div className="my-4 rounded-xl border bg-white p-4"><TeacherZoomControl org={org} member={selfZoom.member_id} name="My account" userId={selfZoom.user_id} currentUserId={selfZoom.user_id} /></div>}
+      {selfZoom?.can_teach && selfZoom?.member_id && <div className="my-4 rounded-xl border bg-white p-4"><TeacherZoomControl org={org} member={selfZoom.member_id} name="My account" userId={selfZoom.user_id} currentUserId={selfZoom.user_id} /></div>}
       <CatalogHistoryTabs history={showHistory} onChange={setShowHistory} label="Classes" panelId="class-catalog" />
       {/* CLASSES LIST MAIN CONTENT VIEW (RENDERED BELOW HEADER) */}
       <div id="class-catalog" role="tabpanel" aria-labelledby={`class-catalog-${showHistory ? "history" : "current"}`} className="space-y-3">
@@ -833,7 +811,7 @@ export function StudioClasses({
                               {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][rule.day_of_week]} · {rule.start_time?.slice(0, 5)}–{rule.end_time?.slice(0, 5)}{rule.timezone ? ` · ${rule.timezone}` : ""}
                               {rule.effective_start_date && <span className="block text-slate-400">From {rule.effective_start_date}{rule.effective_end_date ? ` until ${rule.effective_end_date}` : ""}</span>}
                             </p>)}
-                            {c.session_type === "ONE_TO_ONE" && c.occurrences?.map((occ: any) => <p key={occ.id || occ.start_at}>{new Date(occ.start_at).toLocaleString()}–{new Date(occ.end_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · {occ.status?.replaceAll("_", " ")}</p>)}
+                            {c.session_type === "ONE_TO_ONE" && c.occurrences?.map((occ: any) => <p key={occ.id || occ.start_at}>{new Date(occ.start_at).toLocaleString()}–{new Date(occ.end_at).toLocaleTimeString([], { timeZone: agendaZone, hour: "2-digit", minute: "2-digit" })} · {occ.status?.replaceAll("_", " ")}</p>)}
                             {!c.schedule_rules?.length && !(c.session_type === "ONE_TO_ONE" && c.occurrences?.length) && <p>Flexible schedule · arrange dates and times with your teacher.</p>}
                           </div>
                           <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
