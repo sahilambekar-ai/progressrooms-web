@@ -15,7 +15,7 @@ export function zoomLabel(state?: Partial<TeacherZoomState>) {
     case "SIMULATED": return "Development simulation";
     case "RECONNECT_REQUIRED": return "Reconnect required";
     case "PENDING": return "Awaiting authorization";
-    default: return state?.effective_zoom_host ? "Not connected · Uses studio host" : "Not connected · Setup needed for Zoom classes";
+    default: return !state ? "Checking Zoom connection…" : state.effective_zoom_host ? "Connected · Uses studio host" : "Zoom setup available";
   }
 }
 
@@ -31,7 +31,12 @@ export function TeacherZoomControl({ org, member, name, userId, currentUserId, o
   const [requestLink, setRequestLink] = useState("");
   const { notify, confirm } = useFeedback();
   const path = `/organizations/${org}/teachers/${member}/zoom`;
-  useEffect(() => setState(initialState), [initialState]);
+  useEffect(() => {
+    let active = true;
+    setState(initialState);
+    void staffApi(path).then(value => { if (active) setState(value); }).catch(() => {});
+    return () => { active = false; };
+  }, [initialState, path]);
   const run = async (work: () => Promise<void>) => {
     setBusy(true);
     try { await work(); } catch (e) { notify((e as Error).message, "error"); } finally { setBusy(false); }

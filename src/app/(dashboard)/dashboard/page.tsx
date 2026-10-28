@@ -5175,20 +5175,7 @@ function AdminDashboardPage() {
                       onChange={(e) => setNewBatchUrl(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl border border-[#CEDECF] text-xs bg-[#F9FAF9]"
                     />
-                    <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Zoom not connected yet. Choose a studio Zoom host in Zoom Settings before provisioning an online meeting.</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCreateModalOpen(false);
-                          setActiveTab("account-completion");
-                          setCompletionStep(4);
-                        }}
-                        className="text-xs font-bold text-[#1b4332] hover:underline"
-                      >
-                        Connect Zoom →
-                      </button>
-                    </div>
+                    <p className="mt-1.5 text-[11px] text-slate-500">Leave the URL empty to use the class teacher’s Zoom account or the studio host.</p>
                   </div>
                 )}
               </div>

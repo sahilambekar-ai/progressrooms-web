@@ -12,12 +12,21 @@ export function ZoomAuthorizationLanding({ requestLink = false }: { requestLink?
   const [message, setMessage] = useState("");
   const [signedIn, setSignedIn] = useState(false);
   const [returnUrl, setReturnUrl] = useState("");
-  useEffect(() => { setSignedIn(Boolean(localStorage.getItem("pr_access_token"))); setReturnUrl(window.location.pathname + window.location.search); setReady(true); }, []);
-  const run = async (work: () => Promise<void>) => { setBusy(true); try { await work(); } catch (e) { setMessage((e as Error).message); } finally { setBusy(false); } };
+  const [authorizationState, setAuthorizationState] = useState("");
+  useEffect(() => { const params = new URLSearchParams(window.location.search); setAuthorizationState(params.get(requestLink ? "request" : "state") || ""); setSignedIn(Boolean(localStorage.getItem("pr_access_token"))); setReturnUrl(window.location.pathname + window.location.search); setReady(true); }, [requestLink]);
+  const run = async (work: () => Promise<void>) => { setBusy(true); setMessage(""); try { await work(); } catch (e) { setMessage((e as Error).message); } finally { setBusy(false); } };
   return <main className="mx-auto my-16 max-w-xl space-y-5 rounded-3xl border bg-white p-8 text-sm">
     <h1 className="font-serif text-2xl font-bold">{requestLink ? "Authorize your Zoom account" : "Confirm your Zoom identity"}</h1>
     <p>Sign into Progress Rooms with the account that started this authorization, then confirm the intended Studio or teacher Zoom identity.</p>
     {message && <p role="status" className="rounded-xl bg-amber-50 p-4">{message}</p>}
+    {message && ready && signedIn && !completed && <div className="space-y-3">
+      <p>Start again with a fresh link. You will be asked to authorize Zoom again.</p>
+      {authorizationState && <button disabled={busy} className="rounded-xl border border-emerald-900 px-4 py-3 text-emerald-900 disabled:opacity-50" onClick={() => run(async () => {
+        const result = await staffApi("/integrations/zoom/restart", { method: "POST", body: JSON.stringify({ state: authorizationState, kind: requestLink ? "REQUEST" : "OAUTH" }) });
+        window.location.assign(result.authorization_url);
+      })}>{busy ? "Creating fresh link…" : "Create new Zoom authorization link"}</button>}
+      <p className="text-xs">If this request belongs to another environment, or you are connecting for another teacher, return to your studio and select Connect Zoom to create a fresh request there.</p>
+    </div>}
     {ready && !signedIn && !completed && <a href={`/login?next=${encodeURIComponent(returnUrl)}`} className="inline-block rounded-xl bg-emerald-900 px-4 py-3 text-white">Sign into Progress Rooms</a>}
     {ready && signedIn && !completed && !candidate && <a href={`/login?next=${encodeURIComponent(returnUrl)}`} className="block text-xs underline">Use a different Progress Rooms account</a>}
     {ready && signedIn && !completed && !candidate && <button disabled={busy} className="rounded-xl bg-emerald-900 px-4 py-3 text-white" onClick={() => run(async () => {

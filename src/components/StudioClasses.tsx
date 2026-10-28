@@ -4,6 +4,7 @@ import { MeetingAction } from "./MeetingAction";
 import { PurchasePolicyNotice } from "./PurchasePolicyNotice";
 import { BOOKING_CANCELLATION_TERMS } from "@/lib/purchase-policy";
 import { ClassPackageEditor, PackageDraft, newPackage } from "@/components/ClassPackageEditor";
+import { studioToday } from "@/lib/meeting-window";
 import { ScheduleInput } from "@/components/ScheduleInput";
 
 import { useEffect, useState } from "react";
@@ -15,9 +16,8 @@ import { Modal } from "@/components/Modal";
 import { useFeedback } from "@/components/FeedbackProvider";
 import { CatalogHistoryTabs } from "@/components/CatalogHistoryTabs";
 import { LiveStatusToggle } from "@/components/LiveStatusToggle";
-import { TeacherZoomControl } from "./TeacherZoomControl";
 import { WhatsAppNotificationHint } from "@/components/WhatsAppNotificationHint";
-import { Calendar, Clock, Plus, RefreshCw, CheckCircle2, Pencil, Trash2, X, Users, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
+import { Calendar, Plus, RefreshCw, CheckCircle2, Pencil, Trash2, X, Users, ChevronLeft, ChevronRight, Search, Filter } from "lucide-react";
 
 type ClassItem = {
   id: string;
@@ -31,6 +31,7 @@ type ClassItem = {
   can_start?: boolean;
   zoom_status?: string;
   is_current: boolean;
+  email_deliveries?: Record<string, number>;
 };
 
 interface StudioClassesProps {
@@ -48,7 +49,6 @@ export function StudioClasses({
   focusedClassTitle = null,
   onClearFocusedClass,
 }: StudioClassesProps) {
-  const [selfZoom, setSelfZoom] = useState<any>(null);
   const [acknowledgeZoomHostImpact, setAcknowledgeZoomHostImpact] = useState(false);
   const [org, setOrg] = useState(orgId || "");
   const [classes, setClasses] = useState<any[]>([]);
@@ -132,10 +132,12 @@ export function StudioClasses({
   const [preparationInstructions, setPreparationInstructions] = useState("");
 
   // 1-on-1 Class Modal & Form State
+  const [editingOneOnOne, setEditingOneOnOne] = useState<any | null>(null);
   const [isOneOnOneModalOpen, setIsOneOnOneModalOpen] = useState(false);
   const [oneOnOneTitle, setOneOnOneTitle] = useState("1-on-1 Private Session");
   const [oneOnOneTeacher, setOneOnOneTeacher] = useState("");
   const [oneOnOneStudent, setOneOnOneStudent] = useState("");
+  const [oneOnOneStudentSearch, setOneOnOneStudentSearch] = useState("");
   const [oneOnOneDate, setOneOnOneDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [oneOnOneStart, setOneOnOneStart] = useState("10:00");
   const [oneOnOneEnd, setOneOnOneEnd] = useState("11:00");
@@ -161,9 +163,8 @@ export function StudioClasses({
     }
   };
 
-  useEffect(() => { if (!org) return; const timer = window.setInterval(() => { void refresh(org); }, 60000); return () => window.clearInterval(timer); }, [org]);
+  useEffect(() => { if (!org) return; const timer = window.setInterval(() => { void refresh(org); void refreshAgenda(org); }, 60000); return () => window.clearInterval(timer); }, [org]);
 
-  useEffect(() => { if (org) void staffApi(`/auth/context?studio_id=${org}`).then(setSelfZoom).catch(() => {}); }, [isTeacher, org]);
 
   const refreshAgenda = async (id: string) => {
     setAgendaLoading(true);
@@ -215,23 +216,40 @@ export function StudioClasses({
   }, [showHistory]);
 
   const openOneOnOneModal = async () => {
+    setOneOnOneStudentSearch("");
+    setEditingOneOnOne(null);
     setOneOnOneTitle("1-on-1 Private Session");
-    setOneOnOneTeacher(teachers[0]?.id || "");
+    setOneOnOneTeacher(teachers.find(t => t.is_active !== false && t.can_teach)?.id || "");
     setOneOnOneStudent(""); // Student selection kept empty
-    setOneOnOneDate(new Date().toLocaleDateString("en-CA"));
+    setOneOnOneDate(studioToday(agendaZone));
     setOneOnOneStart("10:00");
     setOneOnOneEnd("11:00");
     setOneOnOnePrice("0"); setOneOnOneDescription(""); setOneOnOneOfferPrice("");
     setIsOneOnOneModalOpen(true);
     if (org && students.length === 0) {
       try {
-        const studentData = await staffApi("/students?page=1&page_size=100");
+        const studentData = await staffApi(`/students?page=1&page_size=100&studio_id=${org}`);
         setStudents(studentData.items || []);
       } catch (e) {
         console.warn("Could not fetch students", e);
       }
     }
   };
+
+  useEffect(() => {
+    if (!isOneOnOneModalOpen || !org) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void staffApi(`/students?page=1&page_size=100&studio_id=${org}&search=${encodeURIComponent(oneOnOneStudentSearch)}`, { signal: controller.signal }).then(data => {
+        setStudents(previous => {
+          const options = data.items || [];
+          const selected = previous.find(student => student.id === oneOnOneStudent);
+          return selected && !options.some((student: any) => student.id === selected.id) ? [selected, ...options] : options;
+        });
+      }).catch(error => { if (!controller.signal.aborted) notify(error.message || "Could not search students", "error"); });
+    }, 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [isOneOnOneModalOpen, org, oneOnOneStudentSearch, oneOnOneStudent, notify]);
 
   const resetForm = () => {
     setPricingOnly(false);
@@ -260,6 +278,29 @@ export function StudioClasses({
   };
 
   const openEditModal = (c: any) => {
+    if (c.session_type === "ONE_TO_ONE" && c.pricing?.pricing_type === "PER_SESSION" && c.occurrences?.length === 1) {
+      const occurrence = c.occurrences[0];
+      const localParts = (value: string) => {
+        const parts = new Intl.DateTimeFormat("en-CA", { timeZone: agendaZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(value));
+        const part = (type: string) => parts.find(p => p.type === type)?.value;
+        return { date: `${part("year")}-${part("month")}-${part("day")}`, time: `${part("hour")}:${part("minute")}` };
+      };
+      setOneOnOneStudentSearch("");
+      setEditingOneOnOne(c);
+      setOneOnOneTitle(c.name);
+      setOneOnOneDescription(c.full_description || "");
+      setOneOnOneTeacher(c.instructors?.[0]?.member_id || c.instructors?.[0]?.id || "");
+      setOneOnOneStudent(c.assigned_student_user_id || "");
+      if (c.assigned_student) setStudents(previous => previous.some(s => s.id === c.assigned_student.id) ? previous : [...previous, c.assigned_student]);
+      setOneOnOneDate(localParts(occurrence.start_at).date);
+      setOneOnOneStart(localParts(occurrence.start_at).time);
+      setOneOnOneEnd(localParts(occurrence.end_at).time);
+      const option = c.pricing.packages?.[0];
+      setOneOnOnePrice(String(option?.price ?? c.pricing.price ?? 0));
+      setOneOnOneOfferPrice(option?.offer_price == null ? "" : String(option.offer_price));
+      setIsOneOnOneModalOpen(true);
+      return;
+    }
     setPricingOnly(isTeacher && !canCreateClass);
     setEditingClass(c);
     setName(c.name || "");
@@ -293,17 +334,17 @@ export function StudioClasses({
   const handleDelete = async (id: string, name: string) => {
     if (!canCreateClass || deletingId) return;
     const approved = await confirm({
-      title: "Delete class batch?",
+      title: "Delete class?",
       description: `Delete "${name}"? It will be removed from your catalog. Existing purchases and attendance history will be kept.`,
-      confirmLabel: "Delete class batch",
+      confirmLabel: "Delete class",
       destructive: true,
     });
     if (!approved) return;
     setDeletingId(id);
     try {
       await staffApi(`/organizations/${org}/classes/${id}`, { method: "DELETE" });
-      await refresh(org);
-      notify("Class batch deleted.", "success");
+      await Promise.all([refresh(org), refreshAgenda(org)]);
+      notify("Class deleted.", "success");
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not delete class batch.", "error");
     } finally {
@@ -461,8 +502,8 @@ export function StudioClasses({
     setBusy(true);
 
     try {
-      await staffApi(`/organizations/${org}/one-on-one-classes`, {
-        method: "POST",
+      await staffApi(`/organizations/${org}/one-on-one-classes${editingOneOnOne ? `/${editingOneOnOne.id}` : ""}`, {
+        method: editingOneOnOne ? "PUT" : "POST",
         body: JSON.stringify({
           title: oneOnOneTitle.trim() || "1-on-1 Private Session",
           full_description: oneOnOneDescription || null,
@@ -476,12 +517,9 @@ export function StudioClasses({
         }),
       });
 
-      notify("🌿 1-on-1 class scheduled successfully. Attendance will be recorded automatically when completed.", "success");
+      notify(editingOneOnOne ? "1-on-1 class updated." : "1-on-1 class scheduled. Email invitations queued.", "success");
       setIsOneOnOneModalOpen(false);
-      await refresh(org);
-      if (isTeacher) {
-        await refreshAgenda(org);
-      }
+      await Promise.all([refresh(org), refreshAgenda(org)]);
     } catch (err: any) {
       notify(err.message || "Failed to create 1-on-1 class", "error");
     } finally {
@@ -563,46 +601,22 @@ export function StudioClasses({
             </div>
           )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[...agendaClasses]
-              .sort((a, b) => Number(b.is_current) - Number(a.is_current))
-              .map((item) => (
-                <article
-                  key={item.id}
-                  className={`relative p-6 bg-white rounded-2xl border transition shadow-sm ${
-                    item.is_current ? "border-emerald-600 ring-2 ring-emerald-500/20" : "border-[#CEDECF]"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      {item.is_current && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full mb-2">
-                          <CheckCircle2 className="h-3 w-3" /> Live Now
-                        </span>
-                      )}
-                      <h3 className="text-lg font-bold text-[#0C2417]">{item.name}</h3><CollapsedDescription text={item.description} />
-                      <p className="mt-1 text-xs text-slate-600">{item.host_email ? `Hosted by ${item.host_email}; that account holder must start the meeting` : "Zoom host is resolved when this class is provisioned"}</p>
-                      {item.status !== "COMPLETED" && item.status !== "CANCELLED" && new Date(item.end_at) > new Date() && <WhatsAppNotificationHint kind="reminder" />}
-                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                        <Clock className="h-3.5 w-3.5 text-[#81A882]" />
-                        {time(item.start_at)} – {time(item.end_at)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-[#E1E9E2] flex items-center justify-between">
-                    <MeetingAction endAt={item.end_at} meetingUrl={item.meeting_url} canStart={item.can_start} onError={message => notify(message, "error")} load={async () => {
-                      const res = await staffApi(`/organizations/${org}/occurrences/${item.id}/join-link`, { method: "POST" });
-                      return res;
-                    }} />
-                  </div>
-                </article>
-              ))}
-          </div>
+          {agendaClasses.length > 0 && <div className="max-h-80 overflow-auto rounded-xl border border-[#CEDECF] bg-white">
+            <table className="w-full text-left text-sm">
+              <caption className="sr-only">{agendaDay}’s classes</caption>
+              <thead className="sticky top-0 bg-[#F4F7F4] text-xs text-slate-600"><tr><th className="px-4 py-2">Class</th><th className="px-4 py-2">Time</th><th className="px-4 py-2">Status</th><th className="px-4 py-2">Email</th><th className="px-4 py-2">Actions</th></tr></thead>
+              <tbody className="divide-y divide-[#E1E9E2]">{[...agendaClasses].sort((a, b) => Number(b.is_current) - Number(a.is_current)).map(item => <tr key={item.id} className={item.is_current ? "bg-emerald-50" : ""}>
+                <th scope="row" className="px-4 py-2 font-semibold text-[#0C2417]">{item.name}</th>
+                <td className="whitespace-nowrap px-4 py-2 text-xs">{time(item.start_at)} – {time(item.end_at)}</td>
+                <td className="px-4 py-2 text-xs">{item.is_current ? "Live now" : item.status.toLowerCase().replaceAll("_", " ")}</td>
+                <td className="px-4 py-2 text-xs">{Object.entries(item.email_deliveries || {}).filter(([, count]) => count > 0).map(([status, count]) => <span key={status} className="block">{status.toLowerCase().replaceAll("_", " ")}: {count}</span>)}{!Object.keys(item.email_deliveries || {}).length && "No invitations yet"}</td>
+                <td className="px-4 py-2">{item.status !== "CANCELLED" && item.status !== "COMPLETED" && <MeetingAction endAt={item.end_at} meetingUrl={item.meeting_url} canStart={item.can_start} onError={message => notify(message, "error")} load={() => staffApi(`/organizations/${org}/occurrences/${item.id}/join-link`, { method: "POST" })} onSendInvite={async () => (await staffApi(`/organizations/${org}/occurrences/${item.id}/send-invite`, { method: "POST" })).message} />}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>}
         </div>
       )}
 
-      {selfZoom?.can_teach && selfZoom?.member_id && <div className="my-4 rounded-xl border bg-white p-4"><TeacherZoomControl org={org} member={selfZoom.member_id} name="My account" userId={selfZoom.user_id} currentUserId={selfZoom.user_id} /></div>}
       <CatalogHistoryTabs history={showHistory} onChange={setShowHistory} label="Classes" panelId="class-catalog" />
       {/* CLASSES LIST MAIN CONTENT VIEW (RENDERED BELOW HEADER) */}
       <div id="class-catalog" role="tabpanel" aria-labelledby={`class-catalog-${showHistory ? "history" : "current"}`} className="space-y-3">
@@ -672,7 +686,7 @@ export function StudioClasses({
               className="border border-[#CEDECF] px-2.5 py-1.5 rounded-xl bg-white text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[#133623]"
             >
               <option value="ALL">All Teachers</option>
-              {teachers.map((t) => (
+              {teachers.filter(t => t.is_active !== false && t.can_teach).map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.full_name}
                 </option>
@@ -774,6 +788,7 @@ export function StudioClasses({
               <div className="grid gap-5 sm:grid-cols-2">
                 {paginatedClasses.map((c) => {
                   const isLive = c.is_active !== false;
+                  const isAppointment = c.session_type === "ONE_TO_ONE" && c.pricing?.pricing_type === "PER_SESSION";
                   return (
                     <article
                       key={c.id}
@@ -783,7 +798,7 @@ export function StudioClasses({
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="mb-2 flex flex-wrap items-center gap-2">
-                              <span className="rounded-full bg-[#E8F0E9] px-2.5 py-1 text-[11px] font-bold text-[#133623]">Capacity: {c.capacity ?? "No limit"}</span>
+                              <span className="rounded-full bg-[#E8F0E9] px-2.5 py-1 text-[11px] font-bold text-[#133623]">{isAppointment ? "Private appointment" : `Capacity: ${c.capacity ?? "No limit"}`}</span>
                               {c.session_type === "ONE_TO_ONE" && <span className="text-[11px] font-semibold text-slate-500">1-on-1 Class</span>}
                             </div>
                             <h3 className="font-bold text-lg text-[#0C2417] leading-snug break-words">{c.name}</h3>
@@ -793,6 +808,8 @@ export function StudioClasses({
                           <div className="flex flex-col items-end gap-2">
                             {showHistory ? (
                               <span className="record-capsule rounded-full bg-slate-100 px-2.5 py-1 text-[11px] text-slate-600">Deleted</span>
+                            ) : c.session_type === "ONE_TO_ONE" && c.pricing?.pricing_type === "PER_SESSION" ? (
+                              <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-800">Private · Assigned student</span>
                             ) : (
                               <LiveStatusToggle
                               live={isLive}
@@ -813,14 +830,14 @@ export function StudioClasses({
                           · {c.duration_minutes || 60} mins
                         </p>
 
-                        <div className="border-t border-[#E1E9E2] pt-3"><ClassPackageSummary pricing={c.pricing} /></div>
+                        <div className="border-t border-[#E1E9E2] pt-3">{isAppointment ? <div className="space-y-1 text-xs text-slate-600"><p>Student: <strong>{c.assigned_student?.name || "Assigned student"}</strong></p><p>{new Intl.NumberFormat("en-IN", { style: "currency", currency: c.pricing?.currency || "INR" }).format(c.pricing?.price ?? 0)} · single appointment</p></div> : <ClassPackageSummary pricing={c.pricing} />}</div>
                         <CollapsedDescription text={c.full_description || c.short_description}>
                           <div className="space-y-2"><p className="font-semibold text-[#133623]">Schedule</p>
                             {c.schedule_rules?.map((rule: any) => <p key={rule.id || `${rule.day_of_week}-${rule.start_time}`}>
                               {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][rule.day_of_week]} · {rule.start_time?.slice(0, 5)}–{rule.end_time?.slice(0, 5)}{rule.timezone ? ` · ${rule.timezone}` : ""}
                               {rule.effective_start_date && <span className="block text-slate-400">From {rule.effective_start_date}{rule.effective_end_date ? ` until ${rule.effective_end_date}` : ""}</span>}
                             </p>)}
-                            {c.session_type === "ONE_TO_ONE" && c.occurrences?.map((occ: any) => <p key={occ.id || occ.start_at}>{new Date(occ.start_at).toLocaleString()}–{new Date(occ.end_at).toLocaleTimeString([], { timeZone: agendaZone, hour: "2-digit", minute: "2-digit" })} · {occ.status?.replaceAll("_", " ")}</p>)}
+                            {c.session_type === "ONE_TO_ONE" && c.occurrences?.map((occ: any) => <p key={occ.id || occ.start_at}>{new Date(occ.start_at).toLocaleString([], { timeZone: agendaZone })}–{new Date(occ.end_at).toLocaleTimeString([], { timeZone: agendaZone, hour: "2-digit", minute: "2-digit" })} · {occ.status?.replaceAll("_", " ")}</p>)}
                             {!c.schedule_rules?.length && !(c.session_type === "ONE_TO_ONE" && c.occurrences?.length) && <p>Flexible schedule · arrange dates and times with your teacher.</p>}
                           </div>
                           <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
@@ -863,7 +880,7 @@ export function StudioClasses({
                             <button
                               type="button"
                               aria-label={`Delete ${c.name}`}
-                              title="Delete class batch"
+                              title="Delete class"
                               disabled={deletingId === c.id}
                               onClick={() => void handleDelete(c.id, c.name)}
                               className="btn-compact inline-flex items-center justify-center rounded-lg hover:bg-red-50 transition disabled:opacity-50"
@@ -1032,7 +1049,7 @@ export function StudioClasses({
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   >
                     <option value="">Select teacher</option>
-                    {teachers.map((t) => (
+                    {teachers.filter(t => t.is_active !== false && t.can_teach).map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.full_name} {t.role === "STUDIO" ? "(Studio Owner)" : "(Teacher)"}
                       </option>
@@ -1243,11 +1260,11 @@ export function StudioClasses({
                   onClick={event => { const missing = [!oneOnOneStudent && "Select a student", !oneOnOneTeacher && "Select a teacher", !oneOnOneTitle.trim() && "Enter a title", !oneOnOneDate && "Choose a date", (!oneOnOneStart || !oneOnOneEnd || oneOnOneEnd <= oneOnOneStart) && "Choose valid start and end times"].filter(Boolean); if (missing.length) { event.preventDefault(); notify(missing.join("; "), "error"); } }}
                   className="bg-[#2D7A58] hover:bg-[#1f563d] disabled:opacity-50 aria-disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
                 >
-                  {busy ? "Scheduling…" : "Create 1-on-1 Class"}
+                  {busy ? "Saving…" : editingOneOnOne ? "Update 1-on-1 Class" : "Create 1-on-1 Class"}
                 </button>
                 <WhatsAppNotificationHint kind="reminder" />
               </div>}
-          title="Create 1-on-1 Class"
+          title={editingOneOnOne ? "Edit 1-on-1 Class" : "Create 1-on-1 Class"}
           subtitle="Schedule a private 1-on-1 class session. This class is non-recurring and will automatically conclude and record attendance once complete."
           onClose={() => {
             setIsOneOnOneModalOpen(false);
@@ -1255,14 +1272,15 @@ export function StudioClasses({
           confirmDiscard
         >
           <div className="p-6 space-y-5">
-            <button type="button" className="rounded-xl border border-emerald-800 p-3 text-sm text-emerald-900" onClick={() => { setIsOneOnOneModalOpen(false); resetForm(); setSessionType("ONE_TO_ONE"); setName("1-on-1 Session Package"); setIsModalOpen(true); }}>Create a flexible 1-on-1 package instead · no fixed dates or times</button>
+            {!editingOneOnOne && <button type="button" className="rounded-xl border border-emerald-800 p-3 text-sm text-emerald-900" onClick={() => { setIsOneOnOneModalOpen(false); resetForm(); setSessionType("ONE_TO_ONE"); setName("1-on-1 Session Package"); setIsModalOpen(true); }}>Create a flexible 1-on-1 package instead · no fixed dates or times</button>}
             <p className="text-xs text-slate-500">Use this form for a single appointment assigned to a student. Use a flexible package to sell several sessions that can be arranged later.</p>
             <form id="modal-src-components-StudioClasses-tsx-3" onSubmit={handleOneOnOneSubmit} className="relative space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700">
+                <label htmlFor="one-on-one-title" className="block text-xs font-semibold text-slate-700">
                   Class Title *
                 </label>
                 <input
+                  id="one-on-one-title"
                   required
                   value={oneOnOneTitle}
                   onChange={(e) => setOneOnOneTitle(e.target.value)}
@@ -1283,7 +1301,7 @@ export function StudioClasses({
                     onChange={(e) => setOneOnOneTeacher(e.target.value)}
                     className="mt-1 block w-full border border-[#CEDECF] p-2.5 rounded-xl text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400 font-normal text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#133623] bg-white"
                   >
-                    {teachers.map((t) => (
+                    {teachers.filter(t => t.is_active !== false && t.can_teach).map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.full_name} {t.role === "STUDIO" ? "(Studio Owner)" : "(Teacher)"}
                       </option>
@@ -1291,6 +1309,7 @@ export function StudioClasses({
                   </select>
                 </label>
 
+                <label className="block font-semibold text-slate-700 sm:col-span-2">Find student<input type="search" value={oneOnOneStudentSearch} onChange={event => setOneOnOneStudentSearch(event.target.value)} placeholder="Search by student name or email" className="mt-1 block w-full rounded-xl border border-[#CEDECF] p-2.5 text-sm font-normal" /></label>
                 <label className="font-semibold text-slate-700">
                   Select Student *
                   <select
@@ -1372,7 +1391,6 @@ export function StudioClasses({
 
 
 </AdvancedOptions>
-              {editingClass && <label className="flex flex-nowrap items-start gap-2 text-xs text-slate-600"><input className="mt-0.5 shrink-0" type="checkbox" checked={acknowledgeZoomHostImpact} onChange={event => setAcknowledgeZoomHostImpact(event.target.checked)} /><span className="min-w-0 flex-1">Keep the saved Zoom host for existing meetings when changing teachers. I will reconcile host changes separately in Zoom Settings.</span></label>}
 
             </form>
           </div>

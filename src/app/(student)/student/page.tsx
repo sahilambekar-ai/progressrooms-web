@@ -27,6 +27,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 type Enrollment = {
+  is_private_appointment?: boolean;
   amount_paid?: number | null;
   currency?: string;
   id: string;
@@ -390,7 +391,7 @@ function TeacherAffiliationCard({
 
                   <p className="text-xs text-slate-600 font-medium">
                     {pass.total_classes
-                      ? `${pass.total_classes} sessions credit`
+                      ? `${pass.total_classes} sessions`
                       : 'Unlimited sessions'}{' '}
                     · {pass.validity_days} days validity
                   </p>
@@ -648,7 +649,7 @@ export default function StudentPortalPage() {
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to cancel your booking for "${className}"? Your unused session credit will remain available within your pass validity. No payment is returned.`)) {
+    if (!window.confirm(`Are you sure you want to cancel your booking for "${className}"? Your unused session will remain available within your pass validity. No payment is returned.`)) {
       return;
     }
 
@@ -668,7 +669,7 @@ export default function StudentPortalPage() {
       }
       setCancellationNotice({
         type: 'success',
-        message: `Booking for "${className}" has been cancelled. Your unused session credit remains available within your pass validity. No payment is returned.`,
+        message: `Booking for "${className}" has been cancelled. Your unused session remains available within your pass validity. No payment is returned.`,
       });
       await load();
     } catch (err: any) {
@@ -724,7 +725,7 @@ export default function StudentPortalPage() {
       if (!res.ok) throw new Error(apiErrorMessage(data, 'Could not reschedule class.'));
       setCancellationNotice({
         type: 'success',
-        message: `Class "${reschedulingClass.session_name}" successfully rescheduled! Your session credit has been transferred to the new date.`,
+        message: `Class "${reschedulingClass.session_name}" successfully rescheduled! Your session has been transferred to the new date.`,
       });
       setReschedulingClass(null);
       await load();
@@ -910,7 +911,7 @@ export default function StudentPortalPage() {
   // Group enrollments by purchase pass
   const groups = Object.values(
     enrollments.reduce<Record<string, Enrollment[]>>((all, e) => {
-      (all[e.purchase_id || e.id] ||= []).push(e);
+      if (!e.is_private_appointment) (all[e.purchase_id || e.id] ||= []).push(e);
       return all;
     }, {})
   );
@@ -925,8 +926,8 @@ export default function StudentPortalPage() {
       if (!isActive) return false;
       if (activePassGroup === 'EXPIRING') {
         const daysRemaining = e.valid_until ? (new Date(e.valid_until).getTime() - now) / (1000 * 86400) : 999;
-        const creditsRemaining = e.total_sessions != null ? e.total_sessions - e.sessions_attended : 999;
-        if (daysRemaining > 14 && creditsRemaining > 2) return false;
+        const sessionsRemaining = e.total_sessions != null ? e.total_sessions - e.sessions_attended : 999;
+        if (daysRemaining > 14 && sessionsRemaining > 2) return false;
       } else if (activePassGroup === 'RECENT') {
         if (!e.sessions_attended || e.sessions_attended <= 0) return false;
       } else if (activePassGroup === 'UNLIMITED') {
@@ -2063,7 +2064,7 @@ export default function StudentPortalPage() {
                 {date(reschedulingClass.start_at)} · {reschedulingClass.organization_name}
               </p>
               <p className="text-[11px] text-slate-500">
-                Studio Policy: Free rescheduling is allowed up to 2 hours before scheduled class start time. Your session credit will be transferred to your new date.
+                Studio Policy: Free rescheduling is allowed up to 2 hours before scheduled class start time. Your session will be transferred to your new date.
               </p>
             </div>
 
@@ -2083,7 +2084,7 @@ export default function StudentPortalPage() {
                   There are currently no other scheduled upcoming sessions for this offering in the next 30 days.
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  You can still cancel this booking at least 2 hours prior to keep your session credit on your pass.
+                  You can still cancel this booking at least 2 hours prior to keep your session on your pass.
                 </p>
               </div>
             ) : (
