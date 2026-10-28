@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-async function forward(request: NextRequest, { params }: { params: { path: string[] } }) {
+async function forward(request: NextRequest, { params: pendingParams }: { params: Promise<{ path: string[] }> }) {
+  const params = await pendingParams;
   const base = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
   const url = `${base.replace(/\/$/, "")}/admin/communication/${params.path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
   const headers = new Headers();

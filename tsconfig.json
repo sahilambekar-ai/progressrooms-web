@@ -27,16 +27,19 @@
       ]
     },
     "noUnusedLocals": true,
-    "noUnusedParameters": true
+    "noUnusedParameters": true,
+    "target": "ES2017"
   },
   "include": [
-    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
     ".next-dev/types/**/*.ts",
+    ".next-prod/types/**/*.ts",
+    ".next-uat-email-test/types/**/*.ts",
     ".next-uat/types/**/*.ts",
-    ".next-prod/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    ".next-audit-browser/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

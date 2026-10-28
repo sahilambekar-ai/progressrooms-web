@@ -17,8 +17,8 @@ export interface CommunicationSettingsContextType {
 }
 
 const CommunicationSettingsContext = createContext<CommunicationSettingsContextType>({
-  whatsappServiceEnabled: true,
-  whatsappCompletelyDisabled: false,
+  whatsappServiceEnabled: false,
+  whatsappCompletelyDisabled: true,
   emailServiceEnabled: true,
   toggleWhatsAppService: () => {},
   toggleWhatsAppCompletely: () => {},
@@ -30,19 +30,17 @@ export function useCommunicationSettings() {
 }
 
 export function CommunicationSettingsProvider({ children }: { children: ReactNode }) {
-  const [whatsappServiceEnabled, setWhatsappServiceEnabled] = useState<boolean>(true);
-  const [whatsappCompletelyDisabled, setWhatsappCompletelyDisabled] = useState<boolean>(false);
+  const [whatsappServiceEnabled, setWhatsappServiceEnabled] = useState<boolean>(false);
+  const [whatsappCompletelyDisabled, setWhatsappCompletelyDisabled] = useState<boolean>(true);
   const [emailServiceEnabled, setEmailServiceEnabled] = useState<boolean>(true);
 
   // Synchronize local storage to state
   const syncFromStorage = useCallback(() => {
     try {
-      const waService = localStorage.getItem(STORAGE_KEY_WA_SERVICE);
-      const waComp = localStorage.getItem(STORAGE_KEY_WA_COMPLETELY);
       const emailService = localStorage.getItem(STORAGE_KEY_EMAIL_SERVICE);
 
-      if (waService !== null) setWhatsappServiceEnabled(waService === "true");
-      if (waComp !== null) setWhatsappCompletelyDisabled(waComp === "true");
+      setWhatsappServiceEnabled(false);
+      setWhatsappCompletelyDisabled(true);
       if (emailService !== null) setEmailServiceEnabled(emailService === "true");
     } catch {
       // Local storage not available
@@ -76,27 +74,8 @@ export function CommunicationSettingsProvider({ children }: { children: ReactNod
     };
   }, [syncFromStorage]);
 
-  const toggleWhatsAppService = useCallback((val?: boolean) => {
-    const next = val !== undefined ? val : (localStorage.getItem(STORAGE_KEY_WA_SERVICE) ?? "true") !== "true";
-    setWhatsappServiceEnabled(next);
-    try {
-      localStorage.setItem(STORAGE_KEY_WA_SERVICE, String(next));
-      window.dispatchEvent(new CustomEvent(EVENT_SETTINGS_CHANGED));
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const toggleWhatsAppCompletely = useCallback((val?: boolean) => {
-    const next = val !== undefined ? val : (localStorage.getItem(STORAGE_KEY_WA_COMPLETELY) ?? "false") !== "true";
-    setWhatsappCompletelyDisabled(next);
-    try {
-      localStorage.setItem(STORAGE_KEY_WA_COMPLETELY, String(next));
-      window.dispatchEvent(new CustomEvent(EVENT_SETTINGS_CHANGED));
-    } catch {
-      // ignore
-    }
-  }, []);
+  const toggleWhatsAppService = useCallback(() => { setWhatsappServiceEnabled(false); }, []);
+  const toggleWhatsAppCompletely = useCallback(() => { setWhatsappCompletelyDisabled(true); }, []);
 
   const toggleEmailService = useCallback((val?: boolean) => {
     const next = val !== undefined ? val : (localStorage.getItem(STORAGE_KEY_EMAIL_SERVICE) ?? "true") !== "true";

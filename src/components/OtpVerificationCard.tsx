@@ -1,4 +1,5 @@
 "use client";
+import { apiErrorMessage } from "@/lib/api-errors";
 
 import { useState, useEffect, useRef } from "react";
 import { Loader2, RefreshCw, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
@@ -76,7 +77,7 @@ export function OtpVerificationCard({
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || "Failed to resend code.");
+        throw new Error(apiErrorMessage(data, "Failed to resend code."));
       }
       setPreviewOtp(data.otp_preview || null);
       setInfoMessage(`A fresh passcode has been sent to ${email}.`);
@@ -112,7 +113,7 @@ export function OtpVerificationCard({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || "Invalid or expired passcode. Please try again.");
+        throw new Error(apiErrorMessage(data, "Invalid or expired passcode. Please try again."));
       }
 
       onSuccess(data);
@@ -130,7 +131,7 @@ export function OtpVerificationCard({
           <BrandLogo size={48} variant="tile-dark" />
         </div>
         <h2 className="text-2xl font-serif font-bold text-[#0C2417]">{title}</h2>
-        <p className="text-xs text-[#7E7970] mt-1 max-w-sm mx-auto">{subtitle}</p>
+        <p className="text-xs text-[#6B655D] mt-1 max-w-sm mx-auto">{subtitle}</p>
       </div>
 
       {infoMessage && (
@@ -157,7 +158,7 @@ export function OtpVerificationCard({
               <button
                 type="button"
                 onClick={onBack}
-                className="text-xs text-[#618D63] hover:underline inline-flex items-center gap-1"
+                className="text-xs text-[#426A44] hover:underline inline-flex items-center gap-1"
               >
                 <ArrowLeft className="w-3 h-3" />
                 <span>Change Email</span>
@@ -199,7 +200,7 @@ export function OtpVerificationCard({
             type="button"
             disabled={resendCooldown > 0 || resending}
             onClick={handleResendOtp}
-            className="text-xs text-[#618D63] hover:text-[#0C2417] disabled:text-slate-400 inline-flex items-center gap-1.5 transition font-medium"
+            className="text-xs text-[#426A44] hover:text-[#0C2417] disabled:text-slate-400 inline-flex items-center gap-1.5 transition font-medium"
           >
             <RefreshCw className={`h-3 w-3 ${resending ? "animate-spin" : ""}`} />
             {resendCooldown > 0 ? `Resend OTP in ${resendCooldown}s` : "Resend OTP"}

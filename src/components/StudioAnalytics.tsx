@@ -80,7 +80,7 @@ export function StudioAnalytics({ organizationId, onOpenBilling }: { organizatio
         </div>
 
         <div className="bg-white p-6 rounded-3xl border border-[#E1E9E2] shadow-sm space-y-2">
-          <span className="text-xs text-slate-500 font-medium">Projected Subscription Value</span>
+          <span className="text-xs text-slate-500 font-medium">Active Class Catalog Value</span>
           <h3 className="text-3xl font-black text-[#0C2417]">
             {new Intl.NumberFormat('en-IN', { style: 'currency', currency: studioAnalytics?.currency || 'INR', maximumFractionDigits: 0 }).format(
               studioAnalytics?.projected_subscription_value ?? 0

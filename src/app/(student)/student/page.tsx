@@ -1,4 +1,6 @@
 "use client";
+import { apiErrorMessage } from "@/lib/api-errors";
+import { logout } from "@/lib/auth-session";
 import { ClassPackageSummary } from "@/components/ClassPackageSummary";
 import { CollapsedDescription } from "@/components/RichDescription";
 import { ClassPackageOptions } from "@/components/ClassPackageOptions";
@@ -9,6 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Video, CalendarDays, ArrowRight, MessageSquare, Plus, Search, AlertCircle, Loader2, CheckCircle2, Copy, Share2, User, Clock, MapPin, Check, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
+import { MeetingAction } from '@/components/MeetingAction';
 import type { CalendarSessionEvent } from '@/components/AttendanceCalendar';
 import { Modal } from '@/components/Modal';
 import type { Purchase } from '@/components/StoreCheckout';
@@ -54,7 +57,7 @@ type Class = {
   eligibility_reason?: string | null;
 };
 
-type Studio = { id: string; name: string; slug: string };
+type Studio = { id: string; name: string; slug: string; timezone?: string };
 
 type TeacherOfferingClass = {
   instructor_names?: string[];
@@ -516,7 +519,6 @@ export default function StudentPortalPage() {
   const [attendanceStudio, setAttendanceStudio] = useState('ALL');
 
   // Joining
-  const [joining, setJoining] = useState('');
 
   // Studios & Explore
   const [studios, setStudios] = useState<Studio[]>([]);
@@ -566,7 +568,7 @@ export default function StudentPortalPage() {
         throw new Error('Please log in to view your classes.');
       }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'Could not load your dashboard.');
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Could not load your dashboard.'));
       return data;
     },
     [router]
@@ -616,7 +618,7 @@ export default function StudentPortalPage() {
       const res = await fetch(`${API}/teachers/public/lookup?query=${encodeURIComponent(queryStr)}`);
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Teacher not found. Check the code or name and try again.');
+        throw new Error(apiErrorMessage(data, 'Teacher not found. Check the code or name and try again.'));
       }
       setTeacherResult(data);
       if (typeof window !== 'undefined') {
@@ -662,7 +664,7 @@ export default function StudentPortalPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Could not cancel class booking.');
+        throw new Error(apiErrorMessage(data, 'Could not cancel class booking.'));
       }
       setCancellationNotice({
         type: 'success',
@@ -719,7 +721,7 @@ export default function StudentPortalPage() {
         body: JSON.stringify({ target_occurrence_id: selectedTargetSlotId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Could not reschedule class.');
+      if (!res.ok) throw new Error(apiErrorMessage(data, 'Could not reschedule class.'));
       setCancellationNotice({
         type: 'success',
         message: `Class "${reschedulingClass.session_name}" successfully rescheduled! Your session credit has been transferred to the new date.`,
@@ -750,6 +752,8 @@ export default function StudentPortalPage() {
       setTab('teacher');
     } else if (params.has('studio') || params.has('buy')) {
       setTab('explore');
+    } else if (params.get('tab') === 'passes') {
+      setTab('classes');
     } else if (params.get('tab') === 'attendance') {
       setTab('attendance');
     } else if (params.get('tab') === 'support') {
@@ -760,6 +764,12 @@ export default function StudentPortalPage() {
     const timer = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, [lookupTeacher]);
+
+  useEffect(() => {
+    if (!loading && new URLSearchParams(window.location.search).get('tab') === 'passes') {
+      document.getElementById('purchases')?.scrollIntoView({ block: 'start' });
+    }
+  }, [loading]);
 
   // Attendance loading
   useEffect(() => {
@@ -835,6 +845,9 @@ export default function StudentPortalPage() {
   const handleCreateNewTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTicketStudioId || !newTicketSubject.trim() || !newTicketMessage.trim()) return;
+    if (Array.from(newTicketSubject.trim()).length > 255 || Array.from(newTicketMessage.trim()).length > 10000) {
+      setError('Use a subject of up to 255 characters and a message of up to 10,000 characters.'); return;
+    }
     setIsSubmittingNewTicket(true);
     try {
       const response = await fetch(`${API}/student/support-tickets`, {
@@ -942,18 +955,6 @@ export default function StudentPortalPage() {
   const nextClass = scheduled[0];
   const isNewStudent = !loading && enrollments.length === 0 && classes.length === 0;
 
-  async function join(id: string) {
-    setJoining(id);
-    setError('');
-    try {
-      const data = await get(`/student/classes/${id}/meeting-url`);
-      window.location.assign(data.meeting_url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not open class.');
-    } finally {
-      setJoining('');
-    }
-  }
 
   return (
     <div className="min-h-screen bg-[#F4F7F4] text-[#133623]">
@@ -970,13 +971,16 @@ export default function StudentPortalPage() {
           </div>
           <button
             className="text-sm font-semibold hover:underline"
-            onClick={() => {
-              localStorage.removeItem('pr_access_token');
-              localStorage.removeItem('pr_user');
-              router.push('/login');
+            onClick={async () => {
+              try {
+                await logout();
+                router.push('/login');
+              } catch {
+                setError('Could not sign out on the server. Please try again.');
+              }
             }}
           >
-            Sign out
+            Sign out on all devices
           </button>
         </div>
       </header>
@@ -1110,18 +1114,7 @@ export default function StudentPortalPage() {
                 </p>
                 <p className="text-[#b7e4c7] mt-1 text-sm">With {nextClass.instructor_name}</p>
                 <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <button
-                    disabled={!nextClass.can_join || joining === nextClass.id}
-                    onClick={() => void join(nextClass.id)}
-                    className="inline-flex items-center gap-2 bg-white text-[#0C2417] rounded-xl px-6 py-3 font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition"
-                  >
-                    <Video size={18} />
-                    {joining === nextClass.id
-                      ? 'Opening live class…'
-                      : nextClass.can_join
-                      ? 'Join live class'
-                      : nextClass.eligibility_reason || 'Join opens 15 minutes before class'}
-                  </button>
+                  <MeetingAction endAt={nextClass.end_at} load={async () => (await get(`/student/classes/${nextClass.id}/meeting-url`)).meeting_url} onError={setError} />
                   <button
                     onClick={() => void openRescheduleModal(nextClass)}
                     className="text-xs font-semibold text-[#b7e4c7] hover:text-white hover:underline transition px-3 py-2"
@@ -1216,17 +1209,7 @@ export default function StudentPortalPage() {
                       <p className="text-sm mt-2 text-[#0C2417] font-medium">{date(c.start_at)}</p>
                     </div>
                     <div className="flex flex-col sm:items-end gap-2">
-                      <button
-                        disabled={!c.can_join || joining === c.id}
-                        onClick={() => void join(c.id)}
-                        className="rounded-xl bg-[#133623] text-white px-5 py-2.5 text-sm font-semibold disabled:bg-[#E8F0E9] disabled:text-[#526755] disabled:cursor-not-allowed transition"
-                      >
-                        {joining === c.id
-                          ? 'Opening live class…'
-                          : c.can_join
-                          ? 'Join class'
-                          : c.eligibility_reason || 'Opens 15 minutes before class'}
-                      </button>
+                      <MeetingAction endAt={c.end_at} load={async () => (await get(`/student/classes/${c.id}/meeting-url`)).meeting_url} onError={setError} />
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => void openRescheduleModal(c)}
@@ -1264,7 +1247,7 @@ export default function StudentPortalPage() {
             </section>
 
             {/* Passes Organization Section: Active vs History */}
-            <section aria-label="My memberships and passes" className="space-y-4">
+            <section id="purchases" aria-label="My memberships and passes" className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <h2 className="font-serif text-2xl">My passes & memberships</h2>
 
@@ -1714,7 +1697,10 @@ export default function StudentPortalPage() {
               events={attendanceEvents}
               readOnly
               personLabel={name || 'Student'}
-              onToast={() => {}}
+              timezone={studios.find(studio => studio.id === attendanceStudio)?.timezone || studios[0]?.timezone}
+              onSendInvite={async event => (await get(`/student/classes/${event.occurrenceId}/send-invite`, { method: 'POST' })).message}
+              onJoinClass={async event => (await get(`/student/classes/${event.occurrenceId}/meeting-url`)).meeting_url}
+              onToast={setError}
               loading={attendanceLoading}
               onMonthChange={(m) => setAttendanceMonth(m)}
             />

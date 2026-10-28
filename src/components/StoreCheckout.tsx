@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { BOOKING_CANCELLATION_TERMS } from "@/lib/purchase-policy";
 import { useState, useEffect } from 'react';
 import { Modal } from './Modal';
@@ -64,7 +65,7 @@ export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClo
       checkout.open();
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not start checkout.'); setBusy(false); }
   }
-  return <Modal footer={success ? <a className="block rounded-xl bg-[#133623] text-white text-center p-4" href="/student">Go to my dashboard</a> :         <button
+  return <Modal footer={success ? <Link className="block rounded-xl bg-[#133623] text-white text-center p-4" href="/student">Go to my dashboard</Link> :         <button
           disabled={busy}
           className="w-full p-4 rounded-xl bg-[#133623] hover:bg-[#0C2417] text-white font-bold transition disabled:opacity-50 shadow-md"
           onClick={() => pending ? void verify(pending.order, pending.payment) : void buy()}

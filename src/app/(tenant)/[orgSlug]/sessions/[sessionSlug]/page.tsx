@@ -1,4 +1,5 @@
 import { permanentRedirect } from "next/navigation";
-export default function LegacyClassLink({ params }: { params: { orgSlug: string; sessionSlug: string } }) {
+export default async function LegacyClassLink({ params: pendingParams }: { params: Promise<{ orgSlug: string; sessionSlug: string }> }) {
+  const params = await pendingParams;
   permanentRedirect(`/${params.orgSlug}/classes/${params.sessionSlug}`);
 }

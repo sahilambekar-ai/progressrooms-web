@@ -1,4 +1,6 @@
 "use client";
+import { ObjectUrlPool } from "@/lib/object-urls";
+import Link from "next/link";
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowUp, ArrowDown, Check, ExternalLink, Globe, LayoutTemplate, Monitor, Smartphone, Eye, Save, Plus, Trash2, ImagePlus, Download, Layers, Type, Upload, RefreshCw } from 'lucide-react';
@@ -55,7 +57,7 @@ export default function WebsiteEditor({ initialTemplates = [], embedded = true }
   const [previewContent, setPreviewContent] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const blobs = useRef<string[]>([]);
+  const blobs = useRef(new ObjectUrlPool());
   const initialCatalog = useRef(initialTemplates);
   const selected = templates.find(t => t.code === content?.template_code);
   const previewStale = Boolean(previewHtml && JSON.stringify(content) !== previewContent);
@@ -95,7 +97,7 @@ export default function WebsiteEditor({ initialTemplates = [], embedded = true }
     window.addEventListener('beforeunload', leave);
     return () => window.removeEventListener('beforeunload', leave);
   }, [dirty]);
-  useEffect(() => () => { blobs.current.forEach(url => URL.revokeObjectURL(url)); }, []);
+  useEffect(() => { const pool = blobs.current; return () => pool.dispose(); }, []);
 
   function change(patch: Partial<WebsiteContent>) {
     setContent(c => c ? { ...c, ...patch } : c);
@@ -149,8 +151,7 @@ export default function WebsiteEditor({ initialTemplates = [], embedded = true }
       const payload = sample ? sample.content : content;
       const data = await (await request(`/organizations/${org.id}/website/preview`, { method:'POST', body:JSON.stringify(payload) })).json();
       if (!sample) { setPreviewHtml(data.html); setPreviewContent(JSON.stringify(payload)); setStep('preview'); }
-      const url = URL.createObjectURL(new Blob([data.html], { type:'text/html' })); blobs.current.push(url);
-      if (popup) popup.location.replace(url);
+      if (popup) popup.location.replace(blobs.current.create(new Blob([data.html], { type:'text/html' })));
       else if (openTab) setMessage('Your browser blocked the new tab. The preview is shown below; allow pop-ups to open it separately.');
     } catch (e) { popup?.close(); setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -159,7 +160,7 @@ export default function WebsiteEditor({ initialTemplates = [], embedded = true }
     setBusy(true); setError('');
     try {
       const response = await request(`/organizations/${org.id}/website/download/${release.version}`);
-      const url = URL.createObjectURL(await response.blob()); blobs.current.push(url);
+      const url = blobs.current.create(await response.blob(), 1000);
       const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${org.slug}-website.html`; anchor.click();
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
@@ -223,7 +224,7 @@ export default function WebsiteEditor({ initialTemplates = [], embedded = true }
       {error && <p role="alert" className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
       {message && <p role="status" className="mb-5 rounded-xl bg-green-50 p-4 text-sm text-green-800">{message}</p>}
       {loading && <p role="status" className="mb-5 text-sm text-[#40514E]">Loading your studio details…</p>}
-      {!loading && !org && <a href="/login" className="underline text-sm text-[#133623]">Sign in to your studio account</a>}
+      {!loading && !org && <Link href="/login" className="underline text-sm text-[#133623]">Sign in to your studio account</Link>}
       {content && <fieldset disabled={busy || loading || !org} className="min-w-0">
         <div className="mb-7 flex flex-wrap gap-7 border-b border-[#dce1d6]">
           {([{id:'templates',label:'01  Choose a template',icon:LayoutTemplate},{id:'edit',label:'02  Add your details',icon:Type},{id:'preview',label:'03  Preview & launch',icon:Eye}] as const).map(item => <button key={item.id} onClick={() => item.id === 'preview' ? preview() : setStep(item.id)} className={`flex items-center gap-2 border-b-2 pb-4 text-xs ${step === item.id ? 'border-[#234c39] font-semibold text-[#234c39]' : 'border-transparent text-[#899284]'}`}><item.icon size={15}/>{item.label}</button>)}
@@ -294,7 +295,7 @@ export default function WebsiteEditor({ initialTemplates = [], embedded = true }
     <div className="min-h-screen bg-[#f8f7f2] text-[#243c30] lg:flex">
       <aside className="shrink-0 bg-[#142c22] p-6 text-white lg:w-60 lg:min-h-screen">
         <BrandLogo size={35} variant="white" textColor="text-white" showText/>
-        <a href="/dashboard" className="mt-10 mb-7 flex items-center gap-2 text-xs text-white/60"><ArrowLeft size={15}/>Back to dashboard</a>
+        <Link href="/dashboard" className="mt-10 mb-7 flex items-center gap-2 text-xs text-white/60"><ArrowLeft size={15}/>Back to dashboard</Link>
         <p className="mb-4 text-[9px] uppercase tracking-[.24em] text-[#a0b7a0]">Your studio, online</p>
         <div className="flex items-center gap-3 rounded-xl bg-white/10 p-3 text-sm"><Globe size={17}/>My Website</div>
         <div className="mt-8 border-t border-white/10 pt-6 text-xs leading-6 text-white/50">One page. Endless possibilities.<br/>A home for your story.</div>

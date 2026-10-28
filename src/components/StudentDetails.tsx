@@ -23,6 +23,8 @@ const validPhone = (value: string) => /^\+?[0-9 ()-]+$/.test(value.trim()) && va
 export function StudentDetails({ student, onClose, onSaved }: { student: StudentProfile; onClose: () => void; onSaved: () => void }) {
   const { whatsappCompletelyDisabled } = useCommunicationSettings();
   const [form, setForm] = useState({ full_name: student.name, phone: student.phone || "", whatsapp_number: student.whatsapp_number || "", location: student.location || "", address: student.address || "", student_notes: student.student_notes || "", status: student.status === "EXPIRING_SOON" ? "ACTIVE" : student.status || "ACTIVE" });
+  const [consent, setConsent] = useState(false);
+  const [consentReference, setConsentReference] = useState("");
   const [passes, setPasses] = useState<Pass[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -52,7 +54,7 @@ export function StudentDetails({ student, onClose, onSaved }: { student: Student
     }
     setBusy(true);
     try {
-      await staffApi(base, { method: "PATCH", body: JSON.stringify({ ...form, full_name: form.full_name.trim(), phone: form.phone.trim(), whatsapp_number: form.whatsapp_number.trim() || null }) });
+      await staffApi(base, { method: "PATCH", body: JSON.stringify({ ...form, profile_consent_confirmed: consent, profile_consent_reference: consentReference || null, full_name: form.full_name.trim(), phone: form.phone.trim(), whatsapp_number: form.whatsapp_number.trim() || null }) });
       onSaved(); onClose();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save student details"); }
     finally { setBusy(false); }
@@ -81,7 +83,7 @@ export function StudentDetails({ student, onClose, onSaved }: { student: Student
           <label className="text-xs font-semibold text-[#1b4332]">Full name *<input className={inputClass} required maxLength={255} value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} /></label>
           <label className="text-xs font-semibold text-[#1b4332]">Phone number *<input className={inputClass} type="tel" autoComplete="tel" required maxLength={50} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></label>
           <label className="text-xs font-semibold text-[#1b4332]">Student status<select className={inputClass} value={form.status} onChange={e => setForm({ ...form, status: e.target.value as typeof form.status })}><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option><option value="SUSPENDED">Suspended</option></select></label>
-<AdvancedOptions className="sm:col-span-2" description="WhatsApp, location, address, and practice notes">
+<AdvancedOptions className="sm:col-span-2" description="Location, address, and practice notes">
 <div className="grid gap-4 sm:grid-cols-2">          <div className={`relative ${whatsappCompletelyDisabled ? "hidden" : ""}`}><div className="mb-1 flex items-center gap-2"><label htmlFor="student-whatsapp-number" className="text-xs font-semibold text-[#1b4332]">WhatsApp number (optional)</label><WhatsAppNotificationHint kind="contact" /></div><input id="student-whatsapp-number" aria-label="WhatsApp number (optional)" className={inputClass} type="tel" maxLength={50} value={form.whatsapp_number} onChange={e => setForm({ ...form, whatsapp_number: e.target.value })} /></div>
           <label className="text-xs font-semibold text-[#1b4332]">Location<input className={inputClass} maxLength={255} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} /></label>
 
@@ -90,6 +92,11 @@ export function StudentDetails({ student, onClose, onSaved }: { student: Student
 </div>
 </AdvancedOptions>
         </fieldset>
+        <div className="space-y-2 rounded-xl border p-3 text-xs">
+          <label className="flex gap-2"><input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} />I obtained the student’s prior consent for changes to their personal account details.</label>
+          <label className="block">Consent reference (required for personal changes)<input maxLength={255} value={consentReference} onChange={e => setConsentReference(e.target.value)} placeholder="Request or ticket ID; no sensitive details" className={inputClass} /></label>
+          <p>Personal changes affect this account in every studio. Consent is not required for studio notes or status changes.</p>
+        </div>
         {!student.phone && <p className="text-xs text-amber-700">Phone number missing. Add it before saving this profile.</p>}
         <div className="rounded-xl bg-[#F4F7F4] p-3 text-xs text-[#40514E]"><p>Email: {student.email}</p><p className="mt-1">Email is the login identity; changing it requires a separate account verification flow.</p><p className="mt-2">{student.is_verified ? "Verified" : "Not verified"} · Attendance: {student.attended} / {student.total} classes (calculated)</p></div>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}

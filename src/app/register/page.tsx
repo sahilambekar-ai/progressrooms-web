@@ -1,4 +1,6 @@
 "use client";
+import { passwordPolicyError } from "@/lib/password-policy";
+import { PasswordInput } from "@/components/PasswordInput";
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -40,7 +42,7 @@ function RegisterFormContent() {
 
   const canRegister = Boolean(
     fullName.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) &&
-    password.trim() && password.length >= 8 && password.length <= 128 &&
+    password && !passwordPolicyError(password) &&
     password === confirmPassword && phone.trim() && location.trim() && billingCountry &&
     (role !== "STUDIO" || studioName.trim()) && privacyAccepted
   );
@@ -77,13 +79,13 @@ function RegisterFormContent() {
       setError("Please read and accept the Privacy Policy to register.");
       return;
     }
-    if (!fullName.trim() || !email.trim() || !password.trim()) {
+    if (!fullName.trim() || !email.trim() || !password) {
       setError("Please fill in your name, email, and password.");
       return;
     }
 
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters long.");
+    if (passwordPolicyError(password)) {
+      setError(passwordPolicyError(password));
       return;
     }
 
@@ -197,7 +199,7 @@ function RegisterFormContent() {
               </div>
             </div>
             <h1 className="text-2xl font-serif font-bold text-[#0C2417]">{role === "STUDENT" ? "Student Registration" : "Studio Registration"}</h1>
-            <p className="text-xs text-[#7E7970] mt-1">
+            <p className="text-xs text-[#6B655D] mt-1">
               Join Progress Rooms to manage your classes, teachers, student roster, or practitioner journey.
             </p>
 
@@ -236,7 +238,7 @@ function RegisterFormContent() {
                   <Building2 className={`w-4 h-4 ${role === "STUDIO" ? "text-[#133623]" : "text-slate-400"}`} />
                   <div>
                     <p className="text-xs font-bold">Studio Account</p>
-                    <p className="text-[10px] text-slate-500">Solo teacher / Academy / Studio</p>
+                    <p className="text-[10px] text-slate-600">Solo teacher / Academy / Studio</p>
                   </div>
                 </button>
 
@@ -252,7 +254,7 @@ function RegisterFormContent() {
                   <User className={`w-4 h-4 ${role === "STUDENT" ? "text-[#133623]" : "text-slate-400"}`} />
                   <div>
                     <p className="text-xs font-bold">Student</p>
-                    <p className="text-[10px] text-slate-500">Practitioner Member</p>
+                    <p className="text-[10px] text-slate-600">Practitioner Member</p>
                   </div>
                 </button>
               </div>
@@ -297,12 +299,12 @@ function RegisterFormContent() {
                   Password *
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
+                  <Lock className="pointer-events-none z-10 w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <PasswordInput
                     type="password"
                     id="register-password" autoComplete="new-password"
                     required
-                    placeholder="Min 8 characters"
+                    placeholder="8–128 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#CEDECF] focus:outline-none focus:ring-2 focus:ring-[#1b4332] text-sm bg-[#FAF7F2]"
@@ -315,8 +317,8 @@ function RegisterFormContent() {
                   Confirm Password *
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
+                  <Lock className="pointer-events-none z-10 w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <PasswordInput
                     type="password"
                     id="register-confirm-password" autoComplete="new-password"
                     required
@@ -385,7 +387,7 @@ function RegisterFormContent() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Register & Verify with OTP"}
             </button>
 
-            <p className="text-center text-xs text-[#618D63] pt-1">
+            <p className="text-center text-xs text-[#426A44] pt-1">
               Already have an account?{" "}
               <Link href={next ? `/login?next=${encodeURIComponent(next)}${selectedPlan ? `&plan=${encodeURIComponent(selectedPlan)}` : ""}` : ["core", "studio"].includes(selectedPlan || "") ? `/login?next=${encodeURIComponent("/dashboard?tab=billing-saas")}&plan=${encodeURIComponent(selectedPlan!)}` : "/login"} className="font-bold text-[#0C2417] hover:underline">
                 Sign In
@@ -408,11 +410,11 @@ export default function RegisterPage() {
         <Suspense fallback={<Link href="/login">Already Registered? Sign In</Link>}><AuthFlowLink destination="login">Already Registered? Sign In</AuthFlowLink></Suspense>
       </div>
 
-      <Suspense fallback={<div className="text-center p-8 text-xs text-slate-500">Loading registration...</div>}>
+      <Suspense fallback={<div className="text-center p-8 text-xs text-slate-600">Loading registration...</div>}>
         <RegisterFormContent />
       </Suspense>
 
-      <footer className="max-w-lg w-full mx-auto py-4 text-center text-[11px] text-[#7E7970]">
+      <footer className="max-w-lg w-full mx-auto py-4 text-center text-[11px] text-[#6B655D]">
         Progress Rooms · <Link href="/privacy" className="underline underline-offset-2">Privacy Policy</Link>
       </footer>
     </div>

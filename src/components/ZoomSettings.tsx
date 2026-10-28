@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { Modal } from "./Modal";
+import { useZoomRefresh } from "@/lib/zoom-refresh";
 import { staffApi } from "@/lib/staff-api";
 import { useFeedback } from "./FeedbackProvider";
 import { TeacherZoomControl } from "./TeacherZoomControl";
@@ -88,6 +89,7 @@ export function ZoomSettings({ org, currentUser, onProfileUpdated, initialTab = 
   const [results, setResults] = useState<any>(null);
   const { notify, confirm } = useFeedback();
   const path = `/organizations/${org}/zoom`;
+  useZoomRefresh(() => { void load(); onProfileUpdated?.(); });
   const load = async () => { try { const data = await staffApi(path + "/settings"); setSavedPrefs(data); setPrefs(current => dirtyRef.current && current ? { ...data, ...Object.fromEntries(Object.entries(editablePreferences(current)).filter(([key, value]) => value !== savedPrefs?.[key])) } : data); setMeetings(await staffApi(path + "/meetings")); setError(""); } catch (e) { setError((e as Error).message); } };
   useEffect(() => { if (org) void load(); }, [org]); // eslint-disable-line react-hooks/exhaustive-deps
   const run = async (work: () => Promise<void>) => { setBusy(true); try { await work(); } catch (e) { notify((e as Error).message, "error"); } finally { setBusy(false); } };

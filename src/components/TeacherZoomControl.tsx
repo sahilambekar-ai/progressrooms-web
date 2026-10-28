@@ -1,5 +1,8 @@
 "use client";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useEffect, useState } from "react";
+import { openMeetingTab } from "@/lib/meeting-window";
+import { useZoomRefresh } from "@/lib/zoom-refresh";
 import { FeatureHelp } from "./FeatureHelp";
 import { Modal } from "./Modal";
 import { staffApi } from "@/lib/staff-api";
@@ -34,36 +37,40 @@ export function TeacherZoomControl({ org, member, name, userId, currentUserId, o
     try { await work(); } catch (e) { notify((e as Error).message, "error"); } finally { setBusy(false); }
   };
   const reload = async () => { setState(await staffApi(path)); onChanged?.(); };
+  useZoomRefresh(() => { void reload().catch(() => {}); });
+  const fallback = Boolean(state?.effective_zoom_host && state.effective_zoom_host.member_id !== member);
+  const help = fallback ? (state?.fallback_host_is_owner ? "Classes use the studio owner’s connected Zoom account. The account holder must start the meeting." : "Classes use the studio’s connected fallback Zoom account. The account holder must start the meeting.") : state?.zoom_connection_status === "ACTIVE" ? "Classes use this teacher’s connected Zoom account. The account holder must start the meeting." : "This teacher needs to connect Zoom before hosting Zoom classes. Studio fallback is unavailable.";
   const connect = () => run(async () => {
-    const preview = await staffApi(path + "/impact");
-    if (state?.zoom_connection && !await confirm({ title: "Reconnect or replace this account?", description: `${preview.future_class_count} future classes may need attention. Existing meetings retain their original account and links. Review the Zoom identity on the confirmation screen before activating it.`, confirmLabel: "Continue to authorization" })) return;
-    const response = await staffApi(path + "/connect", { method: "POST" });
-    window.location.assign(response.authorization_url);
+    if (state?.zoom_connection) {
+      const preview = await staffApi(path + "/impact");
+      if (!await confirm({ title: "Reconnect or replace this account?", description: `${preview.future_class_count} future classes may need attention. Existing meetings retain their original account and links. Review the Zoom identity on the confirmation screen before activating it.`, confirmLabel: "Continue to authorization" })) return;
+    }
+    await openMeetingTab(async () => (await staffApi(path + "/connect", { method: "POST" })).authorization_url);
   });
   return <>
-    <span className="inline-flex items-center gap-1"><button type="button" className="text-left text-xs font-semibold text-emerald-800 underline decoration-dotted underline-offset-4" onClick={(event) => {
+    <span className="inline-flex items-center gap-1"><button type="button" className={`text-left text-xs font-semibold underline decoration-dotted underline-offset-4 ${state?.zoom_connection_status === "ACTIVE" ? "text-emerald-800" : "text-orange-700"}`} onClick={(event) => {
       event.stopPropagation(); setOpen(true); void run(async () => { setState(await staffApi(path)); });
-    }}>{zoomLabel(state)}</button><FeatureHelp label={`Zoom account for ${name}`}>Open this teacher’s Zoom connection. Connected means their own account is available. Uses studio host means the studio’s backup account will run their classes. A simulation uses test data only.</FeatureHelp></span>
+    }}>{zoomLabel(state)}</button><FeatureHelp label={`Zoom account for ${name}`}>{help}</FeatureHelp></span>
     {open && <Modal title={`Zoom · ${name}`} subtitle="Connect an account and see who starts the class" onClose={() => { setOpen(false); onChanged?.(); }}>
       <div className="space-y-4 p-6 text-sm" onClick={event => event.stopPropagation()}>
         <div className="flex items-center gap-2"><p className="font-semibold">{zoomLabel(state)}</p><FeatureHelp label="Connection status">Connected means Progress Rooms can use this teacher’s Zoom account. Reconnect means the teacher needs to give permission again. Awaiting authorization means the teacher still needs to finish setup. A development simulation does not connect to real Zoom.</FeatureHelp></div>
         {state?.zoom_connection?.zoom_host_id && <p>Zoom Host ID: {state.zoom_connection.zoom_host_id}</p>}
         {state?.zoom_connection?.email && <p>Connected Zoom account: {state.zoom_connection.email}</p>}
+        {state?.effective_zoom_host && <p className="text-xs text-slate-600">{state.effective_zoom_host.zoom_mail_authorized ? "Email invitations: permission granted. The Zoom mailbox must also be enabled." : "Email invitations: reconnect the class host’s Zoom account to enable Zoom Mail."}</p>}
         {state?.is_default_zoom_host && <p className="font-semibold text-emerald-800">Studio default host</p>}
-        <div className="flex items-center gap-2"><p>Account used for classes: {state?.effective_zoom_host?.email || "No account available yet"}</p><FeatureHelp label="Account used for classes">This account creates and starts the Zoom meeting. It can be the teacher’s own account or the studio backup account. The account holder must start the meeting; joining as a teacher does not automatically give host permission.</FeatureHelp></div>
+        <div className="flex items-center gap-2"><p>Account used for classes: {state?.effective_zoom_host?.email || "No account available yet"}</p><FeatureHelp label="Account used for classes">{help}</FeatureHelp></div>
         <p>{state?.start_responsibility || "Connect your account or ask the owner to enable studio host fallback."}</p>
         {state?.zoom_connection?.is_simulated && <p role="status" className="rounded-xl bg-amber-50 p-3 text-amber-900">Development simulation. No real Zoom account or meeting is connected. Authorize again after live configuration.</p>}
         <p className="text-xs text-slate-600">Studio fallback requires that account holder to start the meeting and manage teaching permissions. Joining before the host does not grant host permission.</p>
         {owner && <form className="space-y-3 rounded-xl border p-4" onSubmit={event => {
           event.preventDefault(); void run(async () => {
             const password = studioPassword; setStudioPassword("");
-            const response = await staffApi(path + "/studio-connect", { method: "POST", body: JSON.stringify({ studio_password: password, zoom_host_id: zoomHostId.trim() || null }) });
-            window.location.assign(response.authorization_url);
+            await openMeetingTab(async () => (await staffApi(path + "/studio-connect", { method: "POST", body: JSON.stringify({ studio_password: password, zoom_host_id: zoomHostId.trim() || null }) })).authorization_url);
           });
         }}>
           <p className="font-semibold">Optional teacher Zoom setup</p>
           <label className="block">Zoom Host ID<input type="text" maxLength={255} pattern="[A-Za-z0-9_-]+" value={zoomHostId} onChange={event => setZoomHostId(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
-          <label className="block">Confirm Studio password<input required type="password" autoComplete="current-password" value={studioPassword} onChange={event => setStudioPassword(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+          <label className="block">Confirm Studio password<PasswordInput required type="password" autoComplete="current-password" value={studioPassword} onChange={event => setStudioPassword(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
           <p className="text-xs">Enter the teacher’s Zoom Host ID, then authorize the matching Zoom account to connect it with Progress Rooms. You can skip Zoom setup.</p>
           <button disabled={busy} type="submit" className="rounded-xl bg-emerald-900 px-4 py-2 text-white">Authenticate Zoom here</button>
         </form>}
