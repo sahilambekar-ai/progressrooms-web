@@ -94,7 +94,7 @@ export function StoreCheckout({ offering, onClose }: { offering: Purchase; onClo
           <div className="flex items-start justify-between gap-2 border-t border-[#E1E9E2] pt-2">
             <span className="font-semibold text-slate-500">Session Credits:</span>
             <span className="font-bold text-[#0C2417]">
-              {offering.total_classes ? `${offering.total_classes} session credits` : 'Unlimited sessions'}
+              {offering.total_classes ? `${offering.total_classes} sessions` : 'Unlimited sessions'}
             </span>
           </div>
 

@@ -360,7 +360,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
         <div>
           <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Memberships & Class Passes</h1>
           <p className="text-xs text-[#40514E] mt-0.5">
-            Prepaid plans, credit packages, and rolling monthly access configurations.
+            Prepaid plans, session packages, and rolling monthly access configurations.
           </p>
         </div>
 
@@ -394,7 +394,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
           <div className="p-8 bg-white rounded-3xl border border-[#CEDECF] text-center text-slate-500 text-sm space-y-2">
             <p className="font-semibold text-[#0C2417]">{showHistory ? "No deleted memberships yet." : "No membership tiers created yet."}</p>
             <p className="text-xs text-slate-400">
-              {showHistory ? "Deleted memberships will appear here. Memberships that are not live stay in Current." : "Create a membership tier to start selling monthly passes or credit packages."}
+              {showHistory ? "Deleted memberships will appear here. Memberships that are not live stay in Current." : "Create a membership tier to start selling monthly passes or session packages."}
             </p>
           </div>
         ) : (
@@ -452,7 +452,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                             </p>
                             {tier.total_classes !== null && tier.total_classes > 0 && (
                               <p className="text-xs text-emerald-800 font-semibold mt-0.5">
-                                {tier.total_classes} {tier.total_classes === 1 ? "credit" : "credits"} included
+                                {tier.total_classes} {tier.total_classes === 1 ? "session" : "sessions"} included
                               </p>
                             )}
                           </div>
@@ -640,7 +640,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                 </button>
               </div>}
           title={editingTier ? "Edit Membership Tier" : "Create Membership Tier"}
-          subtitle="Configure pricing, credit rules, live status, and attach included class batches."
+          subtitle="Configure pricing, session allowances, live status, and attach included class batches."
           onClose={() => {
             setIsModalOpen(false);
             resetForm();
@@ -727,7 +727,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
               <fieldset className="space-y-2">
                 <legend className="mb-2 text-xs font-bold text-[#133623]">How this pass includes classes</legend>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  {([{ value: "CLASS", title: "Shared class access", detail: "Share the pass’s credits across included classes." }, { value: "PACKAGE", title: "Session packages", detail: "Give each class its selected package allowance." }] as const).map(mode => <label key={mode.value} className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 ${selectionMode === mode.value ? "border-[#133623] bg-[#E8F0E9]" : "border-[#CEDECF]"}`}>
+                  {([{ value: "CLASS", title: "Shared class access", detail: "Share the pass’s sessions across included classes." }, { value: "PACKAGE", title: "Session packages", detail: "Give each class its selected package allowance." }] as const).map(mode => <label key={mode.value} className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 ${selectionMode === mode.value ? "border-[#133623] bg-[#E8F0E9]" : "border-[#CEDECF]"}`}>
                     <input type="radio" name="membership-selection-mode" checked={selectionMode === mode.value} onChange={() => setSelectionMode(mode.value)} className="mt-0.5 accent-[#133623]" />
                     <span><span className="block text-xs font-semibold text-[#133623]">{mode.title}</span><span className="mt-1 block text-[11px] text-slate-500">{mode.detail}</span></span>
                   </label>)}
@@ -742,7 +742,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
                       {selectionMode === "PACKAGE" ? "Included session packages" : "Included classes"} ({selectedOptions.length} selected)
                     </label>
                     <span className="text-[11px] text-slate-500">
-                      {selectionMode === "PACKAGE" ? "Each selected package adds its session allowance to this pass." : "Students share the pass’s total class credits across the selected classes."}
+                      {selectionMode === "PACKAGE" ? "Each selected package adds its session allowance to this pass." : "Students share the pass’s total class sessions across the selected classes."}
                     </span>
                   </div>
 
@@ -780,7 +780,7 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
 
                 {classOptionsLoading && <p role="status" className="text-xs text-slate-500">Loading included classes…</p>}
                 {classOptionsError && <p role="alert" className="text-xs text-red-700">Could not load included classes. <button type="button" className="font-semibold underline" onClick={() => void refreshClasses(org, editingTier?.class_packages || [])}>Retry loading</button></p>}
-                {selectionMode === "CLASS" && selectedOptions.length > 0 && <p className="text-xs text-slate-600">{selectedOptions.length} classes selected · {totalClasses || "Unlimited"} shared session credits</p>}
+                {selectionMode === "CLASS" && selectedOptions.length > 0 && <p className="text-xs text-slate-600">{selectedOptions.length} classes selected · {totalClasses || "Unlimited"} shared sessions</p>}
                 {selectedPackages.length > 0 && <div className="rounded-xl border border-[#CEDECF] bg-[#E8F0E9] px-4 py-3"><p className="text-sm font-bold text-[#133623]">{includedSessions} sessions included</p><p className="text-[11px] text-slate-600">{selectedPackages.length} selected packages · Students buy this pass once. Each class keeps its selected session allowance.</p></div>}
                 <div className="max-h-80 overflow-y-auto space-y-1.5 p-2 bg-[#F9FAF9] border border-[#CEDECF] rounded-2xl">
                   {!classes.length ? (
