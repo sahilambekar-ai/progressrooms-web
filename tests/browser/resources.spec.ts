@@ -11,6 +11,6 @@ test('repeated checkout and billing unmounts release DOM and listeners',async ({
  for(let i=0;i<5;i++)await cycle();
  const sample=async()=>{await cdp.send('HeapProfiler.collectGarbage');return {heap:await cdp.send('Runtime.getHeapUsage'),dom:await cdp.send('Memory.getDOMCounters')};};
  const before=await sample();for(let i=0;i<25;i++)await cycle();const after=await sample();
- const result={cycles:30,before,after};writeFileSync(`/private/tmp/item7-browser-memory-${testInfo.project.name}.json`,JSON.stringify(result,null,2));await testInfo.attach('memory-cycles',{body:JSON.stringify(result,null,2),contentType:'application/json'});
+ const result={cycles:30,before,after};writeFileSync(testInfo.outputPath('browser-memory.json'),JSON.stringify(result,null,2));await testInfo.attach('memory-cycles',{body:JSON.stringify(result,null,2),contentType:'application/json'});
  expect(after.dom.nodes).toBeLessThanOrEqual(before.dom.nodes+30);expect(after.dom.jsEventListeners).toBeLessThanOrEqual(before.dom.jsEventListeners+20);expect(after.heap.usedSize).toBeLessThan(before.heap.usedSize+3_000_000);
 });

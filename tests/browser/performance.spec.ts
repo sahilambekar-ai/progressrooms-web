@@ -16,5 +16,5 @@ test('records local page paint and layout samples',async({page},testInfo)=>{
   });
   expect(result.cls).toBeLessThanOrEqual(.1);samples.push({path,...result});
  }
- const result={production:process.env.PLAYWRIGHT_PRODUCTION==='1',local:true,samples};writeFileSync(`/private/tmp/item7-page-metrics-${testInfo.project.name}.json`,JSON.stringify(result,null,2));await testInfo.attach('local-page-metrics',{body:JSON.stringify(result,null,2),contentType:'application/json'});
+ const result={production:process.env.PLAYWRIGHT_PRODUCTION==='1',local:true,samples};writeFileSync(testInfo.outputPath('page-metrics.json'),JSON.stringify(result,null,2));await testInfo.attach('local-page-metrics',{body:JSON.stringify(result,null,2),contentType:'application/json'});
 });

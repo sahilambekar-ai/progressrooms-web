@@ -50,5 +50,5 @@ PLAYWRIGHT_PRODUCTION=1 PLAYWRIGHT_CHANNEL=chrome npm run test:browser
 
 Without `PLAYWRIGHT_PRODUCTION=1` the runner starts its isolated development app.
 Local resource/page samples use synthetic data and controlled responses and are
-attached to the report. Private temporary JSON files are written under
-`/private/tmp/item7-*`; no production accounts/credentials belong in test fixtures.
+attached to the report. JSON samples are written to Playwright’s per-test output
+directories under `test-results/`; no production accounts/credentials belong in test fixtures.
