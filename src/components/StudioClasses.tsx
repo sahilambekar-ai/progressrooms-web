@@ -336,14 +336,23 @@ export function StudioClasses({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!pricingOnly && (!name.trim() || Array.from(name.trim()).length > 255)) {
+      notify("Enter a class name of 1–255 characters.", "error"); return;
+    }
     const scheduling = !!(start || end || date || days.length);
-    if (!pricingOnly && scheduling && (!start || !end || !days.length || end <= start)) {
+    if (!pricingOnly && scheduling && (!start || !end || !date || !days.length || end <= start)) {
       notify("To set a schedule, choose days, a first session date, and start/end times. Leave all schedule fields empty to arrange sessions later.", "error");
       return;
     }
     if (!packages.length || new Set(packages.map(p => Number(p.total_classes))).size !== packages.length) {
       notify("Add at least one package with a unique session count.", "error");
       return;
+    }
+    if (packages.some(p => !Number.isInteger(Number(p.total_classes)) || Number(p.total_classes) < 1 || Number(p.total_classes) > 10000 ||
+      !Number.isInteger(Number(p.validity_days)) || Number(p.validity_days) < 1 || Number(p.validity_days) > 3650 ||
+      !Number.isFinite(Number(p.price)) || Number(p.price) < 0 ||
+      (p.offer_price !== "" && (!Number.isFinite(Number(p.offer_price)) || Number(p.offer_price) < 0 || Number(p.offer_price) > Number(p.price))))) {
+      notify("Check package sessions, validity and prices before saving.", "error"); return;
     }
     const packagePayload = packages.map(p => ({ id: p.id, total_classes: Number(p.total_classes), price: Number(p.price), offer_price: p.offer_price === "" ? null : Number(p.offer_price), validity_days: Number(p.validity_days) }));
     setBusy(true);
@@ -404,7 +413,7 @@ export function StudioClasses({
           method: "POST",
           body: JSON.stringify({
             name,
-            slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${crypto.randomUUID().slice(0, 8)}`,
+            slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 240) || "class"}-${crypto.randomUUID().slice(0, 8)}`,
             short_description: shortDescription.trim() || undefined,
             full_description: fullDescription.trim() || null,
             skill_level: skillLevel,
@@ -582,9 +591,9 @@ export function StudioClasses({
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-[#E1E9E2] flex items-center justify-between">
-                    <MeetingAction endAt={item.end_at} canStart={item.can_start} onError={message => notify(message, "error")} load={async () => {
+                    <MeetingAction endAt={item.end_at} meetingUrl={item.meeting_url} canStart={item.can_start} onError={message => notify(message, "error")} load={async () => {
                       const res = await staffApi(`/organizations/${org}/occurrences/${item.id}/join-link`, { method: "POST" });
-                      return res.meeting_url;
+                      return res;
                     }} />
                   </div>
                 </article>

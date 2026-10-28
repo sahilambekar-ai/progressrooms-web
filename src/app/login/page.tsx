@@ -1,4 +1,7 @@
 "use client";
+import { apiErrorMessage } from "@/lib/api-errors";
+import { passwordPolicyError } from "@/lib/password-policy";
+import { PasswordInput } from "@/components/PasswordInput";
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -44,7 +47,7 @@ function LoginFormContent() {
   // Handle email + password sign in
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() || !password) {
       setError("Please enter both your email and password.");
       return;
     }
@@ -59,13 +62,13 @@ function LoginFormContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
-          password: password.trim(),
+          password: password,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || "Invalid email or password.");
+        throw new Error(apiErrorMessage(data, "Invalid email or password."));
       }
 
       // If already verified: direct login to dashboard
@@ -121,7 +124,7 @@ function LoginFormContent() {
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Could not process request.");
+      if (!res.ok) throw new Error(apiErrorMessage(data, "Could not process request."));
       setResetPreviewOtp(data.otp_preview || null);
       setInfoMessage(data.message || "Passcode sent to your email.");
       setStep("RESET_PASSWORD");
@@ -134,12 +137,12 @@ function LoginFormContent() {
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetCode.trim() || !newPassword.trim()) {
+    if (!resetCode.trim() || !newPassword) {
       setError("Please enter the verification code and your new password.");
       return;
     }
-    if (newPassword.trim().length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (passwordPolicyError(newPassword)) {
+      setError(passwordPolicyError(newPassword));
       return;
     }
     setLoading(true);
@@ -152,13 +155,13 @@ function LoginFormContent() {
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           code: resetCode.trim(),
-          new_password: newPassword.trim(),
+          new_password: newPassword,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to reset password.");
-      setInfoMessage("Password reset successfully! You can now log in with your new password.");
-      setPassword(newPassword.trim());
+      if (!res.ok) throw new Error(apiErrorMessage(data, "Failed to reset password."));
+      setInfoMessage("Password reset successfully. All devices have been signed out. Sign in with your new password.");
+      setPassword(newPassword);
       setStep("LOGIN_FORM");
     } catch (err: any) {
       setError(err.message || "Could not reset password. Please check the code.");
@@ -178,7 +181,7 @@ function LoginFormContent() {
         body: JSON.stringify({ role: userRole }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Development login failed.");
+      if (!res.ok) throw new Error(apiErrorMessage(data, "Development login failed."));
       localStorage.setItem("pr_access_token", data.access_token);
       localStorage.setItem("pr_user", JSON.stringify(data.user));
       router.push(next || (userRole === "STUDENT" ? "/student" : "/dashboard"));
@@ -210,7 +213,7 @@ function LoginFormContent() {
           <div className="text-center">
             <BrandLogo size={48} variant="tile-dark" />
             <h1 className="text-2xl font-serif font-bold text-[#0C2417] mt-3">Reset Your Password</h1>
-            <p className="text-xs text-[#7E7970] mt-1">
+            <p className="text-xs text-[#6B655D] mt-1">
               Enter your account email to receive a 6-digit verification passcode.
             </p>
           </div>
@@ -269,7 +272,7 @@ function LoginFormContent() {
           <div className="text-center">
             <BrandLogo size={48} variant="tile-dark" />
             <h1 className="text-2xl font-serif font-bold text-[#0C2417] mt-3">Enter Passcode & New Password</h1>
-            <p className="text-xs text-[#7E7970] mt-1">
+            <p className="text-xs text-[#6B655D] mt-1">
               We sent a 6-digit passcode to <strong>{email}</strong>
             </p>
           </div>
@@ -309,11 +312,11 @@ function LoginFormContent() {
 
             <div>
               <label htmlFor="new-password" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
-                New Password (min 6 characters)
+                New Password (8–128 characters)
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
+                <Lock className="pointer-events-none z-10 w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <PasswordInput
                   type="password"
                   id="new-password"
                   required
@@ -330,7 +333,7 @@ function LoginFormContent() {
               disabled={loading}
               className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#133623] to-[#1b4332] hover:from-[#0C2417] hover:to-[#133623] text-white font-bold text-sm shadow-md transition flex items-center justify-center gap-2"
             >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save New Password & Sign In"}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save New Password"}
             </button>
 
             <button
@@ -371,7 +374,7 @@ function LoginFormContent() {
               </div>
             </div>
             <h1 className="text-2xl font-serif font-bold text-[#0C2417]">Sign In to Progress Rooms</h1>
-            <p className="text-xs text-[#7E7970] mt-1">
+            <p className="text-xs text-[#6B655D] mt-1">
               Access your studio operations, teacher schedule, or student studio portal.
             </p>
 
@@ -434,8 +437,8 @@ function LoginFormContent() {
                 </button>
               </div>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
+                <Lock className="pointer-events-none z-10 w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <PasswordInput
                   type="password"
                   id="login-password" autoComplete="current-password"
                   required
@@ -455,7 +458,7 @@ function LoginFormContent() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In with Email & Password"}
             </button>
 
-            <p className="text-center text-xs text-[#618D63] pt-2">
+            <p className="text-center text-xs text-[#426A44] pt-2">
               Don&apos;t have an account yet?{" "}
               <Link href={next ? `/register?role=${next.startsWith("/dashboard") ? "STUDIO" : "STUDENT"}&next=${encodeURIComponent(next)}${["starter", "core", "studio"].includes(searchParams.get("plan") || "") ? `&plan=${encodeURIComponent(searchParams.get("plan")!)}` : ""}` : "/register"} className="font-bold text-[#0C2417] hover:underline">
                 Create an Account
@@ -466,7 +469,7 @@ function LoginFormContent() {
           <DeveloperOnly>
           {/* Development One-Click Quick Login Section */}
           <div className="pt-5 border-t border-[#E1E9E2] space-y-3">
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#618D63]">
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#426A44]">
               <span>🧪</span>
               <span>One-Click Test User Login (Development)</span>
             </div>
@@ -480,7 +483,7 @@ function LoginFormContent() {
               >
                 <div>
                   <p className="text-xs font-bold text-[#0C2417]">Super Admin Login</p>
-                  <p className="text-[10px] text-slate-500">Platform Product Owner • admin@test.progressrooms.local</p>
+                  <p className="text-[10px] text-slate-600">Platform Product Owner • admin@test.progressrooms.local</p>
                 </div>
                 <span className="text-[11px] bg-[#0C2417] text-white px-2.5 py-1 rounded-lg font-semibold">Platform Owner →</span>
               </button>
@@ -493,7 +496,7 @@ function LoginFormContent() {
               >
                 <div>
                   <p className="text-xs font-bold text-[#0C2417]">Studio Owner Login</p>
-                  <p className="text-[10px] text-slate-500">Studio operations and billing</p>
+                  <p className="text-[10px] text-slate-600">Studio operations and billing</p>
                 </div>
                 <span className="text-[11px] bg-[#133623] text-white px-2.5 py-1 rounded-lg font-semibold">Studio →</span>
               </button>
@@ -506,7 +509,7 @@ function LoginFormContent() {
               >
                 <div>
                   <p className="text-xs font-bold text-[#0C2417]">Teacher Login</p>
-                  <p className="text-[10px] text-slate-500">Classes, assigned students and attendance</p>
+                  <p className="text-[10px] text-slate-600">Classes, assigned students and attendance</p>
                 </div>
                 <span className="text-[11px] bg-[#2D7A58] text-white px-2.5 py-1 rounded-lg font-semibold">Teacher Portal →</span>
               </button>
@@ -519,7 +522,7 @@ function LoginFormContent() {
               >
                 <div>
                   <p className="text-xs font-bold text-[#0C2417]">Student Login (Student 1)</p>
-                  <p className="text-[10px] text-slate-500">Practitioner Portal • student1@test.progressrooms.local</p>
+                  <p className="text-[10px] text-slate-600">Practitioner Portal • student1@test.progressrooms.local</p>
                 </div>
                 <span className="text-[11px] bg-slate-700 text-white px-2.5 py-1 rounded-lg font-semibold">Student Portal →</span>
               </button>
@@ -542,11 +545,11 @@ export default function LoginPage() {
         <Suspense fallback={<Link href="/register">Create New Account</Link>}><AuthFlowLink destination="register">Create New Account</AuthFlowLink></Suspense>
       </div>
 
-      <Suspense fallback={<div className="text-center p-8 text-xs text-slate-500">Loading studio sign in...</div>}>
+      <Suspense fallback={<div className="text-center p-8 text-xs text-slate-600">Loading studio sign in...</div>}>
         <LoginFormContent />
       </Suspense>
 
-      <footer className="max-w-md w-full mx-auto py-4 text-center text-[11px] text-[#7E7970]">
+      <footer className="max-w-md w-full mx-auto py-4 text-center text-[11px] text-[#6B655D]">
         Progress Rooms Studio Multi-Tenant Platform • Secure Brevo OTP & Encrypted Auth
       </footer>
     </div>

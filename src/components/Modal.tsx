@@ -81,6 +81,14 @@ export function Modal({
       ref={ref}
       aria-labelledby={id}
       className="app-dialog"
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const nodes = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(node => node.getClientRects().length > 0);
+        const first = nodes[0], last = nodes[nodes.length - 1];
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }}
       onCancel={(event) => { event.preventDefault(); requestClose(); }}
       onClick={(event) => { if (event.target === event.currentTarget) requestClose(); }}
     >
@@ -117,7 +125,7 @@ export function Modal({
         )}
 
         <div className="dialog-scroll-region">
-          <div ref={scrollBody} id={bodyId} className="dialog-body" tabIndex={0} aria-label="Dialog content">
+          <div ref={scrollBody} id={bodyId} className="dialog-body" role="region" tabIndex={0} aria-label="Dialog content">
             <div ref={content} className="dialog-content">{children}</div>
           </div>
           {moreBelow && <button type="button" className="dialog-scroll-hint"

@@ -147,6 +147,7 @@ export interface ZoomConnectionSummary {
   version: number;
   is_simulated: boolean;
   production_ready: boolean;
+  zoom_mail_authorized?: boolean;
 }
 export interface TeacherZoomState {
   fallback_host_is_owner?: boolean;

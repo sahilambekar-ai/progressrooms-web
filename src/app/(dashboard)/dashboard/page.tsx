@@ -1,4 +1,7 @@
 "use client";
+import { apiErrorMessage } from "@/lib/api-errors";
+import { logout } from "@/lib/auth-session";
+import { PasswordInput } from "@/components/PasswordInput";
 import { AdminPeople } from "@/components/AdminPeople";
 import { AdminHealth } from "@/components/AdminHealth";
 
@@ -20,7 +23,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { staffApi } from "@/lib/staff-api";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Users, CheckCircle2, Clock, Video, Search, ArrowRight, ChevronRight, AlertTriangle, X, ChevronLeft, Loader2, Mail, Phone, UserPlus, MapPin, Landmark, Check, Copy, RefreshCw, Smartphone, UserRound, HelpCircle, Share2 } from "lucide-react";
+import { Users, CheckCircle2, Clock, Video, Search, ArrowRight, ChevronRight, AlertTriangle, X, ChevronLeft, Loader2, Mail, Phone, UserPlus, MapPin, Landmark, Check, Copy, RefreshCw, Smartphone, UserRound, HelpCircle, Share2 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { AdvancedOptions } from "@/components/AdvancedOptions";
 import { Modal } from "@/components/Modal";
@@ -242,8 +245,12 @@ export default function DashboardAccess() {
     staffApi("/auth/me").then(async user => {
       if (user.role === "STUDENT") { router.replace("/student"); return; }
       const previous = JSON.parse(localStorage.getItem("pr_user") || "{}");
-      const activeStudioId = localStorage.getItem("pr_active_studio_id") || previous.organization_id;
+      const requestedStudio = new URLSearchParams(window.location.search).get("studio_id");
+      const activeStudioId = requestedStudio || localStorage.getItem("pr_active_studio_id") || previous.organization_id;
       const context = await staffApi(`/auth/context${activeStudioId ? `?studio_id=${encodeURIComponent(activeStudioId)}` : ""}`);
+      if (requestedStudio && !context.organizations?.some((o: any) => o.id === requestedStudio)) {
+        throw new Error("This studio is not available to your account");
+      }
       const activeOrg = context.organizations?.find((o: any) => o.id === activeStudioId) || context.organizations?.[0];
       const mergedUser = {
         ...previous,
@@ -257,7 +264,7 @@ export default function DashboardAccess() {
       localStorage.setItem("pr_user", JSON.stringify(mergedUser));
       if (activeOrg?.id) localStorage.setItem("pr_active_studio_id", activeOrg.id);
       setAllowed(true);
-    }).catch(() => router.replace("/login"));
+    }).catch(() => router.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`));
   }, [router]);
   return allowed ? <AdminDashboardPage /> : <p className="p-8">Loading your workspace…</p>;
 }
@@ -553,7 +560,7 @@ function AdminDashboardPage() {
     });
     const data = await response.json();
     // Legacy accounts may create a new password after valid Studio reconfirmation.
-    if (!response.ok && !((change || teacherPasswordChanged) && response.status === 409)) { showToast(data.detail || "Unable to verify Studio password"); return; }
+    if (!response.ok && !((change || teacherPasswordChanged) && response.status === 409)) { showToast(apiErrorMessage(data, "Unable to verify Studio password")); return; }
     if (change) { setTeacherPassword(""); setTeacherPasswordChanged(true); }
     else if (!teacherPasswordChanged) setTeacherPassword(data.password);
     setTeacherPasswordVisible(!change);
@@ -573,6 +580,8 @@ function AdminDashboardPage() {
   const [teacherLocation, setTeacherLocation] = useState("");
   const [teacherBillingCountry, setTeacherBillingCountry] = useState("");
   const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem("pr_access_token") || ""}` });
+  const [teacherProfileConsent, setTeacherProfileConsent] = useState(false);
+  const [teacherConsentReference, setTeacherConsentReference] = useState("");
   const [teacherName, setTeacherName] = useState("");
   const [teacherEmail, setTeacherEmail] = useState("");
   const [teacherPhone, setTeacherPhone] = useState("");
@@ -976,7 +985,7 @@ function AdminDashboardPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        showToast(`⚠️ ${err.detail || "Failed to invite teacher"}`);
+        showToast(`⚠️ ${apiErrorMessage(err, "Failed to invite teacher")}`);
         return;
       }
       showToast("Teacher created. Open Edit to send the email invitation.");
@@ -1006,7 +1015,7 @@ function AdminDashboardPage() {
     setTeacherTitle(teacher.title);
     setTeacherBio(teacher.bio || "");
     setTeacherIsActive(teacher.is_active);
-    setIsEditTeacherOpen(true);
+    setTeacherProfileConsent(false); setTeacherConsentReference(""); setIsEditTeacherOpen(true);
   };
 
   // Update an existing teacher
@@ -1014,6 +1023,8 @@ function AdminDashboardPage() {
     e.preventDefault();
     if (!editingTeacher) return;
     if (isSavingTeacher) return;
+    const personalChanged = teacherName !== editingTeacher.name || teacherEmail !== editingTeacher.email || teacherUsername !== (editingTeacher.username || "") || teacherPhone !== (editingTeacher.phone || "") || teacherAddress !== (editingTeacher.address || "") || teacherLocation !== (editingTeacher.location || "") || teacherBillingCountry !== (editingTeacher.billing_country || "");
+    if (personalChanged && (!teacherProfileConsent || !teacherConsentReference.trim())) { showToast("Confirm prior teacher consent and supply its reference."); return; }
     setIsSavingTeacher(true);
     try {
       if (editingTeacher.is_active && !teacherIsActive) {
@@ -1027,6 +1038,8 @@ function AdminDashboardPage() {
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           studio_password: studioPassword,
+          profile_consent_confirmed: teacherProfileConsent,
+          profile_consent_reference: teacherConsentReference || null,
           email: teacherEmail,
           username: teacherUsername,
           ...(teacherPasswordChanged && teacherPassword ? { password: teacherPassword } : {}),
@@ -1042,7 +1055,7 @@ function AdminDashboardPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        showToast(`⚠️ ${err.detail || "Failed to update teacher"}`);
+        showToast(`⚠️ ${apiErrorMessage(err, "Failed to update teacher")}`);
         return;
       }
       const savedTeacher = await res.json();
@@ -1073,7 +1086,7 @@ function AdminDashboardPage() {
       });
       if (!res.ok) {
         const err = await res.json();
-        showToast(`⚠️ ${err.detail || "Failed to remove teacher"}`);
+        showToast(`⚠️ ${apiErrorMessage(err, "Failed to remove teacher")}`);
         return;
       }
       showToast(`🌿 Teacher "${name}" removed from studio`);
@@ -1091,9 +1104,11 @@ function AdminDashboardPage() {
       ? `${teacher.name}'s access, assigned classes and Zoom binding will be deactivated. ${impact?.future_class_count || 0} future Zoom classes may be affected. ${impact?.message || ""} Attendance history is retained.`
       : `${teacher.name} will regain teacher access. Their previously deactivated classes remain inactive until you activate them individually.`;
     if (!await confirmAction({ title: `${action} teacher?`, description, confirmLabel: `${action} teacher`, destructive: teacher.is_active })) return;
+    const studioPassword = await askStudioPassword();
+    if (!studioPassword) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/teachers/${teacher.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ is_active: !teacher.is_active }) });
-      if (!res.ok) throw new Error((await res.json()).detail || "Could not update teacher");
+      const res = await fetch(`${API_BASE_URL}/teachers/${teacher.id}`, { method: "PUT", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ is_active: !teacher.is_active, studio_password: studioPassword }) });
+      if (!res.ok) throw new Error(apiErrorMessage((await res.json()), "Could not update teacher"));
       const updated = await res.json();
       showToast(teacher.is_active ? `🌿 Teacher and ${updated.deactivated_class_count || 0} assigned classes deactivated.` : "🌿 Teacher activated. Review their classes before reopening them.");
       fetchStudioTeachers();
@@ -1175,7 +1190,7 @@ function AdminDashboardPage() {
     try {
       await staffApi("/students", {
         method: "POST",
-        body: JSON.stringify({ email: studentAdmissionEmail.trim(), class_id: studentAdmissionClassId }),
+        body: JSON.stringify({ email: studentAdmissionEmail.trim(), class_id: studentAdmissionClassId, studio_id: currentUser?.organization_id }),
       });
       setIsAddStudentOpen(false);
       showToast("Student added to the class.");
@@ -1338,7 +1353,7 @@ function AdminDashboardPage() {
         fetchStudioProfile(orgId);
       } else {
         const error = await res.json();
-        notify(error.detail || "Unable to save setup progress. Please retry.", "error");
+        notify(apiErrorMessage(error, "Unable to save setup progress. Please retry."), "error");
       }
     } catch (e) {
       notify("Unable to save setup progress. Check your connection and retry.", "error");
@@ -1405,7 +1420,7 @@ function AdminDashboardPage() {
         body: JSON.stringify(payload)
       });
 
-      if (!launchResponse.ok) { const error = await launchResponse.json(); throw new Error(error.detail || "Unable to complete setup"); }
+      if (!launchResponse.ok) { const error = await launchResponse.json(); throw new Error(apiErrorMessage(error, "Unable to complete setup")); }
       setIsAccountCompleted(true);
       setCompletionStep(6);
       if (currentUser) {
@@ -1606,10 +1621,13 @@ function AdminDashboardPage() {
 
   const handleLogout = async () => {
     if (zoomNavigationGuard.current && !await zoomNavigationGuard.current()) return;
-    if (!await confirmAction({ title: "Sign out?", description: "Unsaved form changes will be lost. You can sign in again anytime.", confirmLabel: "Sign out" })) return;
-    localStorage.removeItem("pr_access_token");
-    localStorage.removeItem("pr_user");
-    router.push("/login");
+    if (!await confirmAction({ title: "Sign out?", description: "This signs you out on all devices. Unsaved form changes will be lost.", confirmLabel: "Sign out" })) return;
+    try {
+      await logout();
+      router.push("/login");
+    } catch {
+      showToast("Could not sign out on the server. Please try again.");
+    }
   };
 
   const toggleDaySelection = (day: string) => {
@@ -2863,7 +2881,7 @@ function AdminDashboardPage() {
                     <label htmlFor="dashboard-page-field-13" className="block text-xs font-bold text-[#1b4332] uppercase tracking-wider mb-1.5">
                       Bank Account Number *
                     </label>
-                    <input id="dashboard-page-field-13"
+                    <PasswordInput visibilityLabel="bank account number" id="dashboard-page-field-13"
                       type="password"
                       placeholder="Enter account number"
                       value={setupAccountNumber}
@@ -3815,7 +3833,8 @@ function AdminDashboardPage() {
                 personLabel={selectedAttendancePerson.name}
                 view={attendancePeriod}
                 timezone={attendanceTimezone}
-                onJoinClass={async event => (await staffApi(`/organizations/${currentUser?.organization_id}/occurrences/${event.occurrenceId}/join-link`, { method: "POST" })).meeting_url}
+                onSendInvite={async event => (await staffApi(`/organizations/${currentUser?.organization_id}/occurrences/${event.occurrenceId}/send-invite`, { method: "POST" })).message}
+                onJoinClass={async event => await staffApi(`/organizations/${currentUser?.organization_id}/occurrences/${event.occurrenceId}/join-link`, { method: "POST" })}
                 selectedDate={selectedDate}
                 onSelectDate={setSelectedDate}
                 onMonthChange={setAttendanceMonth}
@@ -5264,7 +5283,7 @@ function AdminDashboardPage() {
           <div className="p-6 space-y-4">
             <form id="modal-src-app--dashboard--dashboard-page-tsx-4" onSubmit={handleCreateTeacher} className="space-y-4">
               <label className="block text-xs font-bold">Username<input value={teacherUsername} minLength={3} onChange={e => setTeacherUsername(e.target.value)} className="block border rounded-xl p-2 w-full" placeholder="Generated if blank" /></label>
-              <label className="block text-xs font-bold">Password<input type="password" autoComplete="new-password" minLength={8} value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} className="block border rounded-xl p-2 w-full" placeholder="Secure password generated if blank" /></label>
+              <label className="block text-xs font-bold">Password<PasswordInput type="password" autoComplete="new-password" minLength={8} value={teacherPassword} onChange={e => setTeacherPassword(e.target.value)} className="block border rounded-xl p-2 w-full" placeholder="Secure password generated if blank" /></label>
               <label className="block text-xs font-bold">Address<input value={teacherAddress} onChange={e => setTeacherAddress(e.target.value)} className="block border rounded-xl p-2 w-full" /></label>
               <label className="block text-xs font-bold">Location<input value={teacherLocation} onChange={e => setTeacherLocation(e.target.value)} className="block border rounded-xl p-2 w-full" /></label>
               <label className="block text-xs font-bold">Country of teaching operations<select value={teacherBillingCountry} onChange={e => setTeacherBillingCountry(e.target.value)} className="mt-1 block w-full rounded-xl border bg-white p-2"><option value="">Not confirmed · Support review</option><option value="IN">India</option><option value="ZZ">Outside India · Contact support</option>{teacherBillingCountry && !["IN", "ZZ"].includes(teacherBillingCountry) && <option value={teacherBillingCountry}>{teacherBillingCountry}</option>}</select></label>
@@ -5376,7 +5395,7 @@ function AdminDashboardPage() {
 
       {studioPasswordPrompt && <Modal title="Confirm Studio password" subtitle="Enter the password used to sign in to this Studio account" onClose={() => finishStudioPassword(null)}>
         <form className="p-6 space-y-4" onSubmit={e => { e.preventDefault(); finishStudioPassword(studioPasswordInput); }}>
-          <input aria-label="Studio password" type="password" autoComplete="current-password" autoFocus required value={studioPasswordInput} onChange={e => setStudioPasswordInput(e.target.value)} className="border rounded-xl p-3 w-full" />
+          <PasswordInput aria-label="Studio password" type="password" autoComplete="current-password" autoFocus required value={studioPasswordInput} onChange={e => setStudioPasswordInput(e.target.value)} className="border rounded-xl p-3 w-full" />
           <button type="submit" className="rounded-xl bg-emerald-900 text-white px-4 py-2">Confirm</button>
         </form>
       </Modal>}
@@ -5409,6 +5428,7 @@ function AdminDashboardPage() {
           <div className="p-6 space-y-4">
             <TeacherZoomControl org={editingTeacher.studio_id} member={editingTeacher.id} name={editingTeacher.name} userId={editingTeacher.user_id} currentUserId={currentUser?.id || currentUser?.user_id} owner initialState={editingTeacher} onChanged={() => void fetchStudioTeachers()} />
             <form id="modal-src-app--dashboard--dashboard-page-tsx-6" onSubmit={handleUpdateTeacher} className="space-y-4">
+              <div className="space-y-2 rounded-xl border p-3 text-xs"><label className="flex gap-2"><input type="checkbox" checked={teacherProfileConsent} onChange={e => setTeacherProfileConsent(e.target.checked)} />I obtained the teacher’s prior consent for changes to their personal account details.</label><label className="block">Consent reference<input maxLength={255} value={teacherConsentReference} onChange={e => setTeacherConsentReference(e.target.value)} placeholder="Request or ticket ID; no sensitive details" className="block w-full border p-2" /></label><p>Personal changes affect every studio using this account.</p></div>
               <div className="grid gap-3">
                 <label className="text-xs font-bold">Username<input required minLength={3} pattern="[a-zA-Z0-9_.-]+" value={teacherUsername} onChange={e => setTeacherUsername(e.target.value)} className="block border rounded-xl p-2 w-full text-xs sm:text-sm placeholder:text-xs placeholder:text-slate-400" /></label>
 
@@ -5513,8 +5533,10 @@ function AdminDashboardPage() {
               </div>
 
 <div className="space-y-2">
-                <label className="block text-xs font-bold">Teacher password<input type={teacherPasswordVisible ? "text" : "password"} autoComplete="new-password" readOnly={!teacherPasswordChanged} required={teacherPasswordChanged} minLength={8} value={teacherPassword} placeholder="••••••••" onChange={e => setTeacherPassword(e.target.value)} className="block border rounded-xl p-2 w-full" /></label>
-                <button type="button" aria-label={teacherPasswordVisible ? "Hide password" : "Show password"} onClick={() => { if (teacherPasswordVisible) { setTeacherPasswordVisible(false); if (!teacherPasswordChanged) setTeacherPassword(""); } else { void manageTeacherPassword(false); } }} className="rounded-xl border p-2">{teacherPasswordVisible ? <span className="inline-flex gap-2"><EyeOff size={16} /> Hide password</span> : <span className="inline-flex gap-2"><Eye size={16} /> Show password</span>}</button>
+                <label className="block text-xs font-bold">Teacher password<PasswordInput type="password" revealed={teacherPasswordVisible} onRevealChange={show => {
+                  if (show) { if (teacherPasswordChanged) setTeacherPasswordVisible(true); else void manageTeacherPassword(false); }
+                  else { setTeacherPasswordVisible(false); if (!teacherPasswordChanged) setTeacherPassword(""); }
+                }} autoComplete="new-password" readOnly={!teacherPasswordChanged} required={teacherPasswordChanged} minLength={8} value={teacherPassword} placeholder="••••••••" onChange={e => setTeacherPassword(e.target.value)} className="block border rounded-xl p-2 w-full" /></label>
                 <button type="button" onClick={() => void manageTeacherPassword(true)} className="rounded-xl border p-2 ml-2">Create / change password</button>
                 <button type="button" onClick={() => void sendTeacherInvitation()} className="block rounded-xl border p-2">Send invitation through email only</button>
                 <p className="text-xs text-slate-500">Save changes before sending. An invitation is sent once. Later saved changes automatically email the updated details.</p>

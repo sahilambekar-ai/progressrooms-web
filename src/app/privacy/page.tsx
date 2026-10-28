@@ -2,7 +2,8 @@ import Link from "next/link";
 import { PrivacyPolicyContent } from "@/components/PrivacyPolicy";
 
 export const metadata = { title: "Privacy Policy | Progress Rooms" };
-export default function PrivacyPage({ searchParams }: { searchParams: { role?: string } }) {
+export default async function PrivacyPage({ searchParams: pendingSearchParams }: { searchParams: Promise<{ role?: string }> }) {
+  const searchParams = await pendingSearchParams;
   return <main id="main-content" className="min-h-screen bg-[#FAF7F2] px-5 py-10">
     <article className="mx-auto max-w-3xl">
       <Link href="/" className="text-sm underline">Progress Rooms home</Link>

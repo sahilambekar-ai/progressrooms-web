@@ -1,4 +1,5 @@
 "use client";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useEffect, useState } from "react";
 import { openMeetingTab } from "@/lib/meeting-window";
 import { useZoomRefresh } from "@/lib/zoom-refresh";
@@ -53,7 +54,7 @@ export function InitialZoomSetup({ org, onConnected }: { org: string; onConnecte
     }}>
       <label className="grid items-center gap-3 text-sm text-slate-700 sm:grid-cols-2">
         <span>Host key for {verifiedEmail || "your Zoom account"} *</span>
-        <input aria-label="Zoom host key" type="password" autoComplete="off" inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} required disabled={!connected} value={hostKey} onChange={event => setHostKey(event.target.value.replace(/\D/g, ""))} placeholder={hostKeySaved ? "Saved · enter a new key to replace" : "6-digit host key"} className="block w-full rounded-lg border border-[#CEDECF] bg-white p-3 disabled:bg-slate-50 disabled:opacity-60" />
+        <PasswordInput visibilityLabel="Zoom host key" aria-label="Zoom host key" type="password" autoComplete="off" inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} required disabled={!connected} value={hostKey} onChange={event => setHostKey(event.target.value.replace(/\D/g, ""))} placeholder={hostKeySaved ? "Saved · enter a new key to replace" : "6-digit host key"} className="block w-full rounded-lg border border-[#CEDECF] bg-white p-3 disabled:bg-slate-50 disabled:opacity-60" />
       </label>
       <p className="text-xs text-slate-500">{connected ? "Enter the host key from the authenticated Zoom account’s profile. It is stored encrypted and does not replace Zoom authentication." : "Authenticate your Zoom account above to save its host key."}</p>
       {hostKeyMessage && <p role="status" className="text-xs text-[#133623]">{hostKeyMessage}</p>}

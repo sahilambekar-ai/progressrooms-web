@@ -1,4 +1,5 @@
 "use client";
+import { PasswordInput } from "@/components/PasswordInput";
 import { useEffect, useState } from "react";
 import { openMeetingTab } from "@/lib/meeting-window";
 import { useZoomRefresh } from "@/lib/zoom-refresh";
@@ -55,6 +56,7 @@ export function TeacherZoomControl({ org, member, name, userId, currentUserId, o
         <div className="flex items-center gap-2"><p className="font-semibold">{zoomLabel(state)}</p><FeatureHelp label="Connection status">Connected means Progress Rooms can use this teacher’s Zoom account. Reconnect means the teacher needs to give permission again. Awaiting authorization means the teacher still needs to finish setup. A development simulation does not connect to real Zoom.</FeatureHelp></div>
         {state?.zoom_connection?.zoom_host_id && <p>Zoom Host ID: {state.zoom_connection.zoom_host_id}</p>}
         {state?.zoom_connection?.email && <p>Connected Zoom account: {state.zoom_connection.email}</p>}
+        {state?.effective_zoom_host && <p className="text-xs text-slate-600">{state.effective_zoom_host.zoom_mail_authorized ? "Email invitations: permission granted. The Zoom mailbox must also be enabled." : "Email invitations: reconnect the class host’s Zoom account to enable Zoom Mail."}</p>}
         {state?.is_default_zoom_host && <p className="font-semibold text-emerald-800">Studio default host</p>}
         <div className="flex items-center gap-2"><p>Account used for classes: {state?.effective_zoom_host?.email || "No account available yet"}</p><FeatureHelp label="Account used for classes">{help}</FeatureHelp></div>
         <p>{state?.start_responsibility || "Connect your account or ask the owner to enable studio host fallback."}</p>
@@ -68,7 +70,7 @@ export function TeacherZoomControl({ org, member, name, userId, currentUserId, o
         }}>
           <p className="font-semibold">Optional teacher Zoom setup</p>
           <label className="block">Zoom Host ID<input type="text" maxLength={255} pattern="[A-Za-z0-9_-]+" value={zoomHostId} onChange={event => setZoomHostId(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
-          <label className="block">Confirm Studio password<input required type="password" autoComplete="current-password" value={studioPassword} onChange={event => setStudioPassword(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+          <label className="block">Confirm Studio password<PasswordInput required type="password" autoComplete="current-password" value={studioPassword} onChange={event => setStudioPassword(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
           <p className="text-xs">Enter the teacher’s Zoom Host ID, then authorize the matching Zoom account to connect it with Progress Rooms. You can skip Zoom setup.</p>
           <button disabled={busy} type="submit" className="rounded-xl bg-emerald-900 px-4 py-2 text-white">Authenticate Zoom here</button>
         </form>}

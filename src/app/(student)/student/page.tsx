@@ -1,4 +1,6 @@
 "use client";
+import { apiErrorMessage } from "@/lib/api-errors";
+import { logout } from "@/lib/auth-session";
 import { ClassPackageSummary } from "@/components/ClassPackageSummary";
 import { CollapsedDescription } from "@/components/RichDescription";
 import { ClassPackageOptions } from "@/components/ClassPackageOptions";
@@ -566,7 +568,7 @@ export default function StudentPortalPage() {
         throw new Error('Please log in to view your classes.');
       }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'Could not load your dashboard.');
+      if (!response.ok) throw new Error(apiErrorMessage(data, 'Could not load your dashboard.'));
       return data;
     },
     [router]
@@ -616,7 +618,7 @@ export default function StudentPortalPage() {
       const res = await fetch(`${API}/teachers/public/lookup?query=${encodeURIComponent(queryStr)}`);
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Teacher not found. Check the code or name and try again.');
+        throw new Error(apiErrorMessage(data, 'Teacher not found. Check the code or name and try again.'));
       }
       setTeacherResult(data);
       if (typeof window !== 'undefined') {
@@ -662,7 +664,7 @@ export default function StudentPortalPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Could not cancel class booking.');
+        throw new Error(apiErrorMessage(data, 'Could not cancel class booking.'));
       }
       setCancellationNotice({
         type: 'success',
@@ -719,7 +721,7 @@ export default function StudentPortalPage() {
         body: JSON.stringify({ target_occurrence_id: selectedTargetSlotId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Could not reschedule class.');
+      if (!res.ok) throw new Error(apiErrorMessage(data, 'Could not reschedule class.'));
       setCancellationNotice({
         type: 'success',
         message: `Class "${reschedulingClass.session_name}" successfully rescheduled! Your session credit has been transferred to the new date.`,
@@ -750,6 +752,8 @@ export default function StudentPortalPage() {
       setTab('teacher');
     } else if (params.has('studio') || params.has('buy')) {
       setTab('explore');
+    } else if (params.get('tab') === 'passes') {
+      setTab('classes');
     } else if (params.get('tab') === 'attendance') {
       setTab('attendance');
     } else if (params.get('tab') === 'support') {
@@ -760,6 +764,12 @@ export default function StudentPortalPage() {
     const timer = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, [lookupTeacher]);
+
+  useEffect(() => {
+    if (!loading && new URLSearchParams(window.location.search).get('tab') === 'passes') {
+      document.getElementById('purchases')?.scrollIntoView({ block: 'start' });
+    }
+  }, [loading]);
 
   // Attendance loading
   useEffect(() => {
@@ -835,6 +845,9 @@ export default function StudentPortalPage() {
   const handleCreateNewTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTicketStudioId || !newTicketSubject.trim() || !newTicketMessage.trim()) return;
+    if (Array.from(newTicketSubject.trim()).length > 255 || Array.from(newTicketMessage.trim()).length > 10000) {
+      setError('Use a subject of up to 255 characters and a message of up to 10,000 characters.'); return;
+    }
     setIsSubmittingNewTicket(true);
     try {
       const response = await fetch(`${API}/student/support-tickets`, {
@@ -958,13 +971,16 @@ export default function StudentPortalPage() {
           </div>
           <button
             className="text-sm font-semibold hover:underline"
-            onClick={() => {
-              localStorage.removeItem('pr_access_token');
-              localStorage.removeItem('pr_user');
-              router.push('/login');
+            onClick={async () => {
+              try {
+                await logout();
+                router.push('/login');
+              } catch {
+                setError('Could not sign out on the server. Please try again.');
+              }
             }}
           >
-            Sign out
+            Sign out on all devices
           </button>
         </div>
       </header>
@@ -1231,7 +1247,7 @@ export default function StudentPortalPage() {
             </section>
 
             {/* Passes Organization Section: Active vs History */}
-            <section aria-label="My memberships and passes" className="space-y-4">
+            <section id="purchases" aria-label="My memberships and passes" className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <h2 className="font-serif text-2xl">My passes & memberships</h2>
 
@@ -1682,6 +1698,7 @@ export default function StudentPortalPage() {
               readOnly
               personLabel={name || 'Student'}
               timezone={studios.find(studio => studio.id === attendanceStudio)?.timezone || studios[0]?.timezone}
+              onSendInvite={async event => (await get(`/student/classes/${event.occurrenceId}/send-invite`, { method: 'POST' })).message}
               onJoinClass={async event => (await get(`/student/classes/${event.occurrenceId}/meeting-url`)).meeting_url}
               onToast={setError}
               loading={attendanceLoading}

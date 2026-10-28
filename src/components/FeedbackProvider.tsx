@@ -55,7 +55,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
   return <Context.Provider value={{ notify, confirm }}>
     {children}
-    <div ref={toastRegion} className="toast-region" aria-label="Notifications">
+    <div ref={toastRegion} className="toast-region" role="region" aria-label="Notifications">
       {toasts.map(({ id, message, tone }) => {
         const Icon = tone === "error" ? AlertCircle : tone === "success" ? CheckCircle2 : Info;
         return <div key={id} className={`app-toast toast-${tone}`} role={tone === "error" ? "alert" : "status"}>

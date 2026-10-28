@@ -275,6 +275,11 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim() || Array.from(name.trim()).length > 255 ||
+        !Number.isInteger(Number(validityDays)) || Number(validityDays) < 1 || Number(validityDays) > 3650 ||
+        (totalClasses !== "" && (!Number.isInteger(Number(totalClasses)) || Number(totalClasses) < 1 || Number(totalClasses) > 1000000))) {
+      notify("Enter a name (up to 255 characters), validity of 1–3650 days and a positive whole session count.", "error"); return;
+    }
     if (!Number.isFinite(Number(price)) || Number(price) < 0 ||
         (offerPrice !== "" && (!Number.isFinite(Number(offerPrice)) || Number(offerPrice) < 0 || Number(offerPrice) > Number(price)))) {
       notify("Offer price must be between zero and the regular price.", "error");
@@ -287,12 +292,12 @@ export function StudioMemberships({ orgId, canManageMemberships = true }: Studio
 
     try {
       const payload = {
-        name,
+        name: name.trim(),
         tier_type: selectedPackages.length ? "PACKAGE" : tierType,
         price: Number(price),
         offer_price: offerPrice === "" ? null : Number(offerPrice),
         currency: "INR",
-        validity_days: Number(validityDays) || 30,
+        validity_days: Number(validityDays),
         total_classes: selectedPackages.length ? includedSessions :
           tierType === "PACKAGE" || tierType === "DROP_IN"
             ? Number(totalClasses) || 1

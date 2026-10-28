@@ -3,7 +3,8 @@ import { NextRequest } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 /** The public page is complete server-rendered HTML; it never hydrates a React app. */
-export async function GET(request: NextRequest, { params }: { params: { orgSlug: string } }) {
+export async function GET(request: NextRequest, { params: pendingParams }: { params: Promise<{ orgSlug: string }> }) {
+  const params = await pendingParams;
   const api = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
   try {
     const response = await fetch(`${api}/public/organizations/${encodeURIComponent(params.orgSlug)}/website-html`, { cache:'no-store' });

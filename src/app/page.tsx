@@ -109,7 +109,7 @@ export default function HomePage() {
               Everything Needed to Run Scheduled Batches
             </h2>
             <p className="text-slate-600 mt-3 text-base">
-              Move away from chaotic WhatsApp groups, manual spreadsheets, and shared Zoom passwords.
+              Move away from scattered group chats, manual spreadsheets, and shared Zoom passwords.
             </p>
           </div>
 
@@ -202,7 +202,7 @@ export default function HomePage() {
               <ul className="space-y-3 text-sm text-slate-600">
                 <li className="flex items-start gap-2">
                   <span className="text-red-500 font-bold">•</span>
-                  Posting Zoom meeting IDs manually into WhatsApp 10 minutes before every single class.
+                  Posting Zoom meeting IDs manually into group chats 10 minutes before every single class.
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-red-500 font-bold">•</span>

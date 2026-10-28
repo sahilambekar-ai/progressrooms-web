@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { staffApi } from "@/lib/staff-api";
 
@@ -41,6 +42,6 @@ export function ZoomAuthorizationLanding({ requestLink = false }: { requestLink?
         setCompleted(true);
       })}>{busy ? "Activating…" : "Confirm this account"}</button>
     </div>}
-    <a href="/dashboard" className="block underline">Return to studio</a>
+    <Link href="/dashboard" className="block underline">Return to studio</Link>
   </main>;
 }
